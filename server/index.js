@@ -56,8 +56,13 @@ io.on('connection', (socket) => {
   });
 });
 
-// 本番環境ではReactのビルドを配信
-if (process.env.NODE_ENV === 'production') {
+// 未マッチの /api/* → 404 (エラーハンドラーに落とす前に明示的に返す)
+app.use('/api/', (req, res) => {
+  res.status(404).json({ error: 'API endpoint not found' });
+});
+
+// 本番環境ではReactのビルドを配信 (nginx構成時はサーバーコンテナにdistは存在しないため実質無効)
+if (process.env.NODE_ENV === 'production' && process.env.SERVE_STATIC === 'true') {
   app.use(express.static(path.join(__dirname, '../client/dist')));
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/dist/index.html'));
@@ -74,11 +79,12 @@ const PORT = process.env.PORT || 3001;
 
 async function main() {
   const { initDb } = require('./db/database');
-  const { seed } = require('./db/seed');
+  const { seed, seedSubcategories } = require('./db/seed');
   const { startPricingEngine } = require('./services/pricingEngine');
 
   await initDb();
   await seed();
+  await seedSubcategories();
   startPricingEngine();
 
   server.listen(PORT, () => {

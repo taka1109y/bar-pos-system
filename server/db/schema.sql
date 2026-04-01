@@ -11,17 +11,28 @@ CREATE TABLE IF NOT EXISTS categories (
     sort_order INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE TABLE IF NOT EXISTS menu_items (
-    id            SERIAL PRIMARY KEY,
-    category_id   INTEGER NOT NULL REFERENCES categories(id),
-    name          TEXT NOT NULL,
-    base_price    NUMERIC(10,2) NOT NULL,
-    current_price NUMERIC(10,2) NOT NULL,
-    min_price     NUMERIC(10,2) NOT NULL,
-    max_price     NUMERIC(10,2) NOT NULL,
-    is_drink      BOOLEAN NOT NULL DEFAULT TRUE,
-    is_active     BOOLEAN NOT NULL DEFAULT TRUE
+CREATE TABLE IF NOT EXISTS subcategories (
+    id          SERIAL PRIMARY KEY,
+    category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    sort_order  INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS menu_items (
+    id             SERIAL PRIMARY KEY,
+    category_id    INTEGER NOT NULL REFERENCES categories(id),
+    subcategory_id INTEGER REFERENCES subcategories(id) ON DELETE SET NULL,
+    name           TEXT NOT NULL,
+    base_price     NUMERIC(10,2) NOT NULL,
+    current_price  NUMERIC(10,2) NOT NULL,
+    min_price      NUMERIC(10,2) NOT NULL,
+    max_price      NUMERIC(10,2) NOT NULL,
+    is_drink       BOOLEAN NOT NULL DEFAULT TRUE,
+    is_active      BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- 既存DBへの追加カラムマイグレーション
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS subcategory_id INTEGER REFERENCES subcategories(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS orders (
     id           SERIAL PRIMARY KEY,

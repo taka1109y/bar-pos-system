@@ -27,6 +27,14 @@ export const api = {
   updateMenuItem: (id, data) => req(`/menu/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteMenuItem: (id) => req(`/menu/${id}`, { method: 'DELETE' }),
   createCategory: (data) => req('/menu/categories', { method: 'POST', body: JSON.stringify(data) }),
+  updateCategory: (id, data) => req(`/menu/categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteCategory: (id) => req(`/menu/categories/${id}`, { method: 'DELETE' }),
+
+  // Subcategories
+  getSubcategories: () => req('/menu/subcategories'),
+  createSubcategory: (data) => req('/menu/subcategories', { method: 'POST', body: JSON.stringify(data) }),
+  updateSubcategory: (id, data) => req(`/menu/subcategories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteSubcategory: (id) => req(`/menu/subcategories/${id}`, { method: 'DELETE' }),
 
   // Orders
   getOrderByTable: (tableId) => req(`/orders/table/${tableId}`),

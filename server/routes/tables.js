@@ -17,10 +17,18 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const { name, capacity = 4 } = req.body;
-    if (!name) return res.status(400).json({ error: 'name is required' });
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+    if (name.length > 100) {
+      return res.status(400).json({ error: 'name must be 100 characters or fewer' });
+    }
+    if (!Number.isInteger(Number(capacity)) || Number(capacity) < 1) {
+      return res.status(400).json({ error: 'capacity must be a positive integer' });
+    }
     const { rows } = await query(
       'INSERT INTO tables (name, capacity) VALUES ($1, $2) RETURNING *',
-      [name, capacity]
+      [name.trim(), Number(capacity)]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -65,6 +73,16 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const { rows } = await query('SELECT id FROM tables WHERE id = $1', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Table not found' });
+
+    // オープン注文が残っている場合は削除不可
+    const { rows: openOrders } = await query(
+      `SELECT id FROM orders WHERE table_id = $1 AND status = 'open'`,
+      [req.params.id]
+    );
+    if (openOrders.length > 0) {
+      return res.status(409).json({ error: 'Cannot delete table with open orders' });
+    }
+
     await query('DELETE FROM tables WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
   } catch (err) {

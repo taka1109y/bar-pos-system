@@ -7,23 +7,84 @@ import usePriceStore from '../store/usePriceStore';
 import TickerBar from '../components/layout/TickerBar';
 import MenuGrid from '../components/pos/MenuGrid';
 
+// ───────────────────────────────────────────
+// 注文確認ボトムシート
+// ───────────────────────────────────────────
+function ConfirmModal({ item, livePrice, onConfirm, onCancel }) {
+  const price = livePrice?.current_price ?? item.current_price;
+  const pctChange = livePrice?.pct_change ?? 0;
+  const isUp = pctChange > 0;
+
+  return (
+    <>
+      {/* オーバーレイ */}
+      <div
+        className="fixed inset-0 bg-black/60 z-40 fade-in"
+        onClick={onCancel}
+      />
+
+      {/* ボトムシート */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 slide-up">
+        <div className="bg-slate-800 rounded-t-3xl px-5 pt-4 pb-10 max-w-lg mx-auto border-t border-slate-700/60">
+          {/* ドラッグハンドル */}
+          <div className="w-10 h-1 bg-slate-600 rounded-full mx-auto mb-5" />
+
+          {/* アイテム情報 */}
+          <div className="mb-8">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">
+              注文しますか？
+            </p>
+            <h3 className="text-2xl font-black text-white mb-3">{item.name}</h3>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-black text-yellow-300">
+                ¥{price.toLocaleString()}
+              </span>
+              {item.is_drink && pctChange !== 0 && (
+                <span className={`text-sm font-bold ${isUp ? 'text-green-400' : 'text-red-400'}`}>
+                  {isUp ? '▲' : '▼'}{Math.abs(pctChange).toFixed(1)}%
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* アクションボタン */}
+          <button
+            onClick={() => onConfirm(1)}
+            className="w-full py-4 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 active:scale-[0.98] text-white font-black text-lg rounded-2xl transition-all shadow-xl shadow-amber-500/25 mb-3"
+          >
+            注文する
+          </button>
+          <button
+            onClick={onCancel}
+            className="w-full py-2.5 text-slate-400 text-sm font-medium"
+          >
+            キャンセル
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ───────────────────────────────────────────
+// メインページ
+// ───────────────────────────────────────────
 export default function TablePage() {
   const { tableId } = useParams();
   const tableIdNum = Number(tableId);
   const queryClient = useQueryClient();
-  const { initPrices, updatePrices } = usePriceStore();
+  const { initPrices, updatePrices, prices } = usePriceStore();
   const [callSent, setCallSent] = useState(false);
+  const [confirmItem, setConfirmItem] = useState(null);
 
   const orderKey = ['order', tableIdNum];
 
-  // テーブル情報
   const { data: tables = [] } = useQuery({
     queryKey: ['tables'],
     queryFn: api.getTables,
   });
   const table = tables.find((t) => t.id === tableIdNum);
 
-  // メニュー & カテゴリ
   const { data: menuItems = [] } = useQuery({
     queryKey: ['menu'],
     queryFn: api.getMenu,
@@ -34,8 +95,12 @@ export default function TablePage() {
     queryFn: api.getCategories,
     staleTime: 60_000,
   });
+  const { data: subcategories = [] } = useQuery({
+    queryKey: ['subcategories'],
+    queryFn: api.getSubcategories,
+    staleTime: 60_000,
+  });
 
-  // 現在の注文
   const { data: order } = useQuery({
     queryKey: orderKey,
     queryFn: () => api.getOrderByTable(tableIdNum),
@@ -47,19 +112,42 @@ export default function TablePage() {
     api.getPrices().then(initPrices).catch(console.error);
   }, []);
 
-  // Socket.io
+  // Socket.io リアルタイム更新
   useEffect(() => {
     socket.emit('client:subscribe_table', { tableId: tableIdNum });
-    socket.on('prices:updated', ({ items }) => updatePrices(items));
-    socket.on('order:updated', (data) => {
+
+    const handlePricesUpdated = ({ items }) => updatePrices(items);
+    // 全価格の定期同期 (差分のみupdatePricesではなく全件で上書き)
+    const handlePricesSync = ({ items }) => initPrices(items);
+    // 再接続時に価格を再取得
+    const handleReconnect = () => {
+      api.getPrices().then(initPrices).catch(console.error);
+    };
+
+    socket.on('prices:updated', handlePricesUpdated);
+    socket.on('prices:sync',    handlePricesSync);
+    socket.on('connect',        handleReconnect);
+
+    // invalidateQueriesではなくsetQueryDataで直接キャッシュ更新 → HTTPリクエストゼロ
+    const handleOrderUpdated = (data) => {
       if (data.tableId === tableIdNum) {
-        queryClient.invalidateQueries({ queryKey: orderKey });
+        queryClient.setQueryData(orderKey, (old) => ({
+          ...(old ?? {}),
+          id: data.orderId,
+          table_id: tableIdNum,
+          items: data.items,
+          total_amount: data.total,
+        }));
       }
-    });
+    };
+    socket.on('order:updated', handleOrderUpdated);
+
     return () => {
       socket.emit('client:unsubscribe_table', { tableId: tableIdNum });
-      socket.off('prices:updated');
-      socket.off('order:updated');
+      socket.off('prices:updated', handlePricesUpdated);
+      socket.off('prices:sync',    handlePricesSync);
+      socket.off('connect',        handleReconnect);
+      socket.off('order:updated',  handleOrderUpdated);
     };
   }, [tableIdNum]);
 
@@ -69,17 +157,74 @@ export default function TablePage() {
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menu_item_id }) =>
-      api.addOrderItem(orderId, { menu_item_id, quantity: 1 }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
+    mutationFn: ({ orderId, menu_item_id, quantity }) =>
+      api.addOrderItem(orderId, { menu_item_id, quantity }),
+
+    // オプティミスティック更新: APIレスポンス前にUIを即時反映
+    onMutate: async ({ menu_item_id, quantity, price, name }) => {
+      await queryClient.cancelQueries({ queryKey: orderKey });
+      const previous = queryClient.getQueryData(orderKey);
+
+      queryClient.setQueryData(orderKey, (old) => {
+        if (!old) return old;
+        const existing = old.items?.find((i) => i.menu_item_id === menu_item_id);
+        let newItems;
+        if (existing) {
+          newItems = old.items.map((i) =>
+            i.menu_item_id === menu_item_id
+              ? { ...i, quantity: i.quantity + quantity }
+              : i
+          );
+        } else {
+          newItems = [
+            ...(old.items ?? []),
+            {
+              id: `temp-${Date.now()}`,
+              menu_item_id,
+              item_name: name,
+              unit_price: price,
+              quantity,
+            },
+          ];
+        }
+        return { ...old, items: newItems };
+      });
+
+      return { previous };
+    },
+
+    onError: (_err, _vars, context) => {
+      // エラー時はオプティミスティック更新をロールバック
+      queryClient.setQueryData(orderKey, context.previous);
+    },
+    // onSuccess: socketのorder:updatedイベントが正確なデータで上書きするので再フェッチ不要
   });
 
-  const handleAddItem = async (menuItem) => {
+  // メニューアイテムタップ → 確認モーダルを開く
+  const handleTapItem = (menuItem) => {
+    setConfirmItem(menuItem);
+  };
+
+  // 確認 → カートに追加
+  const handleConfirmAdd = async (qty) => {
+    const item = confirmItem;
+    setConfirmItem(null);
+
+    const livePrice = prices[item.id];
+    const price = livePrice?.current_price ?? item.current_price;
+
     let currentOrder = order;
     if (!currentOrder) {
       currentOrder = await openOrderMutation.mutateAsync();
     }
-    addItemMutation.mutate({ orderId: currentOrder.id, menu_item_id: menuItem.id });
+
+    addItemMutation.mutate({
+      orderId: currentOrder.id,
+      menu_item_id: item.id,
+      quantity: qty,
+      price,
+      name: item.name,
+    });
   };
 
   const handleCallStaff = () => {
@@ -89,82 +234,109 @@ export default function TablePage() {
   };
 
   const total = order?.items?.reduce((s, i) => s + i.quantity * i.unit_price, 0) ?? 0;
+  const itemCount = order?.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-900">
-      {/* ティッカーバー */}
       <TickerBar />
 
       {/* ヘッダー */}
-      <header className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700 sticky top-0 z-10">
+      <header className="flex items-center justify-between px-4 py-3 bg-slate-800/90 backdrop-blur-sm border-b border-slate-700/60 sticky top-0 z-10">
         <div>
-          <h1 className="font-bold text-white text-lg">{table?.name ?? `テーブル ${tableId}`}</h1>
-          <p className="text-xs text-slate-400">ご注文はこちらから</p>
+          <h1 className="font-black text-white text-lg leading-tight">
+            {table?.name ?? `テーブル ${tableId}`}
+          </h1>
+          <p className="text-xs text-slate-500">ご自由にご注文ください</p>
         </div>
         <button
           onClick={handleCallStaff}
-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+          className={`px-4 py-2.5 rounded-2xl text-sm font-bold transition-all active:scale-95 ${
             callSent
-              ? 'bg-green-600 text-white cursor-default'
-              : 'bg-amber-500 hover:bg-amber-400 text-white'
+              ? 'bg-green-600 text-white'
+              : 'bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-500/20'
           }`}
         >
           {callSent ? '✓ 通知しました' : '🔔 スタッフを呼ぶ'}
         </button>
       </header>
 
-      <div className="flex-1 p-4 space-y-6 pb-32">
+      {/* コンテンツ */}
+      <div className="flex-1 px-4 pt-5 pb-36 space-y-7">
         {/* メニュー */}
-        <div>
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">メニュー</h2>
+        <section>
+          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-3">
+            Menu
+          </p>
           <MenuGrid
             menuItems={menuItems}
             categories={categories}
-            onAddItem={handleAddItem}
+            subcategories={subcategories}
+            onAddItem={handleTapItem}
           />
-        </div>
+        </section>
 
         {/* 現在の注文 */}
         {order?.items?.length > 0 && (
-          <div>
-            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">現在の注文</h2>
+          <section>
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-3">
+              Your Order
+            </p>
             <div className="space-y-2">
               {order.items.map((item) => (
-                <div key={item.id} className="flex items-center justify-between bg-slate-800 rounded-lg px-4 py-3">
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between bg-slate-800 rounded-2xl px-4 py-3.5 border border-slate-700/50"
+                >
                   <div>
-                    <span className="text-sm text-white">{item.item_name}</span>
-                    <span className="text-xs text-slate-400 ml-2">× {item.quantity}</span>
+                    <p className="text-sm font-semibold text-white">{item.item_name}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">× {item.quantity}</p>
                   </div>
-                  <span className="text-sm font-bold text-yellow-300">
+                  <span className="text-sm font-black text-yellow-300">
                     ¥{(item.quantity * item.unit_price).toLocaleString()}
                   </span>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         )}
       </div>
 
-      {/* 固定フッター: 合計 */}
-      {total > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-slate-800 border-t border-slate-700 px-4 py-4">
-          <div className="flex items-center justify-between max-w-lg mx-auto">
-            <div>
-              <p className="text-xs text-slate-400">現在の合計</p>
-              <p className="text-2xl font-black text-white">¥{total.toLocaleString()}</p>
+      {/* 固定フッター: カートサマリー */}
+      {itemCount > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-20 px-4 pb-6 pt-4 bg-gradient-to-t from-slate-900 via-slate-900/95 to-transparent">
+          <div className="bg-slate-800 border border-slate-700/60 rounded-2xl px-5 py-4 shadow-2xl max-w-lg mx-auto">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-400 font-medium">
+                  合計 <span className="text-slate-300 font-bold">{itemCount}点</span>
+                </p>
+                <p className="text-2xl font-black text-white mt-0.5">
+                  ¥{total.toLocaleString()}
+                </p>
+              </div>
+              <button
+                onClick={handleCallStaff}
+                className={`px-5 py-3 rounded-xl font-bold text-sm transition-all active:scale-95 ${
+                  callSent
+                    ? 'bg-green-600 text-white'
+                    : 'bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-500/20'
+                }`}
+              >
+                {callSent ? '✓ 通知済み' : '🔔 スタッフを呼ぶ'}
+              </button>
             </div>
-            <button
-              onClick={handleCallStaff}
-              className={`px-5 py-3 rounded-xl font-bold text-sm transition-all ${
-                callSent
-                  ? 'bg-green-600 text-white'
-                  : 'bg-amber-500 hover:bg-amber-400 text-white'
-              }`}
-            >
-              {callSent ? '✓ 通知済み' : '🔔 スタッフを呼ぶ'}
-            </button>
           </div>
         </div>
+      )}
+
+      {/* 注文確認モーダル */}
+      {confirmItem && (
+        <ConfirmModal
+          item={confirmItem}
+          livePrice={prices[confirmItem.id]}
+          onConfirm={handleConfirmAdd}
+          onCancel={() => setConfirmItem(null)}
+        />
       )}
     </div>
   );

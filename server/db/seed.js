@@ -76,4 +76,74 @@ async function seed() {
   console.log('Database seeded successfully.');
 }
 
-module.exports = { seed };
+// サブカテゴリのシード (既存DBでも冪等に実行)
+async function seedSubcategories() {
+  const { rows } = await query('SELECT COUNT(*) as c FROM subcategories');
+  if (parseInt(rows[0].c) > 0) {
+    console.log('Subcategories already seeded, skipping.');
+    return;
+  }
+
+  const { rows: cats } = await query('SELECT id, name FROM categories');
+  const catMap = Object.fromEntries(cats.map((c) => [c.name, c.id]));
+
+  if (Object.keys(catMap).length === 0) {
+    console.log('No categories found, skipping subcategory seed.');
+    return;
+  }
+
+  const subcatData = [
+    [catMap['生ビール'],    '国産ビール',     1],
+    [catMap['生ビール'],    'プレミアムビール', 2],
+    [catMap['ハイボール'],  'ウイスキー系',    1],
+    [catMap['ハイボール'],  'サワー系',        2],
+    [catMap['カクテル'],    'フルーツ系',      1],
+    [catMap['カクテル'],    'ロングドリンク',  2],
+    [catMap['ソフトドリンク'], '炭酸',         1],
+    [catMap['ソフトドリンク'], 'ノンカーボン', 2],
+    [catMap['フード'],      'スナック',        1],
+    [catMap['フード'],      'メイン',          2],
+  ];
+
+  const subcatMap = {};
+  for (const [category_id, name, sort_order] of subcatData) {
+    if (!category_id) continue;
+    const { rows } = await query(
+      'INSERT INTO subcategories (category_id, name, sort_order) VALUES ($1, $2, $3) RETURNING id, name',
+      [category_id, name, sort_order]
+    );
+    subcatMap[name] = rows[0].id;
+  }
+
+  // 既存の商品にサブカテゴリを割り当て
+  const itemAssignments = [
+    ['スーパードライ',        subcatMap['国産ビール']],
+    ['ハートランド',          subcatMap['国産ビール']],
+    ['プレモル',              subcatMap['プレミアムビール']],
+    ['ジャックコーク',        subcatMap['ウイスキー系']],
+    ['角ハイボール',          subcatMap['ウイスキー系']],
+    ['レモンサワー',          subcatMap['サワー系']],
+    ['ジントニック',          subcatMap['サワー系']],
+    ['カシスオレンジ',        subcatMap['フルーツ系']],
+    ['モヒート',              subcatMap['フルーツ系']],
+    ['マルガリータ',          subcatMap['フルーツ系']],
+    ['ロングアイランドティー', subcatMap['ロングドリンク']],
+    ['コーラ',                subcatMap['炭酸']],
+    ['ジュース',              subcatMap['炭酸']],
+    ['ウーロン茶',            subcatMap['ノンカーボン']],
+    ['フライドポテト',        subcatMap['スナック']],
+    ['ナチョス',              subcatMap['スナック']],
+    ['ピザ（M）',             subcatMap['メイン']],
+    ['チキンウィングス',      subcatMap['メイン']],
+    ['チーズバーガー',        subcatMap['メイン']],
+  ];
+
+  for (const [itemName, subcatId] of itemAssignments) {
+    if (!subcatId) continue;
+    await query('UPDATE menu_items SET subcategory_id = $1 WHERE name = $2', [subcatId, itemName]);
+  }
+
+  console.log('Subcategories seeded successfully.');
+}
+
+module.exports = { seed, seedSubcategories };

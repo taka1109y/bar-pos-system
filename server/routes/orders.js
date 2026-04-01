@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool, query } = require('../db/database');
 const { broadcastToRoom, broadcast } = require('../services/socketService');
+const { triggerTick } = require('../services/pricingEngine');
 
 async function getOrderWithItems(orderId) {
   const { rows: orderRows } = await query('SELECT * FROM orders WHERE id = $1', [orderId]);
@@ -80,6 +81,10 @@ router.post('/', async (req, res, next) => {
     const order = await getOrderWithItems(rows[0].id);
     res.status(201).json(order);
   } catch (err) {
+    // FK違反 (table_id が存在しない) → 400
+    if (err.code === '23503') {
+      return res.status(400).json({ error: 'table_id does not exist' });
+    }
     next(err);
   }
 });
@@ -137,6 +142,11 @@ router.post('/:id/items', async (req, res, next) => {
     }
 
     await client.query('COMMIT');
+
+    // ドリンク注文時は価格を即時反映
+    if (menuItem.is_drink) {
+      triggerTick();
+    }
 
     const updated = await getOrderWithItems(order.id);
     broadcastToRoom(`table:${order.table_id}`, 'order:updated', {
