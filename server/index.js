@@ -30,8 +30,10 @@ app.use('/api/tables', require('./routes/tables'));
 app.use('/api/menu', require('./routes/menu'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/payments', require('./routes/payments'));
-app.use('/api/reports', require('./routes/reports'));
-app.use('/api/prices', require('./routes/prices'));
+app.use('/api/reports',  require('./routes/reports'));
+app.use('/api/prices',   require('./routes/prices'));
+app.use('/api/settings', require('./routes/settings'));
+app.use('/api/kitchen',  require('./routes/kitchen'));
 
 // Socket.io接続処理
 io.on('connection', (socket) => {

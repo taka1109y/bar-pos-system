@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import socket from '../socket';
 import usePriceStore from '../store/usePriceStore';
@@ -12,7 +11,7 @@ function Clock() {
     return () => clearInterval(t);
   }, []);
   return (
-    <span className="font-mono text-slate-400">
+    <span className="font-mono text-slate-400 text-lg">
       {time.toLocaleTimeString('ja-JP')}
     </span>
   );
@@ -27,21 +26,20 @@ export default function BoardPage() {
   }, []);
 
   useEffect(() => {
-    socket.on('prices:updated', ({ items }) => {
-      updatePrices(items);
-    });
-    return () => socket.off('prices:updated');
+    const handle = ({ items }) => updatePrices(items);
+    socket.on('prices:updated', handle);
+    return () => socket.off('prices:updated', handle);
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-6">
+    <div className="min-h-screen bg-slate-950 text-white p-8">
       {/* ヘッダー */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <span className="text-4xl">🍺</span>
+      <div className="flex items-center justify-between mb-10">
+        <div className="flex items-center gap-4">
+          <span className="text-5xl">🍺</span>
           <div>
-            <h1 className="text-3xl font-black tracking-tight">SPORTS BAR</h1>
-            <p className="text-slate-500 text-sm">LIVE DRINK PRICES</p>
+            <h1 className="text-3xl font-black tracking-tight leading-tight">SPORTS BAR</h1>
+            <p className="text-slate-500 text-sm mt-0.5">LIVE DRINK PRICES</p>
           </div>
         </div>
         <div className="text-right">
@@ -56,7 +54,7 @@ export default function BoardPage() {
           接続中...
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
           {prices.map((item) => (
             <PriceCard key={item.id} item={item} />
           ))}
@@ -64,7 +62,7 @@ export default function BoardPage() {
       )}
 
       {/* フッター */}
-      <div className="mt-8 text-center text-slate-700 text-xs">
+      <div className="mt-10 text-center text-slate-700 text-sm">
         価格は需要に応じてリアルタイムで変動します
       </div>
     </div>

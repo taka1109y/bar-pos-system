@@ -3,8 +3,15 @@ const router = express.Router();
 const { pool } = require('../db/database');
 const { broadcast } = require('../services/socketService');
 
+const VALID_METHODS = ['cash', 'card', 'emoney'];
+
 // POST /api/payments/:orderId
 router.post('/:orderId', async (req, res, next) => {
+  const { payment_method = 'cash' } = req.body;
+  if (!VALID_METHODS.includes(payment_method)) {
+    return res.status(400).json({ error: 'Invalid payment_method. Use cash, card, or emoney.' });
+  }
+
   const client = await pool.connect();
   try {
     const { rows: orderRows } = await client.query(
@@ -26,8 +33,8 @@ router.post('/:orderId', async (req, res, next) => {
 
     await client.query('BEGIN');
     await client.query(
-      `UPDATE orders SET status = 'paid', closed_at = NOW(), total_amount = $1 WHERE id = $2`,
-      [total, order.id]
+      `UPDATE orders SET status = 'paid', closed_at = NOW(), total_amount = $1, payment_method = $2 WHERE id = $3`,
+      [total, payment_method, order.id]
     );
     await client.query(`UPDATE tables SET status = 'available' WHERE id = $1`, [order.table_id]);
     await client.query('COMMIT');
@@ -39,6 +46,7 @@ router.post('/:orderId', async (req, res, next) => {
       tableId: order.table_id,
       items,
       total,
+      paymentMethod: payment_method,
       paidAt: new Date().toISOString(),
     });
   } catch (err) {

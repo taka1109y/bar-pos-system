@@ -1,20 +1,20 @@
 const { query } = require('../db/database');
 const { broadcast } = require('./socketService');
-
-const TICK_INTERVAL_MS    = 30_000;
-const WINDOW_SECONDS      = 300;
-const MAX_DEMAND_QTY      = 10;
-const MAX_DECAY_QTY       = 10;
-const PRICE_STEP_DOWN     = 0.04;
-const HISTORY_KEEP        = 60;
-const PRUNE_EVENTS_SECONDS = 600;
+const pricingSettings = require('./pricingSettings');
 
 function roundToNearest(value, step) {
   return Math.round(value / step) * step;
 }
 
 async function runTick() {
-  // サブカテゴリ別アクティブドリンク数を取得
+  const {
+    WINDOW_SECONDS,
+    PRICE_STEP_DOWN,
+    HISTORY_KEEP,
+    PRUNE_EVENTS_SECONDS,
+  } = pricingSettings.getSettings();
+
+  // サブカテゴリ別アクティブドリンク数
   const { rows: subcatCountRows } = await query(`
     SELECT subcategory_id, COUNT(*)::int AS cnt
     FROM menu_items
@@ -28,7 +28,8 @@ async function runTick() {
   const { rows: items } = await query(`
     SELECT id, name, subcategory_id,
       base_price::float, current_price::float,
-      min_price::float, max_price::float
+      min_price::float, max_price::float,
+      price_step_up::float, price_step_down::float
     FROM menu_items
     WHERE is_drink = TRUE AND is_active = TRUE
   `);
@@ -62,23 +63,20 @@ async function runTick() {
       const subcatItemCount = subcatCountMap[item.subcategory_id] ?? 0;
 
       if (subcatItemCount <= 1) {
-        // ──── 1商品サブカテゴリ: 価格変動なし (base_priceへ緩やかに戻す) ────
+        // 1商品サブカテゴリ: base_price へ緩やかに戻す
         targetPrice = item.base_price;
       } else {
-        // ──── 通常競合ロジック ────
+        // 競合ロジック: 自分の注文数 × step_up、競合注文数 × step_down
         const competitorQty = (subcatDemandMap[item.subcategory_id] ?? 0) - itemQty;
-        const surgeRatio    = Math.min(itemQty      / MAX_DEMAND_QTY, 1.0);
-        const decayRatio    = Math.min(competitorQty / MAX_DECAY_QTY,  1.0);
-
         targetPrice = item.base_price
-          + (item.max_price  - item.base_price) * surgeRatio
-          - (item.base_price - item.min_price)  * decayRatio;
+          + itemQty       * item.price_step_up
+          - competitorQty * item.price_step_down;
         targetPrice = Math.max(item.min_price, Math.min(item.max_price, targetPrice));
       }
     } else {
-      // サブカテゴリなし: 標準サージのみ
-      const surgeRatio = Math.min(itemQty / MAX_DEMAND_QTY, 1.0);
-      targetPrice = item.base_price + (item.max_price - item.base_price) * surgeRatio;
+      // サブカテゴリなし: 自分の注文数 × step_up のみ
+      targetPrice = item.base_price + itemQty * item.price_step_up;
+      targetPrice = Math.max(item.min_price, Math.min(item.max_price, targetPrice));
     }
 
     let newPrice;
@@ -111,10 +109,8 @@ async function runTick() {
         `DELETE FROM price_history
          WHERE menu_item_id = $1
            AND id NOT IN (
-             SELECT id FROM price_history
-             WHERE menu_item_id = $1
-             ORDER BY recorded_at DESC
-             LIMIT $2
+             SELECT id FROM price_history WHERE menu_item_id = $1
+             ORDER BY recorded_at DESC LIMIT $2
            )`,
         [item.id, HISTORY_KEEP]
       );
@@ -131,7 +127,7 @@ async function runTick() {
     console.log(`[PricingEngine] ${updates.length} item(s) price updated`);
   }
 
-  // 全アイテムの最新価格を常にブロードキャスト (フロントエンドの同期用)
+  // 全アイテムの最新価格をブロードキャスト
   const { rows: allPrices } = await query(`
     SELECT id, name,
       base_price::float, current_price::float,
@@ -146,37 +142,40 @@ async function runTick() {
   broadcast('prices:sync', { items: syncItems, timestamp: Date.now() });
 }
 
-// ── 注文時の即時トリガー ──────────────────────────────
 let running     = false;
-let pendingTick = false; // 実行中にリクエストが来た場合、完了後に再実行
+let pendingTick = false;
 
 async function triggerTick() {
-  if (running) {
-    pendingTick = true; // キューに積む
-    return;
-  }
+  if (running) { pendingTick = true; return; }
   running = true;
   try {
     await runTick();
-    // 待機中のトリガーがあれば続けて処理
-    if (pendingTick) {
-      pendingTick = false;
-      await runTick();
-    }
+    if (pendingTick) { pendingTick = false; await runTick(); }
   } catch (e) {
     console.error('[PricingEngine] triggered tick error:', e);
   } finally {
-    running     = false;
-    pendingTick = false;
+    running = false; pendingTick = false;
   }
 }
 
+let tickTimer = null;
+
 function startPricingEngine() {
+  const { TICK_INTERVAL_MS } = pricingSettings.getSettings();
   console.log('[PricingEngine] Starting...');
   runTick().catch((e) => console.error('[PricingEngine] initial tick error:', e));
-  setInterval(() => {
+  tickTimer = setInterval(() => {
     runTick().catch((e) => console.error('[PricingEngine] tick error:', e));
   }, TICK_INTERVAL_MS);
 }
 
-module.exports = { startPricingEngine, triggerTick };
+function restartInterval() {
+  if (tickTimer) clearInterval(tickTimer);
+  const { TICK_INTERVAL_MS } = pricingSettings.getSettings();
+  tickTimer = setInterval(() => {
+    runTick().catch((e) => console.error('[PricingEngine] tick error:', e));
+  }, TICK_INTERVAL_MS);
+  console.log(`[PricingEngine] Interval restarted: ${TICK_INTERVAL_MS}ms`);
+}
+
+module.exports = { startPricingEngine, triggerTick, restartInterval };

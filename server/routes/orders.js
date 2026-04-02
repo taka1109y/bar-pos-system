@@ -110,12 +110,15 @@ router.post('/:id/items', async (req, res, next) => {
     const menuItem = menuRows[0];
     if (!menuItem) return res.status(404).json({ error: 'Menu item not found' });
 
+    const currentPrice = parseFloat(menuItem.current_price);
+
     await client.query('BEGIN');
 
-    // 既存の注文明細を確認
+    // 同一商品・同一単価の行があれば数量を積む。価格が変わっていたら新しい行を追加する。
     const { rows: existingItems } = await client.query(
-      'SELECT * FROM order_items WHERE order_id = $1 AND menu_item_id = $2',
-      [order.id, menu_item_id]
+      `SELECT * FROM order_items
+       WHERE order_id = $1 AND menu_item_id = $2 AND unit_price::float = $3`,
+      [order.id, menu_item_id, currentPrice]
     );
 
     if (existingItems[0]) {
@@ -124,10 +127,11 @@ router.post('/:id/items', async (req, res, next) => {
         [quantity, existingItems[0].id]
       );
     } else {
+      // 価格が異なる場合（値上がり・値下がり後）は別行として記録
       await client.query(
         `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, item_name)
          VALUES ($1, $2, $3, $4, $5)`,
-        [order.id, menu_item_id, quantity, parseFloat(menuItem.current_price), menuItem.name]
+        [order.id, menu_item_id, quantity, currentPrice, menuItem.name]
       );
     }
 

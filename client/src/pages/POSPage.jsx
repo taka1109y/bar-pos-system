@@ -7,13 +7,15 @@ import TableGrid from '../components/pos/TableGrid';
 import OrderPanel from '../components/pos/OrderPanel';
 import MenuManager from '../components/menu/MenuManager';
 import CategoryManager from '../components/menu/CategoryManager';
+import PricingSettings from '../components/menu/PricingSettings';
 import ReportsPage from './ReportsPage';
 
 const NAV_ITEMS = [
-  { id: 'pos',        label: 'レジ画面',          desc: 'テーブル管理・注文' },
-  { id: 'menu',       label: '商品管理',          desc: 'メニュー・価格設定' },
-  { id: 'categories', label: 'カテゴリ管理',      desc: 'カテゴリ・サブカテゴリ' },
-  { id: 'reports',    label: '売上管理',          desc: '日次レポート・分析' },
+  { id: 'pos',      label: 'レジ画面',      desc: 'テーブル管理・注文' },
+  { id: 'menu',     label: '商品管理',      desc: 'メニュー・価格設定' },
+  { id: 'categories', label: 'カテゴリ管理', desc: 'カテゴリ・サブカテゴリ' },
+  { id: 'pricing',  label: '価格エンジン',  desc: 'パラメータ設定' },
+  { id: 'reports',  label: '売上管理',      desc: '日次レポート・分析' },
 ];
 
 export default function POSPage() {
@@ -38,6 +40,12 @@ export default function POSPage() {
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: api.getCategories,
+    staleTime: 60_000,
+  });
+
+  const { data: subcategories = [] } = useQuery({
+    queryKey: ['subcategories'],
+    queryFn: api.getSubcategories,
     staleTime: 60_000,
   });
 
@@ -130,7 +138,7 @@ export default function POSPage() {
             </button>
           ))}
 
-          <div className="pt-3 mt-1 border-t border-gray-100">
+          <div className="pt-3 mt-1 border-t border-gray-100 space-y-0.5">
             <a
               href="/board"
               target="_blank"
@@ -138,6 +146,15 @@ export default function POSPage() {
               className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors font-medium"
             >
               <span>価格ボード</span>
+              <span className="text-xs text-gray-300 font-normal">↗</span>
+            </a>
+            <a
+              href="/kitchen"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors font-medium"
+            >
+              <span>キッチン</span>
               <span className="text-xs text-gray-300 font-normal">↗</span>
             </a>
           </div>
@@ -217,6 +234,7 @@ export default function POSPage() {
                   table={currentTable}
                   menuItems={menuItems}
                   categories={categories}
+                  subcategories={subcategories}
                   onClose={() => setSelectedTable(null)}
                 />
               </div>
@@ -235,6 +253,13 @@ export default function POSPage() {
         {view === 'categories' && (
           <div className="flex-1 overflow-y-auto">
             <CategoryManager />
+          </div>
+        )}
+
+        {/* ─── 価格エンジン設定 ─── */}
+        {view === 'pricing' && (
+          <div className="flex-1 overflow-y-auto">
+            <PricingSettings />
           </div>
         )}
 

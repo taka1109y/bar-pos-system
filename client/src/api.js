@@ -44,7 +44,8 @@ export const api = {
   deleteOrderItem: (orderId, itemId) => req(`/orders/${orderId}/items/${itemId}`, { method: 'DELETE' }),
 
   // Payments
-  pay: (orderId) => req(`/payments/${orderId}`, { method: 'POST' }),
+  pay: (orderId, paymentMethod = 'cash') =>
+    req(`/payments/${orderId}`, { method: 'POST', body: JSON.stringify({ payment_method: paymentMethod }) }),
 
   // Prices
   getPrices: () => req('/prices'),
@@ -53,4 +54,13 @@ export const api = {
   // Reports
   getDailyReport: (date) => req(`/reports/daily?date=${date}`),
   getHourlyReport: (date) => req(`/reports/hourly?date=${date}`),
+
+  // Settings
+  getPricingSettings: () => req('/settings/pricing'),
+  updatePricingSettings: (data) => req('/settings/pricing', { method: 'PATCH', body: JSON.stringify(data) }),
+  resetPricingSettings: () => req('/settings/pricing/reset', { method: 'POST' }),
+
+  // Kitchen
+  getKitchenOrders: () => req('/kitchen/orders'),
+  serveKitchenItem: (itemId) => req(`/kitchen/items/${itemId}/serve`, { method: 'PATCH' }),
 };

@@ -12,20 +12,20 @@ function MenuItem({ item, onAdd }) {
   return (
     <button
       onClick={() => onAdd(item)}
-      className={`flex flex-col justify-between p-4 bg-slate-800 hover:bg-slate-750 active:scale-95 rounded-2xl border border-slate-700/60 hover:border-slate-500/80 transition-all text-left w-full group ${
+      className={`flex flex-col justify-between p-4 bg-white hover:bg-gray-50 active:scale-95 rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all text-left w-full ${
         flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : ''
       }`}
     >
-      <span className="text-sm font-semibold text-white leading-snug mb-3 line-clamp-2">
+      <span className="text-sm font-semibold text-gray-800 leading-snug mb-3 line-clamp-2">
         {item.name}
       </span>
       <div>
         <div className="flex items-baseline gap-1.5">
-          <span className="text-lg font-black text-yellow-300">¥{price.toLocaleString()}</span>
+          <span className="text-base font-black text-gray-900">¥{price.toLocaleString()}</span>
           {item.is_drink && (
             <span
               className={`text-xs font-bold ${
-                isUp ? 'text-green-400' : isDown ? 'text-red-400' : 'text-slate-500'
+                isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-gray-400'
               }`}
             >
               {isUp ? '▲' : isDown ? '▼' : '—'}{pctChange !== 0 ? `${Math.abs(pctChange).toFixed(1)}%` : ''}
@@ -33,10 +33,10 @@ function MenuItem({ item, onAdd }) {
           )}
         </div>
         {item.is_drink && (
-          <div className="mt-1.5 w-full h-0.5 rounded-full bg-slate-700 overflow-hidden">
+          <div className="mt-2 w-full h-1 rounded-full bg-gray-200 overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-1000 ${
-                isUp ? 'bg-green-500' : isDown ? 'bg-red-500' : 'bg-slate-600'
+                isUp ? 'bg-emerald-500' : isDown ? 'bg-red-400' : 'bg-gray-300'
               }`}
               style={{ width: `${Math.min(100, 50 + pctChange * 5)}%` }}
             />
@@ -53,19 +53,16 @@ export default function MenuGrid({ menuItems, categories, subcategories = [], on
 
   const activeCat = activeCategory || categories[0]?.id;
 
-  // 選択中カテゴリに属するサブカテゴリ
   const subcatsForCat = subcategories.filter((s) => s.category_id === activeCat);
 
-  // カテゴリ切り替え時はサブカテゴリをリセット
   const handleSelectCategory = (catId) => {
     setActiveCategory(catId);
     setActiveSubcategory(null);
   };
 
-  // フィルタリング: カテゴリ → サブカテゴリ
   const filteredItems = menuItems.filter((item) => {
     if (item.category_id !== activeCat) return false;
-    if (activeSubcategory === null) return true;           // "すべて"
+    if (activeSubcategory === null) return true;
     return item.subcategory_id === activeSubcategory;
   });
 
@@ -77,10 +74,10 @@ export default function MenuGrid({ menuItems, categories, subcategories = [], on
           <button
             key={cat.id}
             onClick={() => handleSelectCategory(cat.id)}
-            className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
+            className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
               activeCat === cat.id
-                ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30'
-                : 'bg-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-700 border border-slate-700/60'
+                ? 'bg-amber-500 text-white shadow-sm'
+                : 'bg-white text-gray-500 hover:text-gray-800 border border-gray-200 hover:border-gray-300'
             }`}
           >
             {cat.name}
@@ -88,16 +85,15 @@ export default function MenuGrid({ menuItems, categories, subcategories = [], on
         ))}
       </div>
 
-      {/* サブカテゴリタブ (存在する場合のみ表示) */}
+      {/* サブカテゴリタブ */}
       {subcatsForCat.length > 0 && (
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-          {/* "すべて" タブ */}
           <button
             onClick={() => setActiveSubcategory(null)}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
               activeSubcategory === null
-                ? 'bg-slate-500 text-white'
-                : 'bg-slate-800/60 text-slate-500 hover:text-slate-300 border border-slate-700/40'
+                ? 'bg-gray-700 text-white'
+                : 'bg-white text-gray-400 hover:text-gray-700 border border-gray-200'
             }`}
           >
             すべて
@@ -106,10 +102,10 @@ export default function MenuGrid({ menuItems, categories, subcategories = [], on
             <button
               key={sub.id}
               onClick={() => setActiveSubcategory(sub.id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
                 activeSubcategory === sub.id
-                  ? 'bg-slate-500 text-white'
-                  : 'bg-slate-800/60 text-slate-500 hover:text-slate-300 border border-slate-700/40'
+                  ? 'bg-gray-700 text-white'
+                  : 'bg-white text-gray-400 hover:text-gray-700 border border-gray-200'
               }`}
             >
               {sub.name}
@@ -119,7 +115,7 @@ export default function MenuGrid({ menuItems, categories, subcategories = [], on
       )}
 
       {/* メニューグリッド */}
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-2 gap-3">
         {filteredItems.map((item) => (
           <MenuItem key={item.id} item={item} onAdd={onAddItem} />
         ))}

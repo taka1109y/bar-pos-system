@@ -27,21 +27,29 @@ CREATE TABLE IF NOT EXISTS menu_items (
     current_price  NUMERIC(10,2) NOT NULL,
     min_price      NUMERIC(10,2) NOT NULL,
     max_price      NUMERIC(10,2) NOT NULL,
+    price_step_up   NUMERIC(10,2) NOT NULL DEFAULT 50,
+    price_step_down NUMERIC(10,2) NOT NULL DEFAULT 25,
     is_drink       BOOLEAN NOT NULL DEFAULT TRUE,
     is_active      BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- 既存DBへの追加カラムマイグレーション
-ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS subcategory_id INTEGER REFERENCES subcategories(id) ON DELETE SET NULL;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS subcategory_id  INTEGER        REFERENCES subcategories(id) ON DELETE SET NULL;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS price_step_up   NUMERIC(10,2)  NOT NULL DEFAULT 50;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS price_step_down NUMERIC(10,2)  NOT NULL DEFAULT 25;
 
 CREATE TABLE IF NOT EXISTS orders (
-    id           SERIAL PRIMARY KEY,
-    table_id     INTEGER NOT NULL REFERENCES tables(id),
-    status       TEXT NOT NULL DEFAULT 'open',
-    total_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
-    opened_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    closed_at    TIMESTAMPTZ
+    id             SERIAL PRIMARY KEY,
+    table_id       INTEGER NOT NULL REFERENCES tables(id),
+    status         TEXT NOT NULL DEFAULT 'open',
+    total_amount   NUMERIC(10,2) NOT NULL DEFAULT 0,
+    payment_method TEXT NOT NULL DEFAULT 'cash',
+    opened_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    closed_at      TIMESTAMPTZ
 );
+
+-- 既存DBへの追加カラムマイグレーション
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'cash';
 
 CREATE TABLE IF NOT EXISTS order_items (
     id           SERIAL PRIMARY KEY,
@@ -49,8 +57,12 @@ CREATE TABLE IF NOT EXISTS order_items (
     menu_item_id INTEGER NOT NULL REFERENCES menu_items(id),
     quantity     INTEGER NOT NULL DEFAULT 1,
     unit_price   NUMERIC(10,2) NOT NULL,
-    item_name    TEXT NOT NULL
+    item_name    TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'pending'
 );
+
+-- 既存DBへの追加カラムマイグレーション
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
 
 CREATE TABLE IF NOT EXISTS pricing_events (
     id           SERIAL PRIMARY KEY,

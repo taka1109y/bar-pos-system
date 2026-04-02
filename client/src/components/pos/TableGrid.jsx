@@ -45,7 +45,7 @@ export default function TableGrid({ tables, selectedTableId, onSelectTable, call
   }
 
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 p-6">
+    <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 p-6">
       {tables.map((table) => {
         const cfg = statusConfig[table.status] || statusConfig.available;
         const isSelected = selectedTableId === table.id;
@@ -65,21 +65,21 @@ export default function TableGrid({ tables, selectedTableId, onSelectTable, call
           >
             {/* スタッフ呼び出しバッジ */}
             {isCalled && (
-              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full animate-pulse flex items-center justify-center text-white text-xs font-bold z-10 shadow">
+              <span className="absolute -top-1.5 -right-1.5 w-6 h-6 bg-red-500 rounded-full animate-pulse flex items-center justify-center text-white text-xs font-bold z-10 shadow">
                 !
               </span>
             )}
 
             {/* ステータスヘッダー */}
-            <div className={`px-3 py-1.5 ${cfg.headerBg} flex items-center justify-between`}>
-              <span className={`text-[11px] font-semibold ${cfg.labelText}`}>{cfg.label}</span>
-              <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+            <div className={`px-3 py-2 ${cfg.headerBg} flex items-center justify-between border-b ${cfg.border}`}>
+              <span className={`text-xs font-semibold ${cfg.labelText}`}>{cfg.label}</span>
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
             </div>
 
             {/* テーブル情報 */}
-            <div className="px-3 py-2.5">
+            <div className="px-4 py-3">
               <p className={`font-bold text-sm ${cfg.text}`}>{table.name}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{table.capacity}席</p>
+              <p className="text-xs text-gray-400 mt-1">{table.capacity}席</p>
             </div>
           </button>
         );

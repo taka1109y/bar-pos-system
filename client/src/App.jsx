@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import POSPage from './pages/POSPage';
 import BoardPage from './pages/BoardPage';
 import TablePage from './pages/TablePage';
+import KitchenPage from './pages/KitchenPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/" element={<POSPage />} />
           <Route path="/board" element={<BoardPage />} />
           <Route path="/table/:tableId" element={<TablePage />} />
+          <Route path="/kitchen" element={<KitchenPage />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
