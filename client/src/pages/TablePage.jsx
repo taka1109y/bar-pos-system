@@ -65,7 +65,6 @@ export default function TablePage() {
   const tableIdNum = Number(tableId);
   const queryClient = useQueryClient();
   const { initPrices, updatePrices, prices } = usePriceStore();
-  const [callSent, setCallSent] = useState(false);
   const [confirmItem, setConfirmItem] = useState(null);
 
   const orderKey = ['order', tableIdNum];
@@ -152,12 +151,6 @@ export default function TablePage() {
     addItemMutation.mutate({ orderId: currentOrder.id, menu_item_id: item.id, quantity: qty, price, name: item.name });
   };
 
-  const handleCallStaff = () => {
-    socket.emit('customer:call_staff', { tableId: tableIdNum });
-    setCallSent(true);
-    setTimeout(() => setCallSent(false), 4000);
-  };
-
   const total     = order?.items?.reduce((s, i) => s + i.quantity * i.unit_price, 0) ?? 0;
   const itemCount = order?.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
 
@@ -173,16 +166,6 @@ export default function TablePage() {
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">ご自由にご注文ください</p>
         </div>
-        <button
-          onClick={handleCallStaff}
-          className={`px-4 py-2.5 rounded-2xl text-sm font-bold transition-all active:scale-95 ${
-            callSent
-              ? 'bg-green-600 text-white'
-              : 'bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-500/20'
-          }`}
-        >
-          {callSent ? '✓ 通知しました' : '🔔 スタッフを呼ぶ'}
-        </button>
       </header>
 
       {/* コンテンツ */}
@@ -230,26 +213,12 @@ export default function TablePage() {
       {itemCount > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-20 px-5 pb-8 pt-4 bg-gradient-to-t from-slate-900 via-slate-900/95 to-transparent">
           <div className="bg-slate-800 border border-slate-700/60 rounded-2xl px-5 py-4 shadow-2xl max-w-lg mx-auto">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-slate-400 font-medium">
-                  合計 <span className="text-slate-300 font-bold">{itemCount}点</span>
-                </p>
-                <p className="text-2xl font-black text-white mt-1">
-                  ¥{total.toLocaleString()}
-                </p>
-              </div>
-              <button
-                onClick={handleCallStaff}
-                className={`px-5 py-3 rounded-xl font-bold text-sm transition-all active:scale-95 ${
-                  callSent
-                    ? 'bg-green-600 text-white'
-                    : 'bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-500/20'
-                }`}
-              >
-                {callSent ? '✓ 通知済み' : '🔔 スタッフを呼ぶ'}
-              </button>
-            </div>
+            <p className="text-xs text-slate-400 font-medium">
+              合計 <span className="text-slate-300 font-bold">{itemCount}点</span>
+            </p>
+            <p className="text-2xl font-black text-white mt-1">
+              ¥{total.toLocaleString()}
+            </p>
           </div>
         </div>
       )}

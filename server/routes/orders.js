@@ -33,6 +33,19 @@ async function recalcTotal(client, orderId) {
   return total;
 }
 
+// GET /api/orders/open — 全オープン注文（table_id, total_amount, opened_at）
+router.get('/open', async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT id, table_id, total_amount::float, opened_at
+       FROM orders WHERE status = 'open' ORDER BY table_id`
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/orders/table/:tableId
 router.get('/table/:tableId', async (req, res, next) => {
   try {

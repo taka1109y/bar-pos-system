@@ -9,25 +9,36 @@ import MenuManager from '../components/menu/MenuManager';
 import CategoryManager from '../components/menu/CategoryManager';
 import PricingSettings from '../components/menu/PricingSettings';
 import ReportsPage from './ReportsPage';
+import TableManager from '../components/tables/TableManager';
+import ReceiptsPage from './ReceiptsPage';
+import SystemSettingsPage from './SystemSettingsPage';
 
 const NAV_ITEMS = [
-  { id: 'pos',      label: 'レジ画面',      desc: 'テーブル管理・注文' },
+  { id: 'pos',      label: 'レジ画面',      desc: 'テーブル選択・注文' },
+  { id: 'tables',   label: 'テーブル管理',  desc: 'テーブル・カウンター' },
   { id: 'menu',     label: '商品管理',      desc: 'メニュー・価格設定' },
   { id: 'categories', label: 'カテゴリ管理', desc: 'カテゴリ・サブカテゴリ' },
   { id: 'pricing',  label: '価格エンジン',  desc: 'パラメータ設定' },
   { id: 'reports',  label: '売上管理',      desc: '日次レポート・分析' },
+  { id: 'receipts', label: '伝票情報',      desc: '会計済み伝票の閲覧' },
+  { id: 'system',   label: 'システム管理', desc: '消費税・システム設定' },
 ];
 
 export default function POSPage() {
   const queryClient = useQueryClient();
   const [view, setView] = useState('pos');
   const [selectedTable, setSelectedTable] = useState(null);
-  const [calledTables, setCalledTables] = useState(new Set());
   const { initPrices, updatePrices } = usePriceStore();
 
   const { data: tables = [] } = useQuery({
     queryKey: ['tables'],
     queryFn: api.getTables,
+    refetchInterval: 30_000,
+  });
+
+  const { data: openOrders = [] } = useQuery({
+    queryKey: ['orders-open'],
+    queryFn: api.getOpenOrders,
     refetchInterval: 30_000,
   });
 
@@ -61,30 +72,23 @@ export default function POSPage() {
       queryClient.setQueryData(['tables'], (old) =>
         old?.map((t) => (t.id === tableId ? { ...t, status } : t)) ?? old
       );
+      queryClient.invalidateQueries({ queryKey: ['orders-open'] });
     });
 
-    socket.on('staff:called', ({ tableId }) => {
-      setCalledTables((prev) => new Set([...prev, tableId]));
+    socket.on('order:updated', () => {
+      queryClient.invalidateQueries({ queryKey: ['orders-open'] });
     });
 
     return () => {
       socket.off('prices:updated');
       socket.off('prices:sync');
       socket.off('table:status_changed');
-      socket.off('staff:called');
+      socket.off('order:updated');
     };
   }, []);
 
   const handleSelectTable = (table) => {
     setSelectedTable((prev) => (prev?.id === table.id ? null : table));
-  };
-
-  const handleAckCall = (tableId) => {
-    setCalledTables((prev) => {
-      const s = new Set(prev);
-      s.delete(tableId);
-      return s;
-    });
   };
 
   // 管理画面を離れるときにキャッシュ更新
@@ -94,6 +98,9 @@ export default function POSPage() {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
       queryClient.invalidateQueries({ queryKey: ['subcategories'] });
     }
+    if (view === 'tables') {
+      queryClient.invalidateQueries({ queryKey: ['tables'] });
+    }
     setView(nextView);
     if (nextView !== 'pos') setSelectedTable(null);
   };
@@ -102,7 +109,7 @@ export default function POSPage() {
     ? tables.find((t) => t.id === selectedTable.id) ?? selectedTable
     : null;
 
-  const occupiedCount = tables.filter((t) => t.status === 'occupied').length;
+  const occupiedCount = openOrders.length;
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -167,22 +174,10 @@ export default function POSPage() {
             <p className="text-[11px] text-gray-400 font-medium mb-1">テーブル稼働</p>
             <p className="text-sm font-bold text-gray-700">
               {occupiedCount}
-              <span className="font-normal text-gray-400"> / {tables.length} テーブル</span>
+              <span className="font-normal text-gray-400"> / {tables.length} 席</span>
             </p>
           </div>
 
-          {/* スタッフ呼び出し通知 */}
-          {calledTables.size > 0 && (
-            <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-[11px] font-bold text-red-600 flex items-center gap-1">
-                <span className="animate-pulse">🔔</span>
-                呼び出し {calledTables.size}件
-              </p>
-              <p className="text-[10px] text-red-400 mt-0.5">
-                レジ画面で対応してください
-              </p>
-            </div>
-          )}
         </div>
       </aside>
 
@@ -198,22 +193,6 @@ export default function POSPage() {
               {NAV_ITEMS.find((n) => n.id === view)?.desc}
             </p>
           </div>
-          {view === 'pos' && (
-            <div className="flex items-center gap-4 text-xs text-gray-500">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
-                空席
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
-                使用中
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
-                会計中
-              </span>
-            </div>
-          )}
         </header>
 
         {/* ─── レジ画面 ─── */}
@@ -222,10 +201,9 @@ export default function POSPage() {
             <div className={`${currentTable ? 'hidden sm:block sm:flex-1' : 'flex-1'} overflow-y-auto`}>
               <TableGrid
                 tables={tables}
+                openOrders={openOrders}
                 selectedTableId={currentTable?.id}
                 onSelectTable={handleSelectTable}
-                calledTables={calledTables}
-                onAckCall={handleAckCall}
               />
             </div>
             {currentTable && (
@@ -242,10 +220,17 @@ export default function POSPage() {
           </div>
         )}
 
+        {/* ─── テーブル管理 ─── */}
+        {view === 'tables' && (
+          <div className="flex-1 overflow-y-auto">
+            <TableManager />
+          </div>
+        )}
+
         {/* ─── 商品管理 ─── */}
         {view === 'menu' && (
           <div className="flex-1 overflow-y-auto">
-            <MenuManager inline />
+            <MenuManager />
           </div>
         )}
 
@@ -267,6 +252,20 @@ export default function POSPage() {
         {view === 'reports' && (
           <div className="flex-1 overflow-y-auto">
             <ReportsPage inline />
+          </div>
+        )}
+
+        {/* ─── 伝票情報 ─── */}
+        {view === 'receipts' && (
+          <div className="flex-1 overflow-y-auto">
+            <ReceiptsPage />
+          </div>
+        )}
+
+        {/* ─── システム管理 ─── */}
+        {view === 'system' && (
+          <div className="flex-1 overflow-y-auto">
+            <SystemSettingsPage />
           </div>
         )}
       </div>

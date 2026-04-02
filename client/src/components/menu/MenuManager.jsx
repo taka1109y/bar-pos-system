@@ -2,8 +2,27 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 
+function ModalShell({ title, onClose, children, wide }) {
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className={`bg-white rounded-2xl shadow-2xl w-full mx-4 border border-gray-100 max-h-[90vh] flex flex-col ${wide ? 'max-w-lg' : 'max-w-md'}`}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+          <h2 className="text-base font-bold text-gray-900">{title}</h2>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="px-6 py-5 overflow-y-auto">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 // ─── フォームコンポーネント ───────────────────────────
-function MenuItemForm({ item, categories, subcategories, onSave, onCancel }) {
+function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoading }) {
   const [form, setForm] = useState({
     name:            item?.name || '',
     category_id:     item?.category_id || categories[0]?.id || '',
@@ -88,18 +107,6 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel }) {
           <input className={inp} type="number" value={form.max_price} onChange={(e) => set('max_price', e.target.value)} placeholder="自動" min={0} />
         </div>
       </div>
-      {Boolean(form.is_drink) && (
-        <div className="grid grid-cols-2 gap-3 bg-blue-50 border border-blue-100 rounded-lg p-3">
-          <div>
-            <label className={lbl}>1注文あたり上昇額 (¥)</label>
-            <input className={inp} type="number" value={form.price_step_up} onChange={(e) => set('price_step_up', e.target.value)} placeholder="50" min={1} step={1} />
-          </div>
-          <div>
-            <label className={lbl}>1競合注文あたり降下額 (¥)</label>
-            <input className={inp} type="number" value={form.price_step_down} onChange={(e) => set('price_step_down', e.target.value)} placeholder="25" min={1} step={1} />
-          </div>
-        </div>
-      )}
       <div className="flex gap-6">
         <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
           <input type="checkbox" checked={Boolean(form.is_drink)} onChange={(e) => set('is_drink', e.target.checked ? 1 : 0)} className="w-4 h-4 accent-blue-600 rounded" />
@@ -112,11 +119,23 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel }) {
           </label>
         )}
       </div>
+      {Boolean(form.is_drink) && (
+        <div className="grid grid-cols-2 gap-3 bg-blue-50 border border-blue-100 rounded-lg p-3">
+          <div>
+            <label className={lbl}>1注文あたり上昇額 (¥)</label>
+            <input className={inp} type="number" value={form.price_step_up} onChange={(e) => set('price_step_up', e.target.value)} placeholder="50" min={1} step={1} />
+          </div>
+          <div>
+            <label className={lbl}>1競合注文あたり降下額 (¥)</label>
+            <input className={inp} type="number" value={form.price_step_down} onChange={(e) => set('price_step_down', e.target.value)} placeholder="25" min={1} step={1} />
+          </div>
+        </div>
+      )}
       <div className="flex gap-2.5 pt-1">
         <button type="button" onClick={onCancel} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">
           キャンセル
         </button>
-        <button type="submit" className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm">
+        <button type="submit" disabled={isLoading} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
           保存
         </button>
       </div>
@@ -125,18 +144,18 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel }) {
 }
 
 // ─── メインコンポーネント ────────────────────────────
-export default function MenuManager({ onClose, inline = false }) {
+export default function MenuManager() {
   const queryClient = useQueryClient();
+  const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
-  const [adding,   setAdding]   = useState(false);
 
-  const { data: items        = [] } = useQuery({ queryKey: ['menu-all'],      queryFn: api.getAllMenu });
-  const { data: categories   = [] } = useQuery({ queryKey: ['categories'],    queryFn: api.getCategories });
+  const { data: items         = [] } = useQuery({ queryKey: ['menu-all'],      queryFn: api.getAllMenu });
+  const { data: categories    = [] } = useQuery({ queryKey: ['categories'],    queryFn: api.getCategories });
   const { data: subcategories = [] } = useQuery({ queryKey: ['subcategories'], queryFn: api.getSubcategories });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['menu-all'] });
 
-  const createMutation = useMutation({ mutationFn: api.createMenuItem, onSuccess: () => { invalidate(); setAdding(false); } });
+  const createMutation = useMutation({ mutationFn: api.createMenuItem, onSuccess: () => { invalidate(); setAddOpen(false); } });
   const updateMutation = useMutation({ mutationFn: ({ id, data }) => api.updateMenuItem(id, data), onSuccess: () => { invalidate(); setEditItem(null); } });
   const deleteMutation = useMutation({ mutationFn: api.deleteMenuItem, onSuccess: invalidate });
 
@@ -145,82 +164,67 @@ export default function MenuManager({ onClose, inline = false }) {
     return acc;
   }, {});
 
-  const content = (
-    <div className={inline ? 'p-8 max-w-3xl mx-auto' : 'flex-1 overflow-y-auto'}>
-      {/* 追加フォーム */}
-      {adding && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6">
-          <h3 className="text-sm font-bold text-blue-800 mb-4">新規商品を追加</h3>
-          <MenuItemForm
-            categories={categories}
-            subcategories={subcategories}
-            onSave={(data) => createMutation.mutate(data)}
-            onCancel={() => setAdding(false)}
-          />
-        </div>
-      )}
+  return (
+    <div className="p-8 max-w-3xl mx-auto">
+      <div className="flex items-center justify-end mb-6">
+        <button
+          onClick={() => setAddOpen(true)}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
+        >
+          + 商品を追加
+        </button>
+      </div>
 
       {/* カテゴリ別商品一覧 */}
-      <div className="space-y-7">
+      <div className="space-y-10">
         {Object.values(grouped).map((cat) => (
           <div key={cat.id}>
-            <div className="flex items-center gap-2 mb-3">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">{cat.name}</h3>
+            <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
+              <h3 className="text-sm font-bold text-gray-700 tracking-wide">{cat.name}</h3>
               <span className="text-xs text-gray-400">({cat.items.length}件)</span>
             </div>
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100 shadow-sm">
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
               {cat.items.length === 0 ? (
-                <p className="px-5 py-4 text-sm text-gray-400">商品がありません</p>
+                <p className="px-6 py-5 text-sm text-gray-400">商品がありません</p>
               ) : (
-                cat.items.map((item) => (
-                  <div key={item.id}>
-                    {editItem?.id === item.id ? (
-                      <div className="p-5 bg-gray-50">
-                        <MenuItemForm
-                          item={item}
-                          categories={categories}
-                          subcategories={subcategories}
-                          onSave={(data) => updateMutation.mutate({ id: item.id, data })}
-                          onCancel={() => setEditItem(null)}
-                        />
-                      </div>
-                    ) : (
-                      <div className={`flex items-center gap-3 px-5 py-3.5 ${item.is_active ? '' : 'opacity-40'}`}>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium text-gray-900 block truncate">{item.name}</span>
-                          <span className="text-xs text-gray-400">
-                            ¥{item.base_price.toLocaleString()}
-                            {item.subcategory_name && (
-                              <span className="ml-2 text-indigo-400">{item.subcategory_name}</span>
-                            )}
-                          </span>
-                        </div>
-                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${
-                          item.is_drink ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {item.is_drink ? 'ドリンク' : 'フード'}
-                        </span>
-                        {!item.is_active && (
-                          <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-400 flex-shrink-0">
-                            無効
-                          </span>
+                cat.items.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className={`flex items-center gap-4 px-6 py-5 ${item.is_active ? '' : 'opacity-40'} ${idx !== 0 ? 'border-t border-gray-100' : ''}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-semibold text-gray-900 block truncate">{item.name}</span>
+                      <span className="text-xs text-gray-400 mt-1 block">
+                        ¥{item.base_price.toLocaleString()}
+                        {item.subcategory_name && (
+                          <span className="ml-2 text-indigo-400">{item.subcategory_name}</span>
                         )}
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <button
-                            onClick={() => setEditItem(item)}
-                            className="px-3 py-2 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
-                          >
-                            編集
-                          </button>
-                          <button
-                            onClick={() => { if (confirm(`「${item.name}」を削除しますか？`)) deleteMutation.mutate(item.id); }}
-                            className="px-3 py-2 text-xs text-red-500 hover:bg-red-50 rounded-lg transition-colors font-medium"
-                          >
-                            削除
-                          </button>
-                        </div>
-                      </div>
+                      </span>
+                    </div>
+                    <span className={`text-xs px-3 py-1.5 rounded-full font-medium flex-shrink-0 ${
+                      item.is_drink ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {item.is_drink ? 'ドリンク' : 'フード'}
+                    </span>
+                    {!item.is_active && (
+                      <span className="text-xs px-3 py-1.5 rounded-full bg-gray-100 text-gray-400 flex-shrink-0">
+                        無効
+                      </span>
                     )}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => setEditItem(item)}
+                        className="px-3.5 py-2 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                      >
+                        編集
+                      </button>
+                      <button
+                        onClick={() => { if (confirm(`「${item.name}」を削除しますか？`)) deleteMutation.mutate(item.id); }}
+                        className="px-3.5 py-2 text-xs text-red-500 hover:bg-red-50 rounded-lg transition-colors font-medium"
+                      >
+                        削除
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -229,40 +233,32 @@ export default function MenuManager({ onClose, inline = false }) {
         ))}
       </div>
 
-      {/* 追加ボタン */}
-      {inline && !adding && (
-        <div className="mt-8">
-          <button
-            onClick={() => setAdding(true)}
-            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors shadow-sm"
-          >
-            + 商品を追加する
-          </button>
-        </div>
+      {/* 追加モーダル */}
+      {addOpen && categories.length > 0 && (
+        <ModalShell title="商品を追加" onClose={() => setAddOpen(false)} wide>
+          <MenuItemForm
+            categories={categories}
+            subcategories={subcategories}
+            onSave={(data) => createMutation.mutate(data)}
+            onCancel={() => setAddOpen(false)}
+            isLoading={createMutation.isPending}
+          />
+        </ModalShell>
       )}
-    </div>
-  );
 
-  if (inline) return content;
-
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] flex flex-col border border-gray-100 pop-in">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold text-gray-900">メニュー管理</h2>
-          <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
-            ✕
-          </button>
-        </div>
-        {content}
-        <div className="pt-4 border-t border-gray-100 mt-4">
-          {!adding && (
-            <button onClick={() => setAdding(true)} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors shadow-sm">
-              + 商品を追加する
-            </button>
-          )}
-        </div>
-      </div>
+      {/* 編集モーダル */}
+      {editItem && (
+        <ModalShell title={`「${editItem.name}」を編集`} onClose={() => setEditItem(null)} wide>
+          <MenuItemForm
+            item={editItem}
+            categories={categories}
+            subcategories={subcategories}
+            onSave={(data) => updateMutation.mutate({ id: editItem.id, data })}
+            onCancel={() => setEditItem(null)}
+            isLoading={updateMutation.isPending}
+          />
+        </ModalShell>
+      )}
     </div>
   );
 }

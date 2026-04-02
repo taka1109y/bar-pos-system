@@ -1,14 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { api } from '../api';
 
-function StatCard({ label, value, sub }) {
+function StatCard({ label, value }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
       <p className="text-xs font-medium text-gray-400 mb-2">{label}</p>
       <p className="text-2xl font-black text-gray-900 leading-none">{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-2">{sub}</p>}
     </div>
   );
 }
@@ -21,12 +19,8 @@ export default function ReportsPage({ onClose, inline = false }) {
     queryKey: ['report-daily', date],
     queryFn: () => api.getDailyReport(date),
   });
-  const { data: hourlyData } = useQuery({
-    queryKey: ['report-hourly', date],
-    queryFn: () => api.getHourlyReport(date),
-  });
 
-  const topItems  = report?.items?.slice(0, 10) || [];
+  const topItems   = report?.items?.slice(0, 10) || [];
   const maxRevenue = topItems[0]?.revenue || 1;
 
   const content = (
@@ -54,26 +48,6 @@ export default function ReportsPage({ onClose, inline = false }) {
             <StatCard label="会計件数" value={`${report?.order_count || 0}件`} />
             <StatCard label="平均単価" value={`¥${report?.avg_order_value?.toLocaleString() || 0}`} />
           </div>
-
-          {/* 時間別売上グラフ */}
-          {hourlyData?.hourly?.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-              <h3 className="text-sm font-bold text-gray-700 mb-5">時間別売上</h3>
-              <ResponsiveContainer width="100%" height={150}>
-                <BarChart data={hourlyData.hourly} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="hour" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis hide />
-                  <Tooltip
-                    contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    labelStyle={{ color: '#6b7280', fontSize: 12 }}
-                    itemStyle={{ color: '#111827', fontSize: 13, fontWeight: 600 }}
-                    formatter={(v) => [`¥${v.toLocaleString()}`, '売上']}
-                  />
-                  <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
 
           {/* 商品別ランキング */}
           {topItems.length > 0 ? (

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 
 const PAYMENT_METHODS = [
@@ -65,21 +65,44 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
   const [discountInput, setDiscountInput] = useState('');
   const [receivedInput, setReceivedInput] = useState('');
 
+  const { data: sysSettings } = useQuery({
+    queryKey: ['system-settings'],
+    queryFn: api.getSystemSettings,
+    staleTime: 60_000,
+  });
+  const taxRate        = sysSettings?.tax_rate        ?? 0.10;
+  const lnRate         = sysSettings?.late_night_rate  ?? 0.10;
+  const lnStart        = sysSettings?.late_night_start ?? 22;
+  const lnEnd          = sysSettings?.late_night_end   ?? 29;
+
+  // 深夜帯判定（ブラウザのローカル時刻で判定）
+  const isLateNight = (() => {
+    const h = new Date().getHours();
+    if (lnStart < 24 && lnEnd > 24) return h >= lnStart || h < (lnEnd - 24);
+    if (lnStart >= 24) return h >= (lnStart - 24) && h < (lnEnd - 24);
+    return h >= lnStart && h < lnEnd;
+  })();
+
   const subtotal = order.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+
+  // 深夜料金
+  const lateNightAmount = isLateNight ? Math.round(subtotal * lnRate) : 0;
 
   // 割引計算
   const discountNum = parseFloat(discountInput) || 0;
   const discountAmount = discountType === 'amount'
     ? Math.min(discountNum, subtotal)
     : Math.round(subtotal * Math.min(discountNum, 100) / 100);
-  const finalTotal = subtotal - discountAmount;
+  const taxableBase = subtotal + lateNightAmount - discountAmount;
+  const taxAmount   = Math.round(taxableBase * taxRate);
+  const finalTotal  = taxableBase + taxAmount;
 
   // お釣り計算 (現金のみ)
   const received = parseInt(receivedInput, 10) || 0;
   const change   = received - finalTotal;
 
   const payMutation = useMutation({
-    mutationFn: () => api.pay(order.id, paymentMethod),
+    mutationFn: () => api.pay(order.id, paymentMethod, discountAmount),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tables'] });
       queryClient.invalidateQueries({ queryKey: ['order', table.id] });
@@ -186,15 +209,29 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
             </div>
 
             {/* ── 合計 ── */}
-            <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 space-y-1.5">
+            <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 space-y-2">
+              <div className="flex justify-between text-sm text-gray-500">
+                <span>小計（税抜き）</span>
+                <span>¥{subtotal.toLocaleString()}</span>
+              </div>
+              {isLateNight && (
+                <div className="flex justify-between text-sm text-amber-600">
+                  <span>深夜料金（{Math.round(lnRate * 100)}%）</span>
+                  <span>¥{lateNightAmount.toLocaleString()}</span>
+                </div>
+              )}
               {discountAmount > 0 && (
                 <div className="flex justify-between text-sm text-gray-500">
                   <span>割引</span>
                   <span className="text-red-500 font-semibold">−¥{discountAmount.toLocaleString()}</span>
                 </div>
               )}
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-semibold text-gray-700">請求金額</span>
+              <div className="flex justify-between text-sm text-gray-500">
+                <span>消費税（{Math.round(taxRate * 100)}%）</span>
+                <span>¥{taxAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                <span className="text-sm font-semibold text-gray-700">請求金額（税込み）</span>
                 <span className="text-2xl font-black text-gray-900">¥{finalTotal.toLocaleString()}</span>
               </div>
             </div>

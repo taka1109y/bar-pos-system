@@ -72,27 +72,4 @@ router.get('/items', async (req, res, next) => {
   }
 });
 
-// GET /api/reports/hourly?date=YYYY-MM-DD
-router.get('/hourly', async (req, res, next) => {
-  try {
-    const date = req.query.date || new Date().toISOString().split('T')[0];
-
-    const { rows: hourly } = await query(
-      `SELECT
-         TO_CHAR(closed_at AT TIME ZONE $2, 'HH24') AS hour,
-         COUNT(*)::int AS order_count,
-         COALESCE(SUM(total_amount), 0)::float AS revenue
-       FROM orders
-       WHERE status = 'paid' AND closed_at::date = $1
-       GROUP BY hour
-       ORDER BY hour`,
-      [date, TZ]
-    );
-
-    res.json({ date, hourly });
-  } catch (err) {
-    next(err);
-  }
-});
-
 module.exports = router;

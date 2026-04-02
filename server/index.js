@@ -34,6 +34,8 @@ app.use('/api/reports',  require('./routes/reports'));
 app.use('/api/prices',   require('./routes/prices'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/kitchen',  require('./routes/kitchen'));
+app.use('/api/receipts', require('./routes/receipts'));
+app.use('/api/system',  require('./routes/system'));
 
 // Socket.io接続処理
 io.on('connection', (socket) => {
@@ -45,12 +47,6 @@ io.on('connection', (socket) => {
 
   socket.on('client:unsubscribe_table', ({ tableId }) => {
     socket.leave(`table:${tableId}`);
-  });
-
-  // お客さんがスタッフを呼ぶ
-  socket.on('customer:call_staff', ({ tableId }) => {
-    io.emit('staff:called', { tableId });
-    console.log(`[Socket] Staff called for table ${tableId}`);
   });
 
   socket.on('disconnect', () => {

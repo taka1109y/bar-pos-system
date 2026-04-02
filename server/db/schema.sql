@@ -1,9 +1,13 @@
 CREATE TABLE IF NOT EXISTS tables (
-    id       SERIAL PRIMARY KEY,
-    name     TEXT NOT NULL,
-    capacity INTEGER NOT NULL DEFAULT 4,
-    status   TEXT NOT NULL DEFAULT 'available'
+    id         SERIAL PRIMARY KEY,
+    name       TEXT NOT NULL,
+    table_type TEXT NOT NULL DEFAULT 'table',
+    capacity   INTEGER NOT NULL DEFAULT 4,
+    status     TEXT NOT NULL DEFAULT 'available'
 );
+
+-- 既存DBへの追加カラムマイグレーション
+ALTER TABLE tables ADD COLUMN IF NOT EXISTS table_type TEXT NOT NULL DEFAULT 'table';
 
 CREATE TABLE IF NOT EXISTS categories (
     id         SERIAL PRIMARY KEY,
@@ -49,7 +53,12 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 -- 既存DBへの追加カラムマイグレーション
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'cash';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method   TEXT         NOT NULL DEFAULT 'cash';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount    NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tax_rate           NUMERIC(5,4)  NOT NULL DEFAULT 0.10;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tax_amount         NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS late_night_rate    NUMERIC(5,4)  NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS late_night_amount  NUMERIC(10,2) NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS order_items (
     id           SERIAL PRIMARY KEY,
@@ -77,6 +86,15 @@ CREATE TABLE IF NOT EXISTS price_history (
     price        NUMERIC(10,2) NOT NULL,
     recorded_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS system_settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+INSERT INTO system_settings (key, value) VALUES ('tax_rate',          '0.10') ON CONFLICT DO NOTHING;
+INSERT INTO system_settings (key, value) VALUES ('late_night_rate',   '0.10') ON CONFLICT DO NOTHING;
+INSERT INTO system_settings (key, value) VALUES ('late_night_start',  '22')   ON CONFLICT DO NOTHING;
+INSERT INTO system_settings (key, value) VALUES ('late_night_end',    '29')   ON CONFLICT DO NOTHING;
 
 CREATE INDEX IF NOT EXISTS idx_pricing_events_item_time ON pricing_events(menu_item_id, event_time);
 CREATE INDEX IF NOT EXISTS idx_price_history_item_time  ON price_history(menu_item_id, recorded_at);

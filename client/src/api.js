@@ -37,6 +37,7 @@ export const api = {
   deleteSubcategory: (id) => req(`/menu/subcategories/${id}`, { method: 'DELETE' }),
 
   // Orders
+  getOpenOrders: () => req('/orders/open'),
   getOrderByTable: (tableId) => req(`/orders/table/${tableId}`),
   createOrder: (tableId) => req('/orders', { method: 'POST', body: JSON.stringify({ table_id: tableId }) }),
   addOrderItem: (orderId, data) => req(`/orders/${orderId}/items`, { method: 'POST', body: JSON.stringify(data) }),
@@ -44,8 +45,12 @@ export const api = {
   deleteOrderItem: (orderId, itemId) => req(`/orders/${orderId}/items/${itemId}`, { method: 'DELETE' }),
 
   // Payments
-  pay: (orderId, paymentMethod = 'cash') =>
-    req(`/payments/${orderId}`, { method: 'POST', body: JSON.stringify({ payment_method: paymentMethod }) }),
+  pay: (orderId, paymentMethod = 'cash', discountAmount = 0) =>
+    req(`/payments/${orderId}`, { method: 'POST', body: JSON.stringify({ payment_method: paymentMethod, discount_amount: discountAmount }) }),
+
+  // System
+  getSystemSettings: () => req('/system/settings'),
+  updateSystemSettings: (data) => req('/system/settings', { method: 'PATCH', body: JSON.stringify(data) }),
 
   // Prices
   getPrices: () => req('/prices'),
@@ -53,7 +58,7 @@ export const api = {
 
   // Reports
   getDailyReport: (date) => req(`/reports/daily?date=${date}`),
-  getHourlyReport: (date) => req(`/reports/hourly?date=${date}`),
+  getReceipts: (date) => req(`/receipts?date=${date}`),
 
   // Settings
   getPricingSettings: () => req('/settings/pricing'),
