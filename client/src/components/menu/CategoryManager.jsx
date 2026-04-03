@@ -128,14 +128,16 @@ export default function CategoryManager() {
   const drinkCountBySubcat = menuItems.reduce((acc, item) => { if (item.subcategory_id && item.is_drink && item.is_active) acc[item.subcategory_id] = (acc[item.subcategory_id] ?? 0) + 1; return acc; }, {});
 
   const catFields = [
-    { key: 'name',       label: 'カテゴリ名', required: true, placeholder: '例: ビール' },
-    { key: 'sort_order', label: '表示順序',   type: 'number', min: 0, placeholder: '0' },
+    { key: 'name',       label: 'カテゴリ名',    required: true, placeholder: '例: ビール' },
+    { key: 'sort_order', label: '表示順序',       type: 'number', min: 0, placeholder: '0' },
+    { key: 'crash_pct',  label: '暴落割引率（%）', type: 'number', min: 0, max: 100, placeholder: '0' },
   ];
 
   const subcatFields = (catId) => [
     { key: 'category_id', label: 'カテゴリ', type: 'select', required: true, options: categories.map((c) => ({ value: c.id, label: c.name })) },
-    { key: 'name',        label: 'サブカテゴリ名', required: true, placeholder: '例: 国産ビール' },
-    { key: 'sort_order',  label: '表示順序', type: 'number', min: 0, placeholder: '0' },
+    { key: 'name',        label: 'サブカテゴリ名',  required: true, placeholder: '例: 国産ビール' },
+    { key: 'sort_order',  label: '表示順序',         type: 'number', min: 0, placeholder: '0' },
+    { key: 'crash_pct',   label: '暴落割引率（%）',  type: 'number', min: 0, max: 100, placeholder: '0' },
   ];
 
   const formButtons = (onCancel, onSubmit, isLoading) => (
@@ -183,7 +185,7 @@ export default function CategoryManager() {
                 </button>
                 <span className="text-xs text-gray-400">順序: {cat.sort_order}</span>
                 <button
-                  onClick={() => { setEditingCat(cat); setCatForm({ name: cat.name, sort_order: cat.sort_order }); }}
+                  onClick={() => { setEditingCat(cat); setCatForm({ name: cat.name, sort_order: cat.sort_order, crash_pct: cat.crash_pct ?? 0 }); }}
                   className="px-3.5 py-2 text-xs text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors font-medium"
                 >
                   編集
@@ -205,7 +207,7 @@ export default function CategoryManager() {
                       sub={sub}
                       drinkCount={drinkCountBySubcat[sub.id] ?? 0}
                       itemCount={itemCountBySubcat[sub.id] ?? 0}
-                      onEdit={(s) => { setEditingSubcat(s); setSubcatForm({ name: s.name, sort_order: s.sort_order, category_id: s.category_id }); }}
+                      onEdit={(s) => { setEditingSubcat(s); setSubcatForm({ name: s.name, sort_order: s.sort_order, category_id: s.category_id, crash_pct: s.crash_pct ?? 0 }); }}
                       onDelete={(s) => { if (confirm(`「${s.name}」を削除しますか？\n※この商品のサブカテゴリ設定がクリアされます`)) deleteSubcatMutation.mutate(s.id); }}
                     />
                   ))}
