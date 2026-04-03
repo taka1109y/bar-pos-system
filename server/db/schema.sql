@@ -96,6 +96,12 @@ INSERT INTO system_settings (key, value) VALUES ('late_night_rate',   '0.10') ON
 INSERT INTO system_settings (key, value) VALUES ('late_night_start',  '22')   ON CONFLICT DO NOTHING;
 INSERT INTO system_settings (key, value) VALUES ('late_night_end',    '29')   ON CONFLICT DO NOTHING;
 
+-- 株価暴落機能
+ALTER TABLE categories   ADD COLUMN IF NOT EXISTS crash_pct     NUMERIC(5,2)  NOT NULL DEFAULT 0;
+ALTER TABLE subcategories ADD COLUMN IF NOT EXISTS crash_pct    NUMERIC(5,2)  NOT NULL DEFAULT 0;
+ALTER TABLE menu_items   ADD COLUMN IF NOT EXISTS crash_enabled  BOOLEAN       NOT NULL DEFAULT FALSE;
+ALTER TABLE menu_items   ADD COLUMN IF NOT EXISTS is_crashed     BOOLEAN       NOT NULL DEFAULT FALSE;
+
 CREATE INDEX IF NOT EXISTS idx_pricing_events_item_time ON pricing_events(menu_item_id, event_time);
 CREATE INDEX IF NOT EXISTS idx_price_history_item_time  ON price_history(menu_item_id, recorded_at);
 CREATE INDEX IF NOT EXISTS idx_order_items_order        ON order_items(order_id);
