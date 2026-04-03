@@ -1,13 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../db/database');
+const { broadcast } = require('../services/socketService');
 
 const ITEM_SELECT = `
   SELECT m.id, m.category_id, m.subcategory_id, m.name,
     m.base_price::float, m.current_price::float,
     m.min_price::float, m.max_price::float,
     m.price_step_up::float, m.price_step_down::float,
-    m.is_drink, m.is_active,
+    m.is_drink, m.is_active, m.crash_enabled, m.is_crashed,
     c.name  AS category_name,  c.sort_order,
     sc.name AS subcategory_name, sc.sort_order AS subcategory_sort_order
   FROM menu_items m
@@ -44,12 +45,13 @@ router.patch('/categories/:id', async (req, res, next) => {
     const { rows: existing } = await query('SELECT id FROM categories WHERE id = $1', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ error: 'Category not found' });
 
-    const { name, sort_order } = req.body;
+    const { name, sort_order, crash_pct } = req.body;
     const updates = [];
     const values = [];
     let idx = 1;
     if (name !== undefined)       { updates.push(`name = $${idx++}`);       values.push(name); }
     if (sort_order !== undefined) { updates.push(`sort_order = $${idx++}`); values.push(sort_order); }
+    if (crash_pct !== undefined)  { updates.push(`crash_pct = $${idx++}`);  values.push(crash_pct); }
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
     values.push(req.params.id);
@@ -116,13 +118,14 @@ router.patch('/subcategories/:id', async (req, res, next) => {
     const { rows: existing } = await query('SELECT id FROM subcategories WHERE id = $1', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ error: 'Subcategory not found' });
 
-    const { name, sort_order, category_id } = req.body;
+    const { name, sort_order, category_id, crash_pct } = req.body;
     const updates = [];
     const values = [];
     let idx = 1;
     if (name !== undefined)        { updates.push(`name = $${idx++}`);        values.push(name); }
     if (sort_order !== undefined)  { updates.push(`sort_order = $${idx++}`);  values.push(sort_order); }
     if (category_id !== undefined) { updates.push(`category_id = $${idx++}`); values.push(category_id); }
+    if (crash_pct !== undefined)   { updates.push(`crash_pct = $${idx++}`);   values.push(crash_pct); }
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
     values.push(req.params.id);
@@ -208,7 +211,7 @@ router.patch('/:id', async (req, res, next) => {
     if (!existing[0]) return res.status(404).json({ error: 'Item not found' });
 
     const { name, base_price, min_price, max_price, price_step_up, price_step_down,
-            is_drink, is_active, subcategory_id } = req.body;
+            is_drink, is_active, subcategory_id, crash_enabled, is_crashed } = req.body;
     const updates = [];
     const values = [];
     let idx = 1;
@@ -222,6 +225,8 @@ router.patch('/:id', async (req, res, next) => {
     if (is_drink !== undefined)         { updates.push(`is_drink = $${idx++}`);         values.push(is_drink); }
     if (is_active !== undefined)        { updates.push(`is_active = $${idx++}`);        values.push(is_active); }
     if (subcategory_id !== undefined)   { updates.push(`subcategory_id = $${idx++}`);   values.push(subcategory_id || null); }
+    if (crash_enabled !== undefined)    { updates.push(`crash_enabled = $${idx++}`);    values.push(crash_enabled); }
+    if (is_crashed !== undefined)       { updates.push(`is_crashed = $${idx++}`);       values.push(is_crashed); }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
