@@ -32,6 +32,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     max_price:       item?.max_price || '',
     price_step_up:   item?.price_step_up ?? 50,
     price_step_down: item?.price_step_down ?? 25,
+    crash_enabled:   item?.crash_enabled ?? false,
     is_drink:        item?.is_drink ?? 1,
     is_active:       item?.is_active ?? 1,
   });
@@ -58,6 +59,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
       max_price:       Number(form.max_price) || Number(form.base_price) * 2.0,
       price_step_up:   Number(form.price_step_up),
       price_step_down: Number(form.price_step_down),
+      crash_enabled:   Boolean(form.crash_enabled),
       is_drink:        Number(form.is_drink),
       is_active:       Number(form.is_active),
     });
@@ -128,6 +130,17 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
           <div>
             <label className={lbl}>1競合注文あたり降下額 (¥)</label>
             <input className={inp} type="number" value={form.price_step_down} onChange={(e) => set('price_step_down', e.target.value)} placeholder="25" min={1} step={1} />
+          </div>
+          <div className="col-span-2 pt-1 border-t border-indigo-100">
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={Boolean(form.crash_enabled)}
+                onChange={(e) => set('crash_enabled', e.target.checked)}
+                className="w-4 h-4 accent-red-600 rounded"
+              />
+              暴落許可（株価暴落の対象にする）
+            </label>
           </div>
         </div>
       )}
