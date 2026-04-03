@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 
-const inp = 'w-full bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500';
+const inp = 'w-full bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500';
 const lbl = 'block text-xs font-medium text-gray-600 mb-1.5';
 
 function ModalShell({ title, onClose, children }) {
@@ -73,7 +73,7 @@ function SubcategoryRow({ sub, drinkCount, itemCount, onEdit, onDelete }) {
       </div>
       <span className="text-[11px] text-gray-400 flex-shrink-0">順序: {sub.sort_order}</span>
       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button onClick={() => onEdit(sub)} className="px-3.5 py-2 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium">
+        <button onClick={() => onEdit(sub)} className="px-3.5 py-2 text-xs text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors font-medium">
           編集
         </button>
         <button onClick={() => onDelete(sub)} className="px-3.5 py-2 text-xs text-red-500 hover:bg-red-50 rounded-lg transition-colors font-medium">
@@ -143,7 +143,7 @@ export default function CategoryManager() {
       <button type="button" onClick={onCancel} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">
         キャンセル
       </button>
-      <button type="button" onClick={onSubmit} disabled={isLoading} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
+      <button type="button" onClick={onSubmit} disabled={isLoading} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
         保存
       </button>
     </div>
@@ -154,7 +154,7 @@ export default function CategoryManager() {
       <div className="flex items-center justify-end mb-6">
         <button
           onClick={() => { setAddOpen(true); setCatForm({}); }}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
         >
           + カテゴリを追加
         </button>
@@ -184,7 +184,7 @@ export default function CategoryManager() {
                 <span className="text-xs text-gray-400">順序: {cat.sort_order}</span>
                 <button
                   onClick={() => { setEditingCat(cat); setCatForm({ name: cat.name, sort_order: cat.sort_order }); }}
-                  className="px-3.5 py-2 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                  className="px-3.5 py-2 text-xs text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors font-medium"
                 >
                   編集
                 </button>
@@ -211,7 +211,7 @@ export default function CategoryManager() {
                   ))}
                   <button
                     onClick={() => { setAddingSubcat(cat.id); setSubcatForm({ category_id: cat.id, sort_order: subs.length + 1 }); }}
-                    className="w-full px-6 py-4 text-left text-xs text-blue-500 hover:bg-blue-50 transition-colors font-medium flex items-center gap-2"
+                    className="w-full px-6 py-4 text-left text-xs text-indigo-500 hover:bg-indigo-50 transition-colors font-medium flex items-center gap-2"
                   >
                     <span className="w-4 text-gray-300">└</span>
                     + サブカテゴリを追加

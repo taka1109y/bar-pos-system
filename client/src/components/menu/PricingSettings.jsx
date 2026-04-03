@@ -138,7 +138,7 @@ export default function PricingSettings() {
         <button
           onClick={handleSave}
           disabled={!isDirty || updateMutation.isPending}
-          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors"
+          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors"
         >
           {updateMutation.isPending ? '保存中...' : '変更を保存'}
         </button>

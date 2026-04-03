@@ -23,7 +23,7 @@ function Section({ title, desc, children }) {
 
 function NumberPctInput({ value, onChange }) {
   return (
-    <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 bg-white">
+    <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 bg-white">
       <input
         type="number" min="0" max="100" step="1"
         value={value}
@@ -40,7 +40,7 @@ function HourSelect({ value, onChange }) {
     <select
       value={value}
       onChange={(e) => onChange(Number(e.target.value))}
-      className="bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+      className="bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
     >
       {HOUR_OPTIONS.map((h) => (
         <option key={h} value={h}>{hourLabel(h)}</option>
@@ -100,7 +100,7 @@ export default function SystemSettingsPage() {
       onClick={onClick}
       disabled={saveMutation.isPending}
       className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50 ${
-        saved ? 'bg-emerald-500 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
+        saved ? 'bg-emerald-500 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'
       }`}
     >
       {saved ? '保存しました' : '保存'}
