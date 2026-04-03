@@ -2,11 +2,16 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../db/database');
 
+const TZ = process.env.TZ_REPORT || 'Asia/Tokyo';
+
+function todayJST() {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: TZ }); // YYYY-MM-DD
+}
+
 // GET /api/receipts?date=YYYY-MM-DD
 router.get('/', async (req, res, next) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    const date = req.query.date || today;
+    const date = req.query.date || todayJST();
 
     const { rows } = await query(
       `SELECT
@@ -30,10 +35,10 @@ router.get('/', async (req, res, next) => {
        FROM orders o
        JOIN tables t ON o.table_id = t.id
        LEFT JOIN order_items oi ON oi.order_id = o.id
-       WHERE o.status = 'paid' AND o.closed_at::date = $1
+       WHERE o.status = 'paid' AND (o.closed_at AT TIME ZONE $2)::date = $1
        GROUP BY o.id, o.closed_at, o.total_amount, o.discount_amount, o.late_night_rate, o.late_night_amount, o.tax_rate, o.tax_amount, o.payment_method, t.name
        ORDER BY o.closed_at DESC`,
-      [date]
+      [date, TZ]
     );
 
     res.json(rows);

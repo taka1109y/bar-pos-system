@@ -5,21 +5,25 @@ const { broadcastToRoom, broadcast } = require('../services/socketService');
 const { triggerTick } = require('../services/pricingEngine');
 
 async function getOrderWithItems(orderId) {
-  const { rows: orderRows } = await query('SELECT * FROM orders WHERE id = $1', [orderId]);
+  const { rows: orderRows } = await query(
+    `SELECT id, table_id, status, payment_method, opened_at, closed_at,
+       total_amount::float, discount_amount::float, tax_rate::float, tax_amount::float,
+       late_night_rate::float, late_night_amount::float
+     FROM orders WHERE id = $1`,
+    [orderId]
+  );
   const order = orderRows[0];
   if (!order) return null;
 
   const { rows: items } = await query(
     `SELECT oi.id, oi.order_id, oi.menu_item_id, oi.quantity,
-       oi.unit_price::float, oi.item_name,
-       m.name as menu_name
+       oi.unit_price::float, oi.item_name, oi.status
      FROM order_items oi
-     JOIN menu_items m ON oi.menu_item_id = m.id
      WHERE oi.order_id = $1`,
     [orderId]
   );
 
-  return { ...order, total_amount: parseFloat(order.total_amount), items };
+  return { ...order, items };
 }
 
 async function recalcTotal(client, orderId) {
@@ -58,13 +62,21 @@ router.get('/table/:tableId', async (req, res, next) => {
     const order = rows[0];
     const { rows: items } = await query(
       `SELECT oi.id, oi.order_id, oi.menu_item_id, oi.quantity,
-         oi.unit_price::float, oi.item_name
+         oi.unit_price::float, oi.item_name, oi.status
        FROM order_items oi
        WHERE oi.order_id = $1`,
       [order.id]
     );
 
-    res.json({ ...order, total_amount: parseFloat(order.total_amount), items });
+    res.json({
+      id: order.id, table_id: order.table_id, status: order.status,
+      payment_method: order.payment_method, opened_at: order.opened_at, closed_at: order.closed_at,
+      total_amount: parseFloat(order.total_amount),
+      discount_amount: parseFloat(order.discount_amount),
+      tax_rate: parseFloat(order.tax_rate), tax_amount: parseFloat(order.tax_amount),
+      late_night_rate: parseFloat(order.late_night_rate), late_night_amount: parseFloat(order.late_night_amount),
+      items,
+    });
   } catch (err) {
     next(err);
   }

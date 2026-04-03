@@ -34,7 +34,7 @@ router.post('/categories', async (req, res, next) => {
     const { name, sort_order = 0 } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
     const { rows } = await query(
-      'INSERT INTO categories (name, sort_order) VALUES ($1, $2) RETURNING *',
+      'INSERT INTO categories (name, sort_order) VALUES ($1, $2) RETURNING id, name, sort_order, crash_pct::float',
       [name, sort_order]
     );
     res.status(201).json(rows[0]);
@@ -58,7 +58,7 @@ router.patch('/categories/:id', async (req, res, next) => {
 
     values.push(req.params.id);
     const { rows } = await query(
-      `UPDATE categories SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
+      `UPDATE categories SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, name, sort_order, crash_pct::float`,
       values
     );
     res.json(rows[0]);
@@ -108,7 +108,7 @@ router.post('/subcategories', async (req, res, next) => {
     if (!catCheck[0]) return res.status(400).json({ error: 'category_id does not exist' });
 
     const { rows } = await query(
-      'INSERT INTO subcategories (category_id, name, sort_order) VALUES ($1, $2, $3) RETURNING *',
+      'INSERT INTO subcategories (category_id, name, sort_order) VALUES ($1, $2, $3) RETURNING id, category_id, name, sort_order, crash_pct::float',
       [category_id, name, sort_order]
     );
     res.status(201).json(rows[0]);
@@ -133,7 +133,7 @@ router.patch('/subcategories/:id', async (req, res, next) => {
 
     values.push(req.params.id);
     const { rows } = await query(
-      `UPDATE subcategories SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
+      `UPDATE subcategories SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, category_id, name, sort_order, crash_pct::float`,
       values
     );
     res.json(rows[0]);

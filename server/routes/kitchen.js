@@ -30,6 +30,7 @@ router.get('/orders', async (req, res, next) => {
       tableName: r.table_name,
       itemName:  r.item_name,
       quantity:  r.quantity,
+      status:    r.item_status,
       openedAt:  r.opened_at,
     })));
   } catch (err) {

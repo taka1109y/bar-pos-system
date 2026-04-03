@@ -45,6 +45,14 @@ router.patch('/:id', async (req, res, next) => {
     const { rows: existing } = await query('SELECT * FROM tables WHERE id = $1', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ error: 'Table not found' });
 
+    if (name !== undefined) {
+      if (typeof name !== 'string' || name.trim().length === 0) {
+        return res.status(400).json({ error: 'name must not be empty' });
+      }
+      if (name.length > 100) {
+        return res.status(400).json({ error: 'name must be 100 characters or fewer' });
+      }
+    }
     if (table_type !== undefined && !VALID_TYPES.includes(table_type)) {
       return res.status(400).json({ error: 'table_type must be table or counter' });
     }
@@ -52,7 +60,7 @@ router.patch('/:id', async (req, res, next) => {
     const updates = [];
     const values = [];
     let idx = 1;
-    if (name !== undefined)       { updates.push(`name = $${idx++}`);       values.push(name); }
+    if (name !== undefined)       { updates.push(`name = $${idx++}`);       values.push(name.trim()); }
     if (table_type !== undefined) { updates.push(`table_type = $${idx++}`); values.push(table_type); }
     if (status !== undefined)     { updates.push(`status = $${idx++}`);     values.push(status); }
 
@@ -86,6 +94,14 @@ router.delete('/:id', async (req, res, next) => {
     );
     if (openOrders.length > 0) {
       return res.status(409).json({ error: 'Cannot delete table with open orders' });
+    }
+
+    const { rows: allOrders } = await query(
+      'SELECT id FROM orders WHERE table_id = $1 LIMIT 1',
+      [req.params.id]
+    );
+    if (allOrders.length > 0) {
+      return res.status(409).json({ error: 'Cannot delete table with order history' });
     }
 
     await query('DELETE FROM tables WHERE id = $1', [req.params.id]);
