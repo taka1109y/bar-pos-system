@@ -24,7 +24,16 @@
       "Bash(git add:*)",
       "Bash(git commit -m ':*)",
       "Bash(git commit:*)",
-      "Bash(git -C /Users/takaadm/Desktop/bar-pos-system checkout feature/ui-redesign)"
+      "Bash(git -C /Users/takaadm/Desktop/bar-pos-system checkout feature/ui-redesign)",
+      "Bash(curl -s http://localhost/api/menu/all)",
+      "Bash(node -e ':*)",
+      "Bash(curl -s http://localhost/api/menu/categories)",
+      "Bash(curl -s http://localhost/api/menu/subcategories)",
+      "Bash(curl -s -X POST http://localhost/api/menu/crash -H \"Content-Type: application/json\" -d '{\"category_ids\":[1],\"subcategory_ids\":[]}')",
+      "Bash(python3 -c \"import sys,json; print\\(json.load\\(sys.stdin\\)\\)\")",
+      "Bash(python3 -c \"import sys; content=sys.stdin.read\\(\\); print\\('crash route found:', '/crash' in content\\)\")",
+      "Bash(python3 -c ':*)",
+      "Bash(curl -s http://localhost)"
     ]
   }
 }
