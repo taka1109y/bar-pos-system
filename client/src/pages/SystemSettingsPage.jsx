@@ -193,12 +193,20 @@ export default function SystemSettingsPage() {
       setCrashMsg(`暴落を実行しました（${data.updated}商品）`);
       setTimeout(() => setCrashMsg(''), 3000);
     },
+    onError: () => {
+      setCrashMsg('エラーが発生しました');
+      setTimeout(() => setCrashMsg(''), 3000);
+    },
   });
 
   const resetMutation = useMutation({
     mutationFn: api.resetCrash,
     onSuccess: (data) => {
       setResetMsg(`暴落を解除しました（${data.updated}商品）`);
+      setTimeout(() => setResetMsg(''), 3000);
+    },
+    onError: () => {
+      setResetMsg('エラーが発生しました');
       setTimeout(() => setResetMsg(''), 3000);
     },
   });

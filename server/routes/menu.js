@@ -21,7 +21,9 @@ const ITEM_SELECT = `
 // GET /api/menu/categories
 router.get('/categories', async (req, res, next) => {
   try {
-    const { rows } = await query('SELECT * FROM categories ORDER BY sort_order');
+    const { rows } = await query(
+      'SELECT id, name, sort_order, crash_pct::float FROM categories ORDER BY sort_order'
+    );
     res.json(rows);
   } catch (err) { next(err); }
 });
@@ -86,7 +88,8 @@ router.delete('/categories/:id', async (req, res, next) => {
 router.get('/subcategories', async (req, res, next) => {
   try {
     const { rows } = await query(`
-      SELECT sc.*, c.name AS category_name
+      SELECT sc.id, sc.category_id, sc.name, sc.sort_order, sc.crash_pct::float,
+        c.name AS category_name
       FROM subcategories sc
       JOIN categories c ON sc.category_id = c.id
       ORDER BY c.sort_order, sc.sort_order
