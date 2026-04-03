@@ -288,37 +288,6 @@ export default function SystemSettingsPage() {
             </div>
           </Section>
 
-          {/* ── 株価暴落 ── */}
-          <Section title="株価暴落" desc="選択したカテゴリ・サブカテゴリ内の暴落許可商品を一括で暴落価格に変更します。">
-            <div className="flex gap-3">
-              <button
-                onClick={() => setCrashModalOpen(true)}
-                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
-              >
-                暴落を実行
-              </button>
-              <button
-                onClick={handleCrashReset}
-                disabled={resetMutation.isPending}
-                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
-              >
-                暴落解除
-              </button>
-            </div>
-            {crashMsg && <p className="mt-2 text-sm text-red-600 font-medium">{crashMsg}</p>}
-            {resetMsg && <p className="mt-2 text-sm text-emerald-600 font-medium">{resetMsg}</p>}
-            {crashModalOpen && (
-              <CrashModal
-                categories={categories}
-                subcategories={subcategories}
-                menuItems={menuItems}
-                onClose={() => setCrashModalOpen(false)}
-                onExecute={(data) => crashMutation.mutate(data)}
-                isPending={crashMutation.isPending}
-              />
-            )}
-          </Section>
-
           {/* ── 深夜料金設定 ── */}
           <Section
             title="深夜料金設定"
@@ -372,6 +341,37 @@ export default function SystemSettingsPage() {
                 </div>
               </div>
             </div>
+          </Section>
+
+          {/* ── 株価暴落 ── */}
+          <Section title="株価暴落" desc="選択したカテゴリ・サブカテゴリ内の暴落許可商品を一括で暴落価格に変更します。">
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCrashModalOpen(true)}
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
+              >
+                暴落を実行
+              </button>
+              <button
+                onClick={handleCrashReset}
+                disabled={resetMutation.isPending}
+                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+              >
+                暴落解除
+              </button>
+            </div>
+            {crashMsg && <p className="mt-2 text-sm text-red-600 font-medium">{crashMsg}</p>}
+            {resetMsg && <p className="mt-2 text-sm text-emerald-600 font-medium">{resetMsg}</p>}
+            {crashModalOpen && (
+              <CrashModal
+                categories={categories}
+                subcategories={subcategories}
+                menuItems={menuItems}
+                onClose={() => setCrashModalOpen(false)}
+                onExecute={(data) => crashMutation.mutate(data)}
+                isPending={crashMutation.isPending}
+              />
+            )}
           </Section>
         </>
       )}
