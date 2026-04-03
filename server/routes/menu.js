@@ -204,6 +204,86 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+// POST /api/menu/crash
+router.post('/crash', async (req, res, next) => {
+  try {
+    const { category_ids = [], subcategory_ids = [] } = req.body;
+    if (category_ids.length === 0 && subcategory_ids.length === 0) {
+      return res.status(400).json({ error: 'category_ids or subcategory_ids required' });
+    }
+
+    const { rows: targets } = await query(`
+      SELECT m.id,
+        m.min_price::float,
+        COALESCE(
+          CASE WHEN m.subcategory_id = ANY($2::int[]) THEN sc.crash_pct::float ELSE NULL END,
+          CASE WHEN m.category_id    = ANY($1::int[]) THEN c.crash_pct::float  ELSE NULL END
+        ) AS effective_pct
+      FROM menu_items m
+      JOIN categories c ON m.category_id = c.id
+      LEFT JOIN subcategories sc ON m.subcategory_id = sc.id
+      WHERE m.crash_enabled = TRUE
+        AND m.is_active = TRUE
+        AND (m.category_id = ANY($1::int[]) OR m.subcategory_id = ANY($2::int[]))
+    `, [category_ids, subcategory_ids]);
+
+    let updated = 0;
+    for (const item of targets) {
+      const pct = item.effective_pct ?? 0;
+      const crashPrice = Math.round(item.min_price * (1 - pct / 100) / 25) * 25;
+      await query(
+        'UPDATE menu_items SET current_price = $1, is_crashed = TRUE WHERE id = $2',
+        [crashPrice, item.id]
+      );
+      await query(
+        'INSERT INTO price_history (menu_item_id, price) VALUES ($1, $2)',
+        [item.id, crashPrice]
+      );
+      updated++;
+    }
+
+    const { rows: allPrices } = await query(`
+      SELECT id, name, base_price::float, current_price::float,
+        ROUND((current_price - base_price) * 100.0 / base_price, 1)::float AS pct_change
+      FROM menu_items WHERE is_drink = TRUE AND is_active = TRUE
+    `);
+    const items = allPrices.map((r) => ({
+      ...r,
+      direction: r.pct_change > 0 ? 'up' : r.pct_change < 0 ? 'down' : 'flat',
+    }));
+    broadcast('prices:updated', { items, timestamp: Date.now() });
+
+    res.json({ updated });
+  } catch (err) { next(err); }
+});
+
+// POST /api/menu/crash/reset
+router.post('/crash/reset', async (req, res, next) => {
+  try {
+    const { rows } = await query(`
+      UPDATE menu_items
+      SET current_price = base_price, is_crashed = FALSE
+      WHERE is_crashed = TRUE AND is_active = TRUE
+      RETURNING id
+    `);
+
+    if (rows.length > 0) {
+      const { rows: allPrices } = await query(`
+        SELECT id, name, base_price::float, current_price::float,
+          ROUND((current_price - base_price) * 100.0 / base_price, 1)::float AS pct_change
+        FROM menu_items WHERE is_drink = TRUE AND is_active = TRUE
+      `);
+      const items = allPrices.map((r) => ({
+        ...r,
+        direction: r.pct_change > 0 ? 'up' : r.pct_change < 0 ? 'down' : 'flat',
+      }));
+      broadcast('prices:updated', { items, timestamp: Date.now() });
+    }
+
+    res.json({ updated: rows.length });
+  } catch (err) { next(err); }
+});
+
 // PATCH /api/menu/:id
 router.patch('/:id', async (req, res, next) => {
   try {
