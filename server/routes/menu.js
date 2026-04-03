@@ -217,6 +217,8 @@ router.post('/crash', async (req, res, next) => {
 
     const { rows: targets } = await query(`
       SELECT m.id,
+        m.name,
+        m.base_price::float,
         m.min_price::float,
         COALESCE(
           CASE WHEN m.subcategory_id = ANY($2::int[]) THEN sc.crash_pct::float ELSE NULL END,
@@ -231,9 +233,10 @@ router.post('/crash', async (req, res, next) => {
     `, [category_ids, subcategory_ids]);
 
     let updated = 0;
+    const broadcastItems = [];
     for (const item of targets) {
-      const pct = item.effective_pct ?? 0;
-      const crashPrice = Math.round(item.min_price * (1 - pct / 100) / 25) * 25;
+      const pct = Math.min(Math.max(item.effective_pct ?? 0, 0), 100);
+      const crashPrice = Math.max(Math.round(item.min_price * (1 - pct / 100) / 25) * 25, 0);
       await query(
         'UPDATE menu_items SET current_price = $1, is_crashed = TRUE WHERE id = $2',
         [crashPrice, item.id]
@@ -242,20 +245,22 @@ router.post('/crash', async (req, res, next) => {
         'INSERT INTO price_history (menu_item_id, price) VALUES ($1, $2)',
         [item.id, crashPrice]
       );
+      const pctChange = item.base_price > 0
+        ? Math.round((crashPrice - item.base_price) / item.base_price * 100 * 10) / 10
+        : 0;
+      broadcastItems.push({
+        id: item.id,
+        name: item.name,
+        base_price: item.base_price,
+        current_price: crashPrice,
+        pct_change: pctChange,
+        direction: 'down',
+      });
       updated++;
     }
 
     if (updated > 0) {
-      const { rows: allPrices } = await query(`
-        SELECT id, name, base_price::float, current_price::float,
-          ROUND((current_price - base_price) * 100.0 / base_price, 1)::float AS pct_change
-        FROM menu_items WHERE is_drink = TRUE AND is_active = TRUE
-      `);
-      const items = allPrices.map((r) => ({
-        ...r,
-        direction: r.pct_change > 0 ? 'up' : r.pct_change < 0 ? 'down' : 'flat',
-      }));
-      broadcast('prices:updated', { items, timestamp: Date.now() });
+      broadcast('prices:updated', { items: broadcastItems, timestamp: Date.now() });
     }
 
     res.json({ updated });
