@@ -48,6 +48,7 @@ function FormFields({ form, setForm, fields }) {
               placeholder={f.placeholder}
               required={f.required}
               min={f.min}
+              max={f.max}
             />
           </div>
         )
