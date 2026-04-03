@@ -71,7 +71,7 @@ export default function ReportsPage({ onClose, inline = false }) {
                     </span>
                     <div className="w-28 bg-gray-100 rounded-full h-2 flex-shrink-0">
                       <div
-                        className="bg-blue-500 h-2 rounded-full transition-all"
+                        className="bg-indigo-500 h-2 rounded-full transition-all"
                         style={{ width: `${(item.revenue / maxRevenue) * 100}%` }}
                       />
                     </div>

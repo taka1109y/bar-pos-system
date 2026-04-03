@@ -182,7 +182,7 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                   </button>
                 </div>
                 {/* 入力 */}
-                <div className="flex items-center flex-1 border border-gray-200 rounded-lg overflow-hidden bg-gray-50 focus-within:ring-2 focus-within:ring-blue-400 focus-within:border-transparent">
+                <div className="flex items-center flex-1 border border-gray-200 rounded-lg overflow-hidden bg-gray-50 focus-within:ring-2 focus-within:ring-indigo-400 focus-within:border-transparent">
                   <span className="pl-3 text-gray-400 text-sm flex-shrink-0">
                     {discountType === 'amount' ? '¥' : ''}
                   </span>

@@ -109,12 +109,12 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
       </div>
       <div className="flex gap-6">
         <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-          <input type="checkbox" checked={Boolean(form.is_drink)} onChange={(e) => set('is_drink', e.target.checked ? 1 : 0)} className="w-4 h-4 accent-blue-600 rounded" />
+          <input type="checkbox" checked={Boolean(form.is_drink)} onChange={(e) => set('is_drink', e.target.checked ? 1 : 0)} className="w-4 h-4 accent-indigo-600 rounded" />
           ドリンク（価格変動対象）
         </label>
         {item && (
           <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-            <input type="checkbox" checked={Boolean(form.is_active)} onChange={(e) => set('is_active', e.target.checked ? 1 : 0)} className="w-4 h-4 accent-blue-600 rounded" />
+            <input type="checkbox" checked={Boolean(form.is_active)} onChange={(e) => set('is_active', e.target.checked ? 1 : 0)} className="w-4 h-4 accent-indigo-600 rounded" />
             有効
           </label>
         )}
