@@ -65,6 +65,10 @@ export const api = {
   updatePricingSettings: (data) => req('/settings/pricing', { method: 'PATCH', body: JSON.stringify(data) }),
   resetPricingSettings: () => req('/settings/pricing/reset', { method: 'POST' }),
 
+  // Crash
+  triggerCrash: (data) => req('/menu/crash', { method: 'POST', body: JSON.stringify(data) }),
+  resetCrash:   ()     => req('/menu/crash/reset', { method: 'POST' }),
+
   // Kitchen
   getKitchenOrders: () => req('/kitchen/orders'),
   serveKitchenItem: (itemId) => req(`/kitchen/items/${itemId}/serve`, { method: 'PATCH' }),
