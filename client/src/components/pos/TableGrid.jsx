@@ -50,7 +50,10 @@ export default function TableGrid({ tables, openOrders = [], selectedTableId, on
                   : 'border-indigo-300 shadow-md shadow-indigo-100'
                 : 'border-slate-200 shadow-sm'
               }
-              ${isSelected ? 'ring-2 ring-indigo-500 ring-offset-2' : 'hover:shadow-lg hover:-translate-y-0.5'}
+              ${isSelected
+                ? `ring-2 ring-offset-2 ${isCounter ? 'ring-amber-500' : 'ring-indigo-500'}`
+                : 'hover:shadow-lg hover:-translate-y-0.5'
+              }
             `}
           >
             {/* 種別バッジ */}
@@ -70,7 +73,7 @@ export default function TableGrid({ tables, openOrders = [], selectedTableId, on
                 {table.name}
               </p>
 
-              <div className={`mt-2 space-y-0.5 ${order ? '' : 'invisible'}`}>
+              <div className={`mt-2 space-y-0.5 ${isOccupied ? '' : 'invisible'}`}>
                 <p className={`text-base font-black ${isCounter ? 'text-amber-600' : 'text-indigo-600'}`}>
                   {order ? `¥${Math.floor(order.total_amount).toLocaleString()}` : '¥0'}
                 </p>
