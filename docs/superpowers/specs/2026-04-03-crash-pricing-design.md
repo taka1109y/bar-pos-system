@@ -20,8 +20,9 @@ ALTER TABLE categories ADD COLUMN IF NOT EXISTS crash_pct NUMERIC(5,2) NOT NULL 
 -- サブカテゴリにも暴落割引率を追加
 ALTER TABLE subcategories ADD COLUMN IF NOT EXISTS crash_pct NUMERIC(5,2) NOT NULL DEFAULT 0;
 
--- 商品には暴落許可フラグのみ
+-- 商品には暴落許可フラグと暴落中フラグ
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS crash_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS is_crashed    BOOLEAN NOT NULL DEFAULT FALSE;
 ```
 
 ### 暴落価格の計算式
@@ -48,8 +49,8 @@ crash_price = round(min_price × (1 − crash_pct/100) / 25) × 25
 
 | エンドポイント | メソッド | 動作 |
 |---|---|---|
-| `/api/menu/crash` | POST | 指定カテゴリ/サブカテゴリ内の `crash_enabled=true` 商品の `current_price` を crash_price に更新 → `prices:updated` ブロードキャスト |
-| `/api/menu/crash/reset` | POST | 全アクティブ商品の `current_price` を `base_price` にリセット → `prices:updated` ブロードキャスト |
+| `/api/menu/crash` | POST | 指定カテゴリ/サブカテゴリ内の `crash_enabled=true` 商品の `current_price` を crash_price に更新し `is_crashed=true` にセット → `prices:updated` ブロードキャスト |
+| `/api/menu/crash/reset` | POST | `is_crashed=true` の商品のみ `current_price` を `base_price` にリセットし `is_crashed=false` に戻す → `prices:updated` ブロードキャスト |
 
 **リクエストボディ（`POST /api/menu/crash`）:**
 ```json
@@ -66,7 +67,7 @@ crash_price = round(min_price × (1 − crash_pct/100) / 25) × 25
 
 ### `server/routes/menu.js` 変更
 
-- `ITEM_SELECT` に `m.crash_enabled` を追加
+- `ITEM_SELECT` に `m.crash_enabled`, `m.is_crashed` を追加
 - `PATCH /api/menu/:id` に `crash_enabled` フィールドを追加
 - `GET /api/menu/categories` と `GET /api/menu/subcategories` レスポンスに `crash_pct` を含める
 - `PATCH /api/menu/categories/:id` と `PATCH /api/menu/subcategories/:id` に `crash_pct` 更新を追加
@@ -162,5 +163,5 @@ POST /api/menu/crash { category_ids, subcategory_ids }
 
 - `crash_enabled = false` の商品は暴落対象外
 - `is_active = false` の商品は暴落対象外
-- 暴落解除は全アクティブ商品を `base_price` に戻す（選択したカテゴリのみではない）
+- 暴落解除は `is_crashed=true` の商品のみを `base_price` に戻す（暴落を発動していない商品は変更しない）
 - crash_pct = 0 のカテゴリを選択しても current_price の変化は 0 のみ（エラーにはしない）
