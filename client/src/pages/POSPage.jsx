@@ -14,14 +14,14 @@ import ReceiptsPage from './ReceiptsPage';
 import SystemSettingsPage from './SystemSettingsPage';
 
 const NAV_ITEMS = [
-  { id: 'pos',      label: 'レジ画面',      desc: 'テーブル選択・注文' },
-  { id: 'tables',   label: 'テーブル管理',  desc: 'テーブル・カウンター' },
-  { id: 'menu',     label: '商品管理',      desc: 'メニュー・価格設定' },
-  { id: 'categories', label: 'カテゴリ管理', desc: 'カテゴリ・サブカテゴリ' },
-  { id: 'pricing',  label: '価格エンジン',  desc: 'パラメータ設定' },
-  { id: 'reports',  label: '売上管理',      desc: '日次レポート・分析' },
-  { id: 'receipts', label: '伝票情報',      desc: '会計済み伝票の閲覧' },
-  { id: 'system',   label: 'システム管理', desc: '消費税・システム設定' },
+  { id: 'pos',        label: 'レジ画面',    desc: 'テーブル選択・注文',     icon: '🏠' },
+  { id: 'tables',     label: 'テーブル管理', desc: 'テーブル・カウンター',    icon: '🪑' },
+  { id: 'menu',       label: '商品管理',    desc: 'メニュー・価格設定',      icon: '📋' },
+  { id: 'categories', label: 'カテゴリ管理', desc: 'カテゴリ・サブカテゴリ',  icon: '🏷️' },
+  { id: 'pricing',    label: '価格エンジン', desc: 'パラメータ設定',         icon: '⚙️' },
+  { id: 'reports',    label: '売上管理',    desc: '日次レポート・分析',      icon: '📊' },
+  { id: 'receipts',   label: '伝票情報',    desc: '会計済み伝票の閲覧',     icon: '🧾' },
+  { id: 'system',     label: 'システム管理', desc: '消費税・システム設定',    icon: '🔧' },
 ];
 
 export default function POSPage() {
@@ -91,7 +91,6 @@ export default function POSPage() {
     setSelectedTable((prev) => (prev?.id === table.id ? null : table));
   };
 
-  // 管理画面を離れるときにキャッシュ更新
   const handleSetView = (nextView) => {
     if (view === 'menu' || view === 'categories') {
       queryClient.invalidateQueries({ queryKey: ['menu'] });
@@ -110,88 +109,97 @@ export default function POSPage() {
     : null;
 
   const occupiedCount = openOrders.length;
+  const currentNav = NAV_ITEMS.find((n) => n.id === view);
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
       {/* ─── サイドバー ─── */}
-      <aside className="w-52 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 shadow-sm">
-        {/* ブランド */}
-        <div className="px-4 py-4 border-b border-gray-100">
+      <aside className="w-56 bg-white border-r border-slate-200 flex flex-col flex-shrink-0">
+        {/* ブランドヘッダー */}
+        <div className="px-4 py-4 bg-gradient-to-b from-indigo-600 to-indigo-700 flex-shrink-0">
           <div className="flex items-center gap-2.5">
-            <span className="text-2xl">🍺</span>
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center text-lg">🍺</div>
             <div>
-              <p className="font-bold text-gray-900 text-sm leading-tight">Sports Bar</p>
-              <p className="text-[11px] text-gray-400 font-medium">POS 管理画面</p>
+              <p className="font-black text-white text-sm leading-tight tracking-wide">Sports Bar</p>
+              <p className="text-[11px] text-indigo-200 font-medium">POS 管理画面</p>
             </div>
           </div>
         </div>
 
         {/* ナビゲーション */}
-        <nav className="flex-1 p-3 space-y-0.5">
+        <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
           {NAV_ITEMS.map((item) => (
             <button
               key={item.id}
               onClick={() => handleSetView(item.id)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg transition-all ${
+              className={`w-full text-left px-3 py-2.5 rounded-lg transition-all flex items-center gap-3 ${
                 view === item.id
-                  ? 'bg-blue-50 text-blue-700 font-semibold'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 font-medium'
+                  ? 'bg-indigo-50 text-indigo-700 border-l-2 border-indigo-600 pl-2.5'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
-              <span className="text-sm block">{item.label}</span>
-              <span className={`text-[11px] block mt-0.5 ${view === item.id ? 'text-blue-400' : 'text-gray-400'}`}>
-                {item.desc}
-              </span>
+              <span className="text-base flex-shrink-0">{item.icon}</span>
+              <div className="min-w-0">
+                <span className={`text-sm block font-semibold truncate ${view === item.id ? 'text-indigo-700' : ''}`}>
+                  {item.label}
+                </span>
+                <span className={`text-[10px] block truncate ${view === item.id ? 'text-indigo-400' : 'text-slate-400'}`}>
+                  {item.desc}
+                </span>
+              </div>
             </button>
           ))}
 
-          <div className="pt-3 mt-1 border-t border-gray-100 space-y-0.5">
+          <div className="pt-2 mt-1 border-t border-slate-100 space-y-0.5">
             <a
               href="/board"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors font-medium"
+              className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors"
             >
-              <span>価格ボード</span>
-              <span className="text-xs text-gray-300 font-normal">↗</span>
+              <span className="text-base flex-shrink-0">📺</span>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-semibold block">価格ボード</span>
+              </div>
+              <span className="text-[10px] text-slate-300">↗</span>
             </a>
             <a
               href="/kitchen"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors font-medium"
+              className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors"
             >
-              <span>キッチン</span>
-              <span className="text-xs text-gray-300 font-normal">↗</span>
+              <span className="text-base flex-shrink-0">🍳</span>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-semibold block">キッチン</span>
+              </div>
+              <span className="text-[10px] text-slate-300">↗</span>
             </a>
           </div>
         </nav>
 
-        {/* ステータスエリア */}
-        <div className="p-3 border-t border-gray-100 space-y-2">
-          {/* テーブル稼働状況 */}
-          <div className="px-3 py-2 bg-gray-50 rounded-lg">
-            <p className="text-[11px] text-gray-400 font-medium mb-1">テーブル稼働</p>
-            <p className="text-sm font-bold text-gray-700">
-              {occupiedCount}
-              <span className="font-normal text-gray-400"> / {tables.length} 席</span>
-            </p>
+        {/* ステータス */}
+        <div className="p-3 border-t border-slate-100 flex-shrink-0">
+          <div className="px-3 py-2.5 bg-slate-50 rounded-lg border border-slate-100">
+            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-1">テーブル稼働</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl font-black text-slate-800">{occupiedCount}</span>
+              <span className="text-sm text-slate-400 font-medium">/ {tables.length} 席</span>
+            </div>
           </div>
-
         </div>
       </aside>
 
       {/* ─── メインコンテンツ ─── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* コンテンツヘッダー */}
-        <header className="bg-white border-b border-gray-200 px-6 py-3.5 flex items-center justify-between flex-shrink-0">
-          <div>
-            <h1 className="font-bold text-gray-900 text-base">
-              {NAV_ITEMS.find((n) => n.id === view)?.label}
-            </h1>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {NAV_ITEMS.find((n) => n.id === view)?.desc}
-            </p>
+        <header className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="text-xl">{currentNav?.icon}</span>
+            <div>
+              <h1 className="font-bold text-slate-900 text-base">{currentNav?.label}</h1>
+              <p className="text-xs text-slate-400 mt-0.5">{currentNav?.desc}</p>
+            </div>
           </div>
         </header>
 
@@ -207,7 +215,7 @@ export default function POSPage() {
               />
             </div>
             {currentTable && (
-              <div className="w-full sm:w-80 md:w-96 flex-shrink-0 border-l border-gray-200">
+              <div className="w-full sm:w-80 md:w-96 flex-shrink-0 border-l border-slate-200">
                 <OrderPanel
                   table={currentTable}
                   menuItems={menuItems}
@@ -220,54 +228,13 @@ export default function POSPage() {
           </div>
         )}
 
-        {/* ─── テーブル管理 ─── */}
-        {view === 'tables' && (
-          <div className="flex-1 overflow-y-auto">
-            <TableManager />
-          </div>
-        )}
-
-        {/* ─── 商品管理 ─── */}
-        {view === 'menu' && (
-          <div className="flex-1 overflow-y-auto">
-            <MenuManager />
-          </div>
-        )}
-
-        {/* ─── カテゴリ管理 ─── */}
-        {view === 'categories' && (
-          <div className="flex-1 overflow-y-auto">
-            <CategoryManager />
-          </div>
-        )}
-
-        {/* ─── 価格エンジン設定 ─── */}
-        {view === 'pricing' && (
-          <div className="flex-1 overflow-y-auto">
-            <PricingSettings />
-          </div>
-        )}
-
-        {/* ─── 売上管理 ─── */}
-        {view === 'reports' && (
-          <div className="flex-1 overflow-y-auto">
-            <ReportsPage inline />
-          </div>
-        )}
-
-        {/* ─── 伝票情報 ─── */}
-        {view === 'receipts' && (
-          <div className="flex-1 overflow-y-auto">
-            <ReceiptsPage />
-          </div>
-        )}
-
-        {/* ─── システム管理 ─── */}
-        {view === 'system' && (
-          <div className="flex-1 overflow-y-auto">
-            <SystemSettingsPage />
-          </div>
-        )}
+        {view === 'tables'     && <div className="flex-1 overflow-y-auto"><TableManager /></div>}
+        {view === 'menu'       && <div className="flex-1 overflow-y-auto"><MenuManager /></div>}
+        {view === 'categories' && <div className="flex-1 overflow-y-auto"><CategoryManager /></div>}
+        {view === 'pricing'    && <div className="flex-1 overflow-y-auto"><PricingSettings /></div>}
+        {view === 'reports'    && <div className="flex-1 overflow-y-auto"><ReportsPage inline /></div>}
+        {view === 'receipts'   && <div className="flex-1 overflow-y-auto"><ReceiptsPage /></div>}
+        {view === 'system'     && <div className="flex-1 overflow-y-auto"><SystemSettingsPage /></div>}
       </div>
     </div>
   );

@@ -28,7 +28,7 @@ function TableForm({ table, onSave, onCancel, isLoading }) {
   });
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const inp = 'w-full bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors';
+  const inp = 'w-full bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors';
   const lbl = 'block text-xs font-medium text-gray-600 mb-1.5';
 
   return (
@@ -53,7 +53,7 @@ function TableForm({ table, onSave, onCancel, isLoading }) {
               onClick={() => set('table_type', value)}
               className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-medium transition-colors ${
                 form.table_type === value
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
                   : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
               }`}
             >
@@ -66,7 +66,7 @@ function TableForm({ table, onSave, onCancel, isLoading }) {
         <button type="button" onClick={onCancel} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">
           キャンセル
         </button>
-        <button type="submit" disabled={isLoading} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
+        <button type="submit" disabled={isLoading} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
           保存
         </button>
       </div>
@@ -129,7 +129,7 @@ export default function TableManager() {
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
                   onClick={() => { setEditTable(table); setError(''); }}
-                  className="px-3.5 py-2 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                  className="px-3.5 py-2 text-xs text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors font-medium"
                 >
                   編集
                 </button>
@@ -160,7 +160,7 @@ export default function TableManager() {
       <div className="flex items-center justify-end mb-6">
         <button
           onClick={() => { setAddOpen(true); setError(''); }}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
         >
           + テーブル / カウンターを追加
         </button>

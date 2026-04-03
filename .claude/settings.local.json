@@ -18,7 +18,13 @@
       "Bash(curl -s -X POST http://localhost/api/payments/99 -H 'Content-Type: application/json' -d '{\"payment_method\":\"bitcoin\"}')",
       "Bash(curl -s -X PATCH http://localhost/api/settings/pricing -H 'Content-Type: application/json' -d '{\"MAX_DEMAND_QTY\":5,\"WINDOW_SECONDS\":180}')",
       "Bash(curl -s -X PATCH http://localhost/api/kitchen/items/15/serve)",
-      "Bash(curl -s -X DELETE \"http://localhost/api/orders/7/items/16\")"
+      "Bash(curl -s -X DELETE \"http://localhost/api/orders/7/items/16\")",
+      "Bash(/Users/takaadm/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/brainstorming/scripts/start-server.sh:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git commit:*)",
+      "Bash(git -C /Users/takaadm/Desktop/bar-pos-system checkout feature/ui-redesign)"
     ]
   }
 }

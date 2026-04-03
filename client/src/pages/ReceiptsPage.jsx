@@ -31,7 +31,7 @@ export default function ReceiptsPage() {
             type="date"
             value={date}
             onChange={(e) => { setDate(e.target.value); setExpandedId(null); }}
-            className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+            className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
           />
         </div>
         {receipts.length > 0 && (

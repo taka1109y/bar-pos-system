@@ -21,14 +21,13 @@ function ConfirmModal({ item, livePrice, onConfirm, onCancel }) {
       <div className="fixed bottom-0 left-0 right-0 z-50 slide-up">
         <div className="bg-slate-800 rounded-t-3xl px-6 pt-5 pb-12 max-w-lg mx-auto border-t border-slate-700/60">
           <div className="w-10 h-1 bg-slate-600 rounded-full mx-auto mb-6" />
-
           <div className="mb-8">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
               注文しますか？
             </p>
             <h3 className="text-2xl font-black text-white mb-4">{item.name}</h3>
             <div className="flex items-baseline gap-3">
-              <span className="text-4xl font-black text-yellow-300">
+              <span className="text-4xl font-black text-amber-400">
                 ¥{price.toLocaleString()}
               </span>
               {item.is_drink && pctChange !== 0 && (
@@ -38,10 +37,9 @@ function ConfirmModal({ item, livePrice, onConfirm, onCancel }) {
               )}
             </div>
           </div>
-
           <button
             onClick={() => onConfirm(1)}
-            className="w-full py-4 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 active:scale-[0.98] text-white font-black text-lg rounded-2xl transition-all shadow-xl shadow-amber-500/25 mb-3"
+            className="w-full py-4 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 active:scale-[0.98] text-slate-900 font-black text-lg rounded-2xl transition-all shadow-xl shadow-amber-500/25 mb-3"
           >
             注文する
           </button>
@@ -155,73 +153,90 @@ export default function TablePage() {
   const itemCount = order?.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-900">
+    <div className="flex flex-col h-screen bg-slate-900 overflow-hidden">
       <TickerBar />
 
-      {/* ヘッダー */}
-      <header className="flex items-center justify-between px-5 py-4 bg-slate-800/90 backdrop-blur-sm border-b border-slate-700/60 sticky top-0 z-10">
-        <div>
-          <h1 className="font-black text-white text-lg leading-tight">
-            {table?.name ?? `テーブル ${tableId}`}
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">ご自由にご注文ください</p>
-        </div>
-      </header>
+      {/* ─── 横置き2ペインレイアウト ─── */}
+      <div className="flex flex-1 overflow-hidden">
 
-      {/* コンテンツ */}
-      <div className="flex-1 px-5 pt-6 pb-40 space-y-8">
-        {/* メニュー */}
-        <section>
-          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-3">
-            Menu
-          </p>
-          <MenuGrid
-            menuItems={menuItems}
-            categories={categories}
-            subcategories={subcategories}
-            onAddItem={handleTapItem}
-          />
-        </section>
-
-        {/* 現在の注文 */}
-        {order?.items?.length > 0 && (
-          <section>
-            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-3">
-              Your Order
-            </p>
-            <div className="space-y-2.5">
-              {order.items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between bg-slate-800 rounded-2xl px-5 py-4 border border-slate-700/50"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-white">{item.item_name}</p>
-                    <p className="text-xs text-slate-500 mt-1">× {item.quantity}</p>
-                  </div>
-                  <span className="text-sm font-black text-yellow-300">
-                    ¥{(item.quantity * item.unit_price).toLocaleString()}
-                  </span>
-                </div>
-              ))}
+        {/* ─── 左ペイン: メニュー ─── */}
+        <div className="flex-1 flex flex-col overflow-hidden border-r border-slate-700">
+          {/* ヘッダー */}
+          <header className="flex items-center justify-between px-6 py-4 bg-slate-900 border-b border-slate-800 flex-shrink-0">
+            <div>
+              <h1 className="font-black text-white text-xl leading-tight">
+                {table?.name ?? `テーブル ${tableId}`}
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">ご自由にご注文ください</p>
             </div>
-          </section>
-        )}
-      </div>
+          </header>
 
-      {/* 固定フッター: カートサマリー */}
-      {itemCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-20 px-5 pb-8 pt-4 bg-gradient-to-t from-slate-900 via-slate-900/95 to-transparent">
-          <div className="bg-slate-800 border border-slate-700/60 rounded-2xl px-5 py-4 shadow-2xl max-w-lg mx-auto">
-            <p className="text-xs text-slate-400 font-medium">
-              合計 <span className="text-slate-300 font-bold">{itemCount}点</span>
-            </p>
-            <p className="text-2xl font-black text-white mt-1">
-              ¥{total.toLocaleString()}
-            </p>
+          {/* メニュースクロールエリア */}
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+            <MenuGrid
+              menuItems={menuItems}
+              categories={categories}
+              subcategories={subcategories}
+              onAddItem={handleTapItem}
+            />
           </div>
         </div>
-      )}
+
+        {/* ─── 右ペイン: 注文サマリー ─── */}
+        <div className="w-80 flex flex-col bg-slate-950 flex-shrink-0">
+          {/* ペインヘッダー */}
+          <div className="px-5 py-4 border-b border-slate-800 flex-shrink-0">
+            <p className="text-xs font-bold text-amber-400 uppercase tracking-widest">注文内容</p>
+          </div>
+
+          {/* 注文アイテムリスト */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {!order?.items?.length ? (
+              <div className="flex flex-col items-center justify-center h-32 text-slate-600 text-sm gap-2">
+                <span className="text-2xl">🍺</span>
+                <p>まだ注文がありません</p>
+              </div>
+            ) : (
+              order.items.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-slate-800 rounded-xl px-4 py-3 border border-slate-700/50"
+                >
+                  <p className="text-sm font-semibold text-slate-100 mb-2">{item.item_name}</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-slate-700 hover:bg-slate-600 rounded-lg flex items-center justify-center text-slate-400 font-bold text-sm cursor-default">
+                        {item.quantity}
+                      </div>
+                    </div>
+                    <span className="text-sm font-black text-amber-400">
+                      ¥{(item.quantity * item.unit_price).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* フッター合計 */}
+          <div className="flex-shrink-0 border-t border-slate-800">
+            {itemCount > 0 ? (
+              <div className="bg-amber-500 px-5 py-4">
+                <p className="text-xs text-amber-800 font-semibold">
+                  合計 <span className="font-black">{itemCount}点</span>
+                </p>
+                <p className="text-2xl font-black text-slate-900 mt-0.5">
+                  ¥{total.toLocaleString()}
+                </p>
+              </div>
+            ) : (
+              <div className="px-5 py-4 bg-slate-900">
+                <p className="text-xs text-slate-600 font-medium">メニューから選んでください</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* 注文確認モーダル */}
       {confirmItem && (

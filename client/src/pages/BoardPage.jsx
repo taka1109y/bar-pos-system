@@ -11,7 +11,7 @@ function Clock() {
     return () => clearInterval(t);
   }, []);
   return (
-    <span className="font-mono text-slate-400 text-lg">
+    <span className="font-mono text-amber-400 text-2xl font-bold tracking-widest">
       {time.toLocaleTimeString('ja-JP')}
     </span>
   );
@@ -32,19 +32,25 @@ export default function BoardPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-8">
+    <div className="min-h-screen bg-slate-950 text-white p-10">
       {/* ヘッダー */}
-      <div className="flex items-center justify-between mb-10">
-        <div className="flex items-center gap-4">
-          <span className="text-5xl">🍺</span>
+      <div className="flex items-center justify-between mb-12">
+        <div className="flex items-center gap-5">
+          <div className="w-14 h-14 bg-amber-500/20 rounded-2xl flex items-center justify-center text-4xl">
+            🍺
+          </div>
           <div>
-            <h1 className="text-3xl font-black tracking-tight leading-tight">SPORTS BAR</h1>
-            <p className="text-slate-500 text-sm mt-0.5">LIVE DRINK PRICES</p>
+            <h1 className="text-4xl font-black tracking-widest leading-tight text-white">
+              SPORTS BAR
+            </h1>
+            <p className="text-slate-500 text-sm mt-1 tracking-[0.4em] font-semibold uppercase">
+              Live Drink Prices
+            </p>
           </div>
         </div>
         <div className="text-right">
           <Clock />
-          <p className="text-slate-600 text-xs mt-1">30秒ごとに更新</p>
+          <p className="text-slate-600 text-xs mt-1 tracking-wider">30秒ごとに更新</p>
         </div>
       </div>
 
@@ -54,7 +60,7 @@ export default function BoardPage() {
           接続中...
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
           {prices.map((item) => (
             <PriceCard key={item.id} item={item} />
           ))}
@@ -62,7 +68,7 @@ export default function BoardPage() {
       )}
 
       {/* フッター */}
-      <div className="mt-10 text-center text-slate-700 text-sm">
+      <div className="mt-12 text-center text-slate-700 text-sm tracking-wider">
         価格は需要に応じてリアルタイムで変動します
       </div>
     </div>

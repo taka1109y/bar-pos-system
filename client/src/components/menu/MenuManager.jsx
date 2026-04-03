@@ -63,7 +63,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     });
   };
 
-  const inp = 'w-full bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors';
+  const inp = 'w-full bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors';
   const lbl = 'block text-xs font-medium text-gray-600 mb-1.5';
 
   return (
@@ -109,18 +109,18 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
       </div>
       <div className="flex gap-6">
         <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-          <input type="checkbox" checked={Boolean(form.is_drink)} onChange={(e) => set('is_drink', e.target.checked ? 1 : 0)} className="w-4 h-4 accent-blue-600 rounded" />
+          <input type="checkbox" checked={Boolean(form.is_drink)} onChange={(e) => set('is_drink', e.target.checked ? 1 : 0)} className="w-4 h-4 accent-indigo-600 rounded" />
           ドリンク（価格変動対象）
         </label>
         {item && (
           <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-            <input type="checkbox" checked={Boolean(form.is_active)} onChange={(e) => set('is_active', e.target.checked ? 1 : 0)} className="w-4 h-4 accent-blue-600 rounded" />
+            <input type="checkbox" checked={Boolean(form.is_active)} onChange={(e) => set('is_active', e.target.checked ? 1 : 0)} className="w-4 h-4 accent-indigo-600 rounded" />
             有効
           </label>
         )}
       </div>
       {Boolean(form.is_drink) && (
-        <div className="grid grid-cols-2 gap-3 bg-blue-50 border border-blue-100 rounded-lg p-3">
+        <div className="grid grid-cols-2 gap-3 bg-indigo-50 border border-indigo-100 rounded-lg p-3">
           <div>
             <label className={lbl}>1注文あたり上昇額 (¥)</label>
             <input className={inp} type="number" value={form.price_step_up} onChange={(e) => set('price_step_up', e.target.value)} placeholder="50" min={1} step={1} />
@@ -135,7 +135,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
         <button type="button" onClick={onCancel} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">
           キャンセル
         </button>
-        <button type="submit" disabled={isLoading} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
+        <button type="submit" disabled={isLoading} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
           保存
         </button>
       </div>
@@ -169,7 +169,7 @@ export default function MenuManager() {
       <div className="flex items-center justify-end mb-6">
         <button
           onClick={() => setAddOpen(true)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
         >
           + 商品を追加
         </button>
@@ -202,7 +202,7 @@ export default function MenuManager() {
                       </span>
                     </div>
                     <span className={`text-xs px-3 py-1.5 rounded-full font-medium flex-shrink-0 ${
-                      item.is_drink ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                      item.is_drink ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
                     }`}>
                       {item.is_drink ? 'ドリンク' : 'フード'}
                     </span>
@@ -214,7 +214,7 @@ export default function MenuManager() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         onClick={() => setEditItem(item)}
-                        className="px-3.5 py-2 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                        className="px-3.5 py-2 text-xs text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors font-medium"
                       >
                         編集
                       </button>

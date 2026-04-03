@@ -9,9 +9,14 @@ export default function PriceCard({ item }) {
   const isDown = item.pct_change < 0;
 
   const color    = isUp ? '#4ade80' : isDown ? '#f87171' : '#94a3b8';
-  const bgColor  = isUp ? 'bg-green-950/60 border-green-700' : isDown ? 'bg-red-950/60 border-red-700' : 'bg-slate-800 border-slate-700';
-  const textColor = isUp ? 'text-green-300' : isDown ? 'text-red-300' : 'text-slate-300';
+  const bgColor  = isUp
+    ? 'bg-green-950/70 border-green-700/60'
+    : isDown
+    ? 'bg-red-950/70 border-red-700/60'
+    : 'bg-slate-800/80 border-slate-700';
+  const priceColor = isUp ? 'text-green-300' : isDown ? 'text-red-300' : 'text-amber-300';
   const arrow    = isUp ? '▲' : isDown ? '▼' : '─';
+  const arrowColor = isUp ? 'text-green-400' : isDown ? 'text-red-400' : 'text-slate-500';
 
   const { data: history } = useQuery({
     queryKey: ['price-history', item.id],
@@ -32,15 +37,19 @@ export default function PriceCard({ item }) {
   }, [item.current_price]);
 
   return (
-    <div className={`rounded-2xl border-2 p-5 flex flex-col gap-3 ${bgColor} transition-colors duration-1000`}>
-      <div className="text-slate-400 text-sm font-medium truncate leading-snug">{item.name}</div>
-      <div className={`text-4xl font-black tracking-tight leading-none ${textColor}`}>
+    <div className={`rounded-2xl border-2 p-6 flex flex-col gap-4 ${bgColor} transition-colors duration-1000`}>
+      <div className="text-slate-400 text-sm font-semibold truncate leading-snug tracking-wide">
+        {item.name}
+      </div>
+      <div className={`text-5xl font-black tracking-tight leading-none ${priceColor}`}>
         ¥{item.current_price.toLocaleString()}
       </div>
-      <div className={`flex items-center gap-1.5 text-base font-bold ${textColor}`}>
+      <div className={`flex items-center gap-2 text-lg font-black ${arrowColor}`}>
         <span>{arrow}</span>
         <span>{Math.abs(item.pct_change).toFixed(1)}%</span>
-        <span className="text-xs text-slate-500 font-normal ml-1">基準 ¥{item.base_price.toLocaleString()}</span>
+        <span className="text-xs text-slate-600 font-normal ml-1">
+          基準 ¥{item.base_price.toLocaleString()}
+        </span>
       </div>
       <Sparkline data={localHistory} color={color} />
     </div>

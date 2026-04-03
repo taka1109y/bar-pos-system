@@ -121,7 +121,7 @@ export default function PricingSettings() {
                     min={field.min}
                     max={field.max}
                     step={field.step}
-                    className="w-28 text-right px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                    className="w-28 text-right px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
                   />
                   <span className="text-xs text-gray-400 w-8">{field.unit}</span>
                 </div>
@@ -138,7 +138,7 @@ export default function PricingSettings() {
         <button
           onClick={handleSave}
           disabled={!isDirty || updateMutation.isPending}
-          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors"
+          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors"
         >
           {updateMutation.isPending ? '保存中...' : '変更を保存'}
         </button>

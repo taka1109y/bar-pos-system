@@ -12,31 +12,27 @@ function MenuItem({ item, onAdd }) {
   return (
     <button
       onClick={() => onAdd(item)}
-      className={`flex flex-col justify-between p-4 bg-white hover:bg-gray-50 active:scale-95 rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all text-left w-full ${
+      className={`flex flex-col justify-between p-3.5 bg-white hover:bg-indigo-50 active:scale-95 rounded-xl border-2 border-slate-200 hover:border-indigo-300 hover:shadow-sm transition-all text-left w-full ${
         flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : ''
       }`}
     >
-      <span className="text-sm font-semibold text-gray-800 leading-snug mb-3 line-clamp-2">
+      <span className="text-sm font-semibold text-slate-700 leading-snug mb-3 line-clamp-2">
         {item.name}
       </span>
       <div>
         <div className="flex items-baseline gap-1.5">
-          <span className="text-base font-black text-gray-900">¥{price.toLocaleString()}</span>
+          <span className="text-base font-black text-indigo-700">¥{price.toLocaleString()}</span>
           {item.is_drink && (
-            <span
-              className={`text-xs font-bold ${
-                isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-gray-400'
-              }`}
-            >
+            <span className={`text-xs font-bold ${isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
               {isUp ? '▲' : isDown ? '▼' : '—'}{pctChange !== 0 ? `${Math.abs(pctChange).toFixed(1)}%` : ''}
             </span>
           )}
         </div>
         {item.is_drink && (
-          <div className="mt-2 w-full h-1 rounded-full bg-gray-200 overflow-hidden">
+          <div className="mt-2 w-full h-1 rounded-full bg-slate-100 overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-1000 ${
-                isUp ? 'bg-emerald-500' : isDown ? 'bg-red-400' : 'bg-gray-300'
+                isUp ? 'bg-emerald-500' : isDown ? 'bg-red-400' : 'bg-slate-300'
               }`}
               style={{ width: `${Math.min(100, 50 + pctChange * 5)}%` }}
             />
@@ -52,7 +48,6 @@ export default function MenuGrid({ menuItems, categories, subcategories = [], on
   const [activeSubcategory, setActiveSubcategory] = useState(null);
 
   const activeCat = activeCategory || categories[0]?.id;
-
   const subcatsForCat = subcategories.filter((s) => s.category_id === activeCat);
 
   const handleSelectCategory = (catId) => {
@@ -74,10 +69,10 @@ export default function MenuGrid({ menuItems, categories, subcategories = [], on
           <button
             key={cat.id}
             onClick={() => handleSelectCategory(cat.id)}
-            className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
+            className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 ${
               activeCat === cat.id
-                ? 'bg-amber-500 text-white shadow-sm'
-                : 'bg-white text-gray-500 hover:text-gray-800 border border-gray-200 hover:border-gray-300'
+                ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                : 'bg-white text-slate-500 hover:text-slate-800 border border-slate-200 hover:border-indigo-300'
             }`}
           >
             {cat.name}
@@ -92,8 +87,8 @@ export default function MenuGrid({ menuItems, categories, subcategories = [], on
             onClick={() => setActiveSubcategory(null)}
             className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
               activeSubcategory === null
-                ? 'bg-gray-700 text-white'
-                : 'bg-white text-gray-400 hover:text-gray-700 border border-gray-200'
+                ? 'bg-slate-700 text-white'
+                : 'bg-white text-slate-400 hover:text-slate-700 border border-slate-200'
             }`}
           >
             すべて
@@ -104,8 +99,8 @@ export default function MenuGrid({ menuItems, categories, subcategories = [], on
               onClick={() => setActiveSubcategory(sub.id)}
               className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
                 activeSubcategory === sub.id
-                  ? 'bg-gray-700 text-white'
-                  : 'bg-white text-gray-400 hover:text-gray-700 border border-gray-200'
+                  ? 'bg-slate-700 text-white'
+                  : 'bg-white text-slate-400 hover:text-slate-700 border border-slate-200'
               }`}
             >
               {sub.name}

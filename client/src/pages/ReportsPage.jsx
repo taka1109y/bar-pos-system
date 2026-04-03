@@ -32,7 +32,7 @@ export default function ReportsPage({ onClose, inline = false }) {
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+          className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
         />
       </div>
 
@@ -71,7 +71,7 @@ export default function ReportsPage({ onClose, inline = false }) {
                     </span>
                     <div className="w-28 bg-gray-100 rounded-full h-2 flex-shrink-0">
                       <div
-                        className="bg-blue-500 h-2 rounded-full transition-all"
+                        className="bg-indigo-500 h-2 rounded-full transition-all"
                         style={{ width: `${(item.revenue / maxRevenue) * 100}%` }}
                       />
                     </div>
