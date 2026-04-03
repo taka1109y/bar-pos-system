@@ -9,6 +9,120 @@ function hourLabel(h) {
 }
 const HOUR_OPTIONS = Array.from({ length: 33 }, (_, i) => i); // 0–32
 
+function CrashModal({ categories, subcategories, menuItems, onClose, onExecute, isPending }) {
+  const [selectedCatIds,    setSelectedCatIds]    = useState(new Set());
+  const [selectedSubcatIds, setSelectedSubcatIds] = useState(new Set());
+
+  const subcatsByCategory = subcategories.reduce((acc, s) => {
+    if (!acc[s.category_id]) acc[s.category_id] = [];
+    acc[s.category_id].push(s);
+    return acc;
+  }, {});
+
+  const toggleCategory = (catId) => {
+    const subs = subcatsByCategory[catId] ?? [];
+    const isSelected = selectedCatIds.has(catId);
+    setSelectedCatIds((prev) => {
+      const next = new Set(prev);
+      isSelected ? next.delete(catId) : next.add(catId);
+      return next;
+    });
+    setSelectedSubcatIds((prev) => {
+      const next = new Set(prev);
+      subs.forEach((s) => isSelected ? next.delete(s.id) : next.add(s.id));
+      return next;
+    });
+  };
+
+  const toggleSubcategory = (subId) => {
+    setSelectedSubcatIds((prev) => {
+      const next = new Set(prev);
+      next.has(subId) ? next.delete(subId) : next.add(subId);
+      return next;
+    });
+  };
+
+  const eligibleCount = menuItems.filter((item) =>
+    item.crash_enabled &&
+    item.is_active &&
+    (selectedCatIds.has(item.category_id) || selectedSubcatIds.has(item.subcategory_id))
+  ).length;
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 border border-gray-100 max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+          <h2 className="text-base font-bold text-gray-900">暴落対象を選択</h2>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-6 py-4 space-y-1">
+          {categories.map((cat) => {
+            const subs = subcatsByCategory[cat.id] ?? [];
+            return (
+              <div key={cat.id}>
+                <label className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedCatIds.has(cat.id)}
+                    onChange={() => toggleCategory(cat.id)}
+                    className="w-4 h-4 accent-red-600 rounded"
+                  />
+                  <span className="text-sm font-semibold text-gray-800 flex-1">{cat.name}</span>
+                  {cat.crash_pct > 0 && (
+                    <span className="text-xs text-red-500 font-bold">▼{cat.crash_pct}%</span>
+                  )}
+                </label>
+                {subs.map((sub) => (
+                  <label key={sub.id} className="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-gray-50 rounded-lg pl-8 pr-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedSubcatIds.has(sub.id)}
+                      onChange={() => toggleSubcategory(sub.id)}
+                      className="w-4 h-4 accent-red-600 rounded"
+                    />
+                    <span className="text-sm text-gray-700 flex-1">{sub.name}</span>
+                    {sub.crash_pct > 0 && (
+                      <span className="text-xs text-red-500 font-bold">▼{sub.crash_pct}%</span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+        <div className="px-6 py-4 border-t border-gray-100 flex-shrink-0 space-y-3">
+          <p className="text-sm text-gray-600">
+            対象商品: <span className="font-bold text-red-600">{eligibleCount} 商品</span>が暴落します
+          </p>
+          <div className="flex gap-2.5">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={() => onExecute({
+                category_ids:    Array.from(selectedCatIds),
+                subcategory_ids: Array.from(selectedSubcatIds),
+              })}
+              disabled={isPending || eligibleCount === 0}
+              className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50"
+            >
+              {isPending ? '実行中...' : '暴落を実行'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Section({ title, desc, children }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
@@ -63,6 +177,37 @@ export default function SystemSettingsPage() {
     queryKey: ['system-settings'],
     queryFn: api.getSystemSettings,
   });
+
+  const { data: categories    = [] } = useQuery({ queryKey: ['categories'],    queryFn: api.getCategories });
+  const { data: subcategories = [] } = useQuery({ queryKey: ['subcategories'], queryFn: api.getSubcategories });
+  const { data: menuItems     = [] } = useQuery({ queryKey: ['menu-all'],      queryFn: api.getAllMenu });
+
+  const [crashModalOpen, setCrashModalOpen] = useState(false);
+  const [crashMsg,       setCrashMsg]       = useState('');
+  const [resetMsg,       setResetMsg]       = useState('');
+
+  const crashMutation = useMutation({
+    mutationFn: api.triggerCrash,
+    onSuccess: (data) => {
+      setCrashModalOpen(false);
+      setCrashMsg(`暴落を実行しました（${data.updated}商品）`);
+      setTimeout(() => setCrashMsg(''), 3000);
+    },
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: api.resetCrash,
+    onSuccess: (data) => {
+      setResetMsg(`暴落を解除しました（${data.updated}商品）`);
+      setTimeout(() => setResetMsg(''), 3000);
+    },
+  });
+
+  const handleCrashReset = () => {
+    if (confirm('暴落中の商品を基準価格に戻しますか？')) {
+      resetMutation.mutate();
+    }
+  };
 
   useEffect(() => {
     if (!settings) return;
@@ -141,6 +286,37 @@ export default function SystemSettingsPage() {
                 </div>
               </div>
             </div>
+          </Section>
+
+          {/* ── 株価暴落 ── */}
+          <Section title="株価暴落" desc="選択したカテゴリ・サブカテゴリ内の暴落許可商品を一括で暴落価格に変更します。">
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCrashModalOpen(true)}
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
+              >
+                暴落を実行
+              </button>
+              <button
+                onClick={handleCrashReset}
+                disabled={resetMutation.isPending}
+                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+              >
+                暴落解除
+              </button>
+            </div>
+            {crashMsg && <p className="mt-2 text-sm text-red-600 font-medium">{crashMsg}</p>}
+            {resetMsg && <p className="mt-2 text-sm text-emerald-600 font-medium">{resetMsg}</p>}
+            {crashModalOpen && (
+              <CrashModal
+                categories={categories}
+                subcategories={subcategories}
+                menuItems={menuItems}
+                onClose={() => setCrashModalOpen(false)}
+                onExecute={(data) => crashMutation.mutate(data)}
+                isPending={crashMutation.isPending}
+              />
+            )}
           </Section>
 
           {/* ── 深夜料金設定 ── */}
