@@ -121,7 +121,7 @@ export default function PricingSettings() {
                     min={field.min}
                     max={field.max}
                     step={field.step}
-                    className="w-28 text-right px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                    className="w-28 text-right px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
                   />
                   <span className="text-xs text-gray-400 w-8">{field.unit}</span>
                 </div>

@@ -120,7 +120,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
         )}
       </div>
       {Boolean(form.is_drink) && (
-        <div className="grid grid-cols-2 gap-3 bg-indigo-50 border border-blue-100 rounded-lg p-3">
+        <div className="grid grid-cols-2 gap-3 bg-indigo-50 border border-indigo-100 rounded-lg p-3">
           <div>
             <label className={lbl}>1注文あたり上昇額 (¥)</label>
             <input className={inp} type="number" value={form.price_step_up} onChange={(e) => set('price_step_up', e.target.value)} placeholder="50" min={1} step={1} />
@@ -202,7 +202,7 @@ export default function MenuManager() {
                       </span>
                     </div>
                     <span className={`text-xs px-3 py-1.5 rounded-full font-medium flex-shrink-0 ${
-                      item.is_drink ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                      item.is_drink ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
                     }`}>
                       {item.is_drink ? 'ドリンク' : 'フード'}
                     </span>
