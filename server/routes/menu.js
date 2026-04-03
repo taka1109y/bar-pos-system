@@ -242,16 +242,18 @@ router.post('/crash', async (req, res, next) => {
       updated++;
     }
 
-    const { rows: allPrices } = await query(`
-      SELECT id, name, base_price::float, current_price::float,
-        ROUND((current_price - base_price) * 100.0 / base_price, 1)::float AS pct_change
-      FROM menu_items WHERE is_drink = TRUE AND is_active = TRUE
-    `);
-    const items = allPrices.map((r) => ({
-      ...r,
-      direction: r.pct_change > 0 ? 'up' : r.pct_change < 0 ? 'down' : 'flat',
-    }));
-    broadcast('prices:updated', { items, timestamp: Date.now() });
+    if (updated > 0) {
+      const { rows: allPrices } = await query(`
+        SELECT id, name, base_price::float, current_price::float,
+          ROUND((current_price - base_price) * 100.0 / base_price, 1)::float AS pct_change
+        FROM menu_items WHERE is_drink = TRUE AND is_active = TRUE
+      `);
+      const items = allPrices.map((r) => ({
+        ...r,
+        direction: r.pct_change > 0 ? 'up' : r.pct_change < 0 ? 'down' : 'flat',
+      }));
+      broadcast('prices:updated', { items, timestamp: Date.now() });
+    }
 
     res.json({ updated });
   } catch (err) { next(err); }
