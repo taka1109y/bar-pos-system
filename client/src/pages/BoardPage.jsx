@@ -4,6 +4,33 @@ import socket from '../socket';
 import usePriceStore from '../store/usePriceStore';
 import PriceRow from '../components/board/PriceRow';
 
+function Ticker({ prices }) {
+  if (prices.length === 0) return null;
+  const items = [...prices, ...prices];
+  return (
+    <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-700/60 overflow-hidden py-2">
+      <div className="flex whitespace-nowrap" style={{ animation: 'ticker 40s linear infinite' }}>
+        {items.map((item, i) => {
+          const isUp   = item.pct_change > 0;
+          const isDown = item.pct_change < 0;
+          const pctColor   = isUp ? 'text-green-400' : isDown ? 'text-red-400' : 'text-slate-500';
+          const pctDisplay = item.pct_change < 0
+            ? `-${Math.abs(item.pct_change).toFixed(1)}%`
+            : `${Math.abs(item.pct_change).toFixed(1)}%`;
+          return (
+            <span key={i} className="inline-flex items-center gap-3 mx-10">
+              <span className="text-slate-300 font-semibold tracking-wide">{item.name}</span>
+              <span className="text-amber-300 font-bold tabular-nums">¥{item.current_price.toLocaleString()}</span>
+              <span className={`font-bold tabular-nums ${pctColor}`}>{pctDisplay}</span>
+            </span>
+          );
+        })}
+      </div>
+      <style>{`@keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
+    </div>
+  );
+}
+
 function Clock() {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
@@ -32,7 +59,7 @@ export default function BoardPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-8">
+    <div className="min-h-screen bg-slate-950 text-white p-8 pb-16">
       {/* ヘッダー */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-5">
@@ -86,6 +113,8 @@ export default function BoardPage() {
       <div className="mt-8 text-center text-slate-700 text-sm tracking-wider">
         価格は需要に応じてリアルタイムで変動します
       </div>
+
+      <Ticker prices={prices} />
     </div>
   );
 }
