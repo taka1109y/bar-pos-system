@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import socket from '../socket';
 import usePriceStore from '../store/usePriceStore';
-import PriceCard from '../components/board/PriceCard';
+import PriceRow from '../components/board/PriceRow';
 
 function Clock() {
   const [time, setTime] = useState(new Date());
@@ -32,9 +32,9 @@ export default function BoardPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-10">
+    <div className="min-h-screen bg-slate-950 text-white p-8">
       {/* ヘッダー */}
-      <div className="flex items-center justify-between mb-12">
+      <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-5">
           <div className="w-14 h-14 bg-amber-500/20 rounded-2xl flex items-center justify-center text-4xl">
             🍺
@@ -54,21 +54,36 @@ export default function BoardPage() {
         </div>
       </div>
 
-      {/* 価格グリッド */}
+      {/* 価格テーブル */}
       {prices.length === 0 ? (
         <div className="flex items-center justify-center h-64 text-slate-600 text-xl">
           接続中...
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-          {prices.map((item) => (
-            <PriceCard key={item.id} item={item} />
-          ))}
+        <div className="rounded-xl overflow-hidden border border-slate-700/50">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-slate-900 text-xs text-slate-500 uppercase tracking-widest border-b border-slate-700">
+                <th className="px-4 py-3 text-left">商品名</th>
+                <th className="px-4 py-3 text-right">基準値</th>
+                <th className="px-4 py-3 text-right">現在値</th>
+                <th className="px-4 py-3 text-right">変動幅(円)</th>
+                <th className="px-4 py-3 text-right">変動幅(%)</th>
+                <th className="px-4 py-3 text-right">同日高値</th>
+                <th className="px-4 py-3 text-right">同日底値</th>
+              </tr>
+            </thead>
+            <tbody>
+              {prices.map((item) => (
+                <PriceRow key={item.id} item={item} />
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
       {/* フッター */}
-      <div className="mt-12 text-center text-slate-700 text-sm tracking-wider">
+      <div className="mt-8 text-center text-slate-700 text-sm tracking-wider">
         価格は需要に応じてリアルタイムで変動します
       </div>
     </div>
