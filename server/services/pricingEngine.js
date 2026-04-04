@@ -2,6 +2,8 @@ const { query } = require('../db/database');
 const { broadcast } = require('./socketService');
 const pricingSettings = require('./pricingSettings');
 
+const TZ = process.env.TZ_REPORT || 'Asia/Tokyo';
+
 function roundToNearest(value, step) {
   return Math.round(value / step) * step;
 }
@@ -123,7 +125,6 @@ async function runTick() {
   );
 
   if (updates.length > 0) {
-    const TZ = process.env.TZ_REPORT || 'Asia/Tokyo';
     const updatedIds = updates.map((u) => u.id);
     const { rows: dayStats } = await query(
       `SELECT menu_item_id,
