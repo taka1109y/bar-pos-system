@@ -123,7 +123,27 @@ async function runTick() {
   );
 
   if (updates.length > 0) {
-    broadcast('prices:updated', { items: updates, timestamp: Date.now() });
+    const TZ = process.env.TZ_REPORT || 'Asia/Tokyo';
+    const updatedIds = updates.map((u) => u.id);
+    const { rows: dayStats } = await query(
+      `SELECT menu_item_id,
+         MAX(price)::float AS day_high,
+         MIN(price)::float AS day_low
+       FROM price_history
+       WHERE menu_item_id = ANY($1)
+         AND (recorded_at AT TIME ZONE $2)::date = (NOW() AT TIME ZONE $2)::date
+       GROUP BY menu_item_id`,
+      [updatedIds, TZ]
+    );
+    const dayStatsMap = Object.fromEntries(dayStats.map((r) => [r.menu_item_id, r]));
+
+    const updatesWithStats = updates.map((u) => ({
+      ...u,
+      day_high: dayStatsMap[u.id]?.day_high ?? u.current_price,
+      day_low:  dayStatsMap[u.id]?.day_low  ?? u.current_price,
+    }));
+
+    broadcast('prices:updated', { items: updatesWithStats, timestamp: Date.now() });
     console.log(`[PricingEngine] ${updates.length} item(s) price updated`);
   }
 
