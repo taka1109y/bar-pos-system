@@ -12,7 +12,7 @@ function MenuItem({ item, onAdd }) {
   return (
     <button
       onClick={() => onAdd(item)}
-      className={`flex flex-col justify-between p-3.5 bg-white hover:bg-indigo-50 active:scale-95 rounded-xl border-2 border-slate-200 hover:border-indigo-300 hover:shadow-sm transition-all text-left w-full ${
+      className={`flex flex-col justify-between p-3.5 bg-white hover:bg-primary-50 active:scale-95 rounded-xl border border-slate-200 hover:border-primary-300 hover:shadow-sm transition-all text-left w-full ${
         flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : ''
       }`}
     >
@@ -21,7 +21,7 @@ function MenuItem({ item, onAdd }) {
       </span>
       <div>
         <div className="flex items-baseline gap-1.5">
-          <span className="text-base font-black text-indigo-700">¥{price.toLocaleString()}</span>
+          <span className="text-base font-black text-primary-600">¥{price.toLocaleString()}</span>
           {item.is_drink && (
             <span className={`text-xs font-bold ${isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
               {isUp ? '▲' : isDown ? '▼' : '—'}{pctChange !== 0 ? `${Math.abs(pctChange).toFixed(1)}%` : ''}
@@ -71,8 +71,8 @@ export default function MenuGrid({ menuItems, categories, subcategories = [], on
             onClick={() => handleSelectCategory(cat.id)}
             className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 ${
               activeCat === cat.id
-                ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
-                : 'bg-white text-slate-500 hover:text-slate-800 border border-slate-200 hover:border-indigo-300'
+                ? 'bg-primary-500 text-white'
+                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-slate-200'
             }`}
           >
             {cat.name}
@@ -87,8 +87,8 @@ export default function MenuGrid({ menuItems, categories, subcategories = [], on
             onClick={() => setActiveSubcategory(null)}
             className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
               activeSubcategory === null
-                ? 'bg-slate-700 text-white'
-                : 'bg-white text-slate-400 hover:text-slate-700 border border-slate-200'
+                ? 'bg-primary-100 text-primary-700'
+                : 'text-slate-400 hover:bg-slate-100'
             }`}
           >
             すべて
@@ -99,8 +99,8 @@ export default function MenuGrid({ menuItems, categories, subcategories = [], on
               onClick={() => setActiveSubcategory(sub.id)}
               className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
                 activeSubcategory === sub.id
-                  ? 'bg-slate-700 text-white'
-                  : 'bg-white text-slate-400 hover:text-slate-700 border border-slate-200'
+                  ? 'bg-primary-100 text-primary-700'
+                  : 'text-slate-400 hover:bg-slate-100'
               }`}
             >
               {sub.name}
