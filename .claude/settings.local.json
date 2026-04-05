@@ -45,7 +45,8 @@
       "Bash(git:*)",
       "Bash(npm uninstall:*)",
       "Bash(curl -s http://localhost/board)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }
