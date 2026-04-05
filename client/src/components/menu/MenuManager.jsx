@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 
+const inp = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
+const lbl = 'block text-xs font-semibold text-slate-500 mb-1.5';
+
 function ModalShell({ title, onClose, children, wide }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -67,9 +70,6 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     });
   };
 
-  const inp = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
-  const lbl = 'block text-xs font-semibold text-slate-500 mb-1.5';
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
@@ -121,16 +121,46 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
           <input className={inp} type="number" value={form.max_price} onChange={(e) => set('max_price', e.target.value)} placeholder="自動" min={0} />
         </div>
       </div>
-      <div className="flex gap-6">
-        <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-          <input type="checkbox" checked={Boolean(form.is_drink)} onChange={(e) => set('is_drink', e.target.checked ? 1 : 0)} className="w-4 h-4 accent-primary-600 rounded" />
-          ドリンク（価格変動対象）
-        </label>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={lbl}>種別</label>
+          <div className="flex gap-2">
+            {[{ value: 1, label: 'ドリンク' }, { value: 0, label: 'フード' }].map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => set('is_drink', value)}
+                className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
+                  form.is_drink === value
+                    ? 'border-primary-500 bg-primary-50 text-primary-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         {item && (
-          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-            <input type="checkbox" checked={Boolean(form.is_active)} onChange={(e) => set('is_active', e.target.checked ? 1 : 0)} className="w-4 h-4 accent-primary-600 rounded" />
-            有効
-          </label>
+          <div>
+            <label className={lbl}>状態</label>
+            <div className="flex gap-2">
+              {[{ value: 1, label: '有効' }, { value: 0, label: '無効' }].map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => set('is_active', value)}
+                  className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
+                    form.is_active === value
+                      ? 'border-primary-500 bg-primary-50 text-primary-700'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
       {Boolean(form.is_drink) && (

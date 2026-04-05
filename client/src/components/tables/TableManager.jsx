@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 
+const inp = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
+const lbl = 'block text-xs font-semibold text-slate-500 mb-1.5';
+
 function ModalShell({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -29,9 +32,6 @@ function TableForm({ table, onSave, onCancel, isLoading }) {
     table_type: table?.table_type || 'table',
   });
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-
-  const inp = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
-  const lbl = 'block text-xs font-semibold text-slate-500 mb-1.5';
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSave({ name: form.name.trim(), table_type: form.table_type }); }} className="space-y-4">
@@ -121,7 +121,7 @@ export default function TableManager() {
           <p className="px-6 py-5 text-sm text-slate-400">登録なし</p>
         ) : (
           rows.map((table, idx) => (
-            <div key={table.id} className={`flex items-center gap-4 px-6 py-5 border-b border-slate-50 hover:bg-gray-50 transition-colors ${idx === rows.length - 1 ? 'border-b-0' : ''}`}>
+            <div key={table.id} className={`flex items-center gap-4 px-6 py-5 border-b border-slate-50 hover:bg-slate-50 transition-colors ${idx === rows.length - 1 ? 'border-b-0' : ''}`}>
               <div className="flex-1 min-w-0">
                 <span className="text-sm font-semibold text-slate-900">{table.name}</span>
               </div>

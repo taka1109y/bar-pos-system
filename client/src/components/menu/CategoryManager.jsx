@@ -68,7 +68,7 @@ function FormFields({ form, setForm, fields }) {
 function SubcategoryRow({ sub, drinkCount, itemCount, onEdit, onDelete }) {
   const isPriceFrozen = drinkCount <= 1;
   return (
-    <div className="flex items-center gap-3 px-6 py-4 bg-white hover:bg-gray-50 group">
+    <div className="flex items-center gap-3 px-6 py-4 bg-white hover:bg-slate-50 group">
       <div className="w-4 text-slate-300 text-xs flex-shrink-0">└</div>
       <div className="flex-1 min-w-0">
         <span className="text-sm font-medium text-slate-800">{sub.name}</span>
