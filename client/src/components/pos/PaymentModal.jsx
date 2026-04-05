@@ -43,8 +43,8 @@ function Numpad({ value, onChange }) {
                 onClick={() => handleKey(key)}
                 className={`h-11 rounded-xl text-sm font-bold transition-all active:scale-95 ${
                   isAction
-                    ? 'bg-gray-200 hover:bg-gray-300 text-gray-600'
-                    : 'bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-gray-900 shadow-sm'
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    : 'bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-900 shadow-sm'
                 }`}
               >
                 {key}
@@ -115,19 +115,21 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in p-4">
-      <div className="bg-gray-50 rounded-2xl w-full max-w-lg shadow-2xl pop-in border border-gray-200 flex flex-col max-h-[95vh] overflow-hidden">
+      <div className="bg-slate-50 rounded-xl w-full max-w-lg shadow-xl pop-in border border-slate-200 flex flex-col max-h-[95vh] overflow-hidden">
 
         {/* ── ヘッダー ── */}
-        <div className="bg-white px-5 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+        <div className="bg-white px-5 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
           <div>
-            <h2 className="text-base font-bold text-gray-900">会計</h2>
-            <p className="text-xs text-gray-400 mt-0.5">{table.name}</p>
+            <h2 className="text-base font-bold text-slate-900">会計</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{table.name}</p>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
-            ✕
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
           </button>
         </div>
 
@@ -135,39 +137,39 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
           <div className="p-5 space-y-4">
 
             {/* ── 注文明細 ── */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">注文明細</p>
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">注文明細</p>
               </div>
-              <div className="divide-y divide-gray-50 max-h-32 overflow-y-auto">
+              <div className="divide-y divide-slate-50 max-h-32 overflow-y-auto">
                 {order.items.map((item) => (
                   <div key={item.id} className="flex justify-between text-sm px-4 py-2">
-                    <span className="text-gray-600">
+                    <span className="text-slate-600">
                       {item.item_name}
-                      <span className="text-gray-400 ml-1">× {item.quantity}</span>
+                      <span className="text-slate-400 ml-1">× {item.quantity}</span>
                     </span>
-                    <span className="text-gray-900 font-semibold">
+                    <span className="text-slate-900 font-semibold">
                       ¥{(item.quantity * item.unit_price).toLocaleString()}
                     </span>
                   </div>
                 ))}
               </div>
-              <div className="flex justify-between px-4 py-2.5 border-t border-gray-100 bg-gray-50">
-                <span className="text-xs font-medium text-gray-500">小計</span>
-                <span className="text-sm font-bold text-gray-900">¥{subtotal.toLocaleString()}</span>
+              <div className="flex justify-between px-4 py-2.5 border-t border-slate-100 bg-slate-50">
+                <span className="text-xs font-medium text-slate-500">小計</span>
+                <span className="text-sm font-bold text-slate-900">¥{subtotal.toLocaleString()}</span>
               </div>
             </div>
 
             {/* ── 割引 ── */}
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">割引</p>
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-3">割引</p>
               <div className="flex gap-2 items-center">
                 {/* トグル */}
-                <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold flex-shrink-0">
+                <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-semibold flex-shrink-0">
                   <button
                     onClick={() => { setDiscountType('amount'); setDiscountInput(''); }}
                     className={`px-3 py-2 transition-colors ${
-                      discountType === 'amount' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                      discountType === 'amount' ? 'bg-primary-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
                     }`}
                   >
                     値引額
@@ -175,15 +177,15 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                   <button
                     onClick={() => { setDiscountType('rate'); setDiscountInput(''); }}
                     className={`px-3 py-2 transition-colors ${
-                      discountType === 'rate' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                      discountType === 'rate' ? 'bg-primary-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
                     }`}
                   >
                     割引率
                   </button>
                 </div>
                 {/* 入力 */}
-                <div className="flex items-center flex-1 border border-gray-200 rounded-lg overflow-hidden bg-gray-50 focus-within:ring-2 focus-within:ring-indigo-400 focus-within:border-transparent">
-                  <span className="pl-3 text-gray-400 text-sm flex-shrink-0">
+                <div className="flex items-center flex-1 border border-slate-200 rounded-lg overflow-hidden bg-slate-50 focus-within:ring-2 focus-within:ring-primary-400 focus-within:border-transparent">
+                  <span className="pl-3 text-slate-400 text-sm flex-shrink-0">
                     {discountType === 'amount' ? '¥' : ''}
                   </span>
                   <input
@@ -193,9 +195,9 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                     value={discountInput}
                     onChange={(e) => setDiscountInput(e.target.value)}
                     placeholder="0"
-                    className="flex-1 px-2 py-2 text-sm bg-transparent outline-none text-gray-900 text-right"
+                    className="flex-1 px-2 py-2 text-sm bg-transparent outline-none text-slate-900 text-right"
                   />
-                  <span className="pr-3 text-gray-400 text-sm flex-shrink-0">
+                  <span className="pr-3 text-slate-400 text-sm flex-shrink-0">
                     {discountType === 'rate' ? '%' : ''}
                   </span>
                 </div>
@@ -209,8 +211,8 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
             </div>
 
             {/* ── 合計 ── */}
-            <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 space-y-2">
-              <div className="flex justify-between text-sm text-gray-500">
+            <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 space-y-2">
+              <div className="flex justify-between text-sm text-slate-500">
                 <span>小計（税抜き）</span>
                 <span>¥{subtotal.toLocaleString()}</span>
               </div>
@@ -221,24 +223,24 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                 </div>
               )}
               {discountAmount > 0 && (
-                <div className="flex justify-between text-sm text-gray-500">
+                <div className="flex justify-between text-sm text-slate-500">
                   <span>割引</span>
                   <span className="text-red-500 font-semibold">−¥{discountAmount.toLocaleString()}</span>
                 </div>
               )}
-              <div className="flex justify-between text-sm text-gray-500">
+              <div className="flex justify-between text-sm text-slate-500">
                 <span>消費税（{Math.round(taxRate * 100)}%）</span>
                 <span>¥{taxAmount.toLocaleString()}</span>
               </div>
-              <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-                <span className="text-sm font-semibold text-gray-700">請求金額（税込み）</span>
-                <span className="text-2xl font-black text-gray-900">¥{finalTotal.toLocaleString()}</span>
+              <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                <span className="text-sm font-semibold text-slate-700">請求金額（税込み）</span>
+                <span className="text-2xl font-black text-slate-900">¥{finalTotal.toLocaleString()}</span>
               </div>
             </div>
 
             {/* ── 支払い方法 ── */}
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">支払い方法</p>
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-3">支払い方法</p>
               <div className="grid grid-cols-3 gap-2">
                 {PAYMENT_METHODS.map((m) => (
                   <button
@@ -246,8 +248,8 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                     onClick={() => setPaymentMethod(m.id)}
                     className={`flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 transition-all ${
                       paymentMethod === m.id
-                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                        ? 'border-primary-500 bg-primary-50 text-primary-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
                     }`}
                   >
                     <span className="text-lg">{m.icon}</span>
@@ -259,11 +261,11 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
 
             {/* ── 受取金額 (現金のみ) ── */}
             {isCash && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">受取金額</p>
+              <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-3">受取金額</p>
 
                 {/* ディスプレイ */}
-                <div className="bg-gray-900 rounded-xl px-4 py-3 mb-3 text-right">
+                <div className="bg-slate-900 rounded-xl px-4 py-3 mb-3 text-right">
                   <p className="text-2xl font-black text-white tracking-wider">
                     ¥{receivedInput ? parseInt(receivedInput, 10).toLocaleString() : '0'}
                   </p>
@@ -278,8 +280,8 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                       onClick={() => setReceivedInput(String(amt))}
                       className={`py-2 rounded-xl text-xs font-bold border transition-all active:scale-95 ${
                         received === amt
-                          ? 'bg-indigo-600 border-indigo-600 text-white'
-                          : 'bg-white border-gray-200 text-gray-700 hover:border-indigo-400 hover:text-indigo-600'
+                          ? 'bg-primary-600 border-primary-600 text-white'
+                          : 'bg-white border-slate-200 text-slate-700 hover:border-primary-400 hover:text-primary-600'
                       }`}
                     >
                       ¥{amt.toLocaleString()}
@@ -308,10 +310,10 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
         </div>
 
         {/* ── フッター ── */}
-        <div className="bg-white px-5 py-4 border-t border-gray-200 flex gap-3 flex-shrink-0">
+        <div className="bg-white px-5 py-4 border-t border-slate-200 flex gap-3 flex-shrink-0">
           <button
             onClick={onClose}
-            className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium transition-colors text-sm"
+            className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-colors text-sm"
           >
             キャンセル
           </button>
