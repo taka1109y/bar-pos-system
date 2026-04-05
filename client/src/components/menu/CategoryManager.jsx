@@ -2,23 +2,25 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 
-const inp = 'w-full bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500';
-const lbl = 'block text-xs font-medium text-gray-600 mb-1.5';
+const inp = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
+const lbl = 'block text-xs font-semibold text-slate-500 mb-1.5';
 
 function ModalShell({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 border border-gray-100">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-base font-bold text-gray-900">{title}</h2>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 border border-slate-200 max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
+          <h2 className="text-base font-bold text-slate-900">{title}</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
-            ✕
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
           </button>
         </div>
-        <div className="px-6 py-5">{children}</div>
+        <div className="px-5 py-5 overflow-y-auto">{children}</div>
       </div>
     </div>
   );
@@ -32,10 +34,15 @@ function FormFields({ form, setForm, fields }) {
         f.type === 'select' ? (
           <div key={f.key}>
             <label className={lbl}>{f.label}</label>
-            <select className={inp} value={form[f.key] ?? ''} onChange={(e) => set(f.key, Number(e.target.value))} required={f.required}>
-              <option value="">選択...</option>
-              {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+            <div className="relative">
+              <select className={`${inp} appearance-none pr-8`} value={form[f.key] ?? ''} onChange={(e) => set(f.key, Number(e.target.value))} required={f.required}>
+                <option value="">選択...</option>
+                {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </div>
           </div>
         ) : (
           <div key={f.key}>
@@ -62,23 +69,29 @@ function SubcategoryRow({ sub, drinkCount, itemCount, onEdit, onDelete }) {
   const isPriceFrozen = drinkCount <= 1;
   return (
     <div className="flex items-center gap-3 px-6 py-4 bg-white hover:bg-gray-50 group">
-      <div className="w-4 text-gray-300 text-xs flex-shrink-0">└</div>
+      <div className="w-4 text-slate-300 text-xs flex-shrink-0">└</div>
       <div className="flex-1 min-w-0">
-        <span className="text-sm font-medium text-gray-800">{sub.name}</span>
-        <span className="text-xs text-gray-400 ml-2">({itemCount}件)</span>
+        <span className="text-sm font-medium text-slate-800">{sub.name}</span>
+        <span className="text-xs text-slate-400 ml-2">({itemCount}件)</span>
         {isPriceFrozen && (
-          <span className="ml-2 px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-500 rounded border border-gray-200">
+          <span className="ml-2 px-2 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-500 rounded border border-slate-200">
             価格固定
           </span>
         )}
       </div>
-      <span className="text-[11px] text-gray-400 flex-shrink-0">順序: {sub.sort_order}</span>
+      <span className="text-[11px] text-slate-400 flex-shrink-0">順序: {sub.sort_order}</span>
       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button onClick={() => onEdit(sub)} className="px-3.5 py-2 text-xs text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors font-medium">
-          編集
+        <button onClick={() => onEdit(sub)} className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
         </button>
-        <button onClick={() => onDelete(sub)} className="px-3.5 py-2 text-xs text-red-500 hover:bg-red-50 rounded-lg transition-colors font-medium">
-          削除
+        <button onClick={() => onDelete(sub)} className="w-7 h-7 flex items-center justify-center border border-red-200 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6"/><path d="M14 11v6"/>
+          </svg>
         </button>
       </div>
     </div>
@@ -143,10 +156,10 @@ export default function CategoryManager() {
 
   const formButtons = (onCancel, onSubmit, isLoading) => (
     <div className="flex gap-2.5 mt-5">
-      <button type="button" onClick={onCancel} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">
+      <button type="button" onClick={onCancel} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors">
         キャンセル
       </button>
-      <button type="button" onClick={onSubmit} disabled={isLoading} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
+      <button type="button" onClick={onSubmit} disabled={isLoading} className="flex-1 py-2.5 bg-primary-500 hover:bg-primary-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
         保存
       </button>
     </div>
@@ -157,14 +170,14 @@ export default function CategoryManager() {
       <div className="flex items-center justify-end mb-6">
         <button
           onClick={() => { setAddOpen(true); setCatForm({}); }}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
+          className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-semibold bg-primary-500 text-white rounded-lg hover:bg-primary-700 cursor-pointer"
         >
           + カテゴリを追加
         </button>
       </div>
 
-      <div className="mb-5 p-4 bg-gray-50 border border-gray-200 rounded-xl">
-        <p className="text-xs text-gray-500 leading-relaxed">
+      <div className="mb-5 p-4 bg-gray-50 border border-slate-200 rounded-xl">
+        <p className="text-xs text-slate-500 leading-relaxed">
           同じサブカテゴリ内で注文があった商品は価格上昇し、他の商品は価格下降します
         </p>
       </div>
@@ -176,32 +189,40 @@ export default function CategoryManager() {
           const isExpanded = expandedCats.has(cat.id);
 
           return (
-            <div key={cat.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+            <div key={cat.id} className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
               {/* カテゴリヘッダー */}
-              <div className="flex items-center gap-3 px-6 py-4 bg-gray-50 border-b border-gray-100">
+              <div className="flex items-center gap-3 px-6 py-4 bg-gray-50 border-b border-slate-200">
                 <button onClick={() => toggleExpand(cat.id)} className="flex-1 flex items-center gap-3 text-left">
-                  <span className={`text-xs text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
-                  <span className="font-bold text-gray-800 text-sm">{cat.name}</span>
-                  <span className="text-xs text-gray-400">({subs.length}件のサブカテゴリ)</span>
+                  <span className={`text-xs text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                  <span className="font-bold text-slate-800 text-sm">{cat.name}</span>
+                  <span className="text-xs text-slate-400">({subs.length}件のサブカテゴリ)</span>
                 </button>
-                <span className="text-xs text-gray-400">順序: {cat.sort_order}</span>
+                <span className="text-xs text-slate-400">順序: {cat.sort_order}</span>
                 <button
                   onClick={() => { setEditingCat(cat); setCatForm({ name: cat.name, sort_order: cat.sort_order, crash_pct: cat.crash_pct ?? 0 }); }}
-                  className="px-3.5 py-2 text-xs text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors font-medium"
+                  className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer"
+                  title="編集"
                 >
-                  編集
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
                 </button>
                 <button
                   onClick={() => { if (confirm(`「${cat.name}」を削除しますか？\n※商品が存在する場合は削除できません`)) deleteCatMutation.mutate(cat.id); }}
-                  className="px-3.5 py-2 text-xs text-red-500 hover:bg-red-50 rounded-lg transition-colors font-medium"
+                  className="w-7 h-7 flex items-center justify-center border border-red-200 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer"
+                  title="削除"
                 >
-                  削除
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    <path d="M10 11v6"/><path d="M14 11v6"/>
+                  </svg>
                 </button>
               </div>
 
               {/* サブカテゴリ一覧 */}
               {isExpanded && (
-                <div className="divide-y divide-gray-100">
+                <div className="divide-y divide-slate-100">
                   {subs.map((sub) => (
                     <SubcategoryRow
                       key={sub.id}
@@ -214,9 +235,9 @@ export default function CategoryManager() {
                   ))}
                   <button
                     onClick={() => { setAddingSubcat(cat.id); setSubcatForm({ category_id: cat.id, sort_order: subs.length + 1 }); }}
-                    className="w-full px-6 py-4 text-left text-xs text-indigo-500 hover:bg-indigo-50 transition-colors font-medium flex items-center gap-2"
+                    className="w-full px-6 py-4 text-left text-xs text-primary-500 hover:bg-primary-50 transition-colors font-medium flex items-center gap-2"
                   >
-                    <span className="w-4 text-gray-300">└</span>
+                    <span className="w-4 text-slate-300">└</span>
                     + サブカテゴリを追加
                   </button>
                 </div>
