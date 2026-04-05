@@ -188,7 +188,8 @@ export default function POSPage() {
                 onClick={() => handleSetView(item.id)}
                 aria-label={sidebarCollapsed ? item.label : undefined}
                 title={sidebarCollapsed ? item.label : undefined}
-                className={`w-full text-left rounded-lg transition-all flex items-center gap-2.5 my-1.5 ${
+                style={{ marginTop: '6px', marginBottom: '6px' }}
+                className={`w-full text-left rounded-lg transition-all flex items-center gap-2.5 ${
                   sidebarCollapsed ? 'justify-center px-0 py-3' : 'px-2.5 py-2.5'
                 } ${
                   isActive
@@ -232,7 +233,8 @@ export default function POSPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 title={sidebarCollapsed ? label : undefined}
-                className={`flex items-center gap-2.5 w-full rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors my-1.5 ${
+                style={{ marginTop: '6px', marginBottom: '6px' }}
+                className={`flex items-center gap-2.5 w-full rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors ${
                   sidebarCollapsed ? 'justify-center px-0 py-3' : 'px-2.5 py-2.5'
                 }`}
               >
@@ -297,13 +299,13 @@ export default function POSPage() {
           </div>
         )}
 
-        {view === 'tables'     && <div className="flex-1 overflow-y-auto"><TableManager /></div>}
-        {view === 'menu'       && <div className="flex-1 overflow-y-auto"><MenuManager /></div>}
-        {view === 'categories' && <div className="flex-1 overflow-y-auto"><CategoryManager /></div>}
-        {view === 'pricing'    && <div className="flex-1 overflow-y-auto"><PricingSettings /></div>}
-        {view === 'reports'    && <div className="flex-1 overflow-y-auto"><ReportsPage inline /></div>}
-        {view === 'receipts'   && <div className="flex-1 overflow-y-auto"><ReceiptsPage /></div>}
-        {view === 'system'     && <div className="flex-1 overflow-y-auto"><SystemSettingsPage /></div>}
+        {view === 'tables'     && <div className="flex-1 overflow-y-auto p-4"><TableManager /></div>}
+        {view === 'menu'       && <div className="flex-1 overflow-y-auto p-4"><MenuManager /></div>}
+        {view === 'categories' && <div className="flex-1 overflow-y-auto p-4"><CategoryManager /></div>}
+        {view === 'pricing'    && <div className="flex-1 overflow-y-auto p-4"><PricingSettings /></div>}
+        {view === 'reports'    && <div className="flex-1 overflow-y-auto p-4"><ReportsPage inline /></div>}
+        {view === 'receipts'   && <div className="flex-1 overflow-y-auto p-4"><ReceiptsPage /></div>}
+        {view === 'system'     && <div className="flex-1 overflow-y-auto p-4"><SystemSettingsPage /></div>}
       </div>
     </div>
   );

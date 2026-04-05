@@ -46,7 +46,12 @@
       "Bash(npm uninstall:*)",
       "Bash(curl -s http://localhost/board)",
       "Bash(grep:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(curl -s http://localhost:5173)",
+      "WebFetch(domain:localhost)",
+      "Bash(curl -s \"http://localhost:5173/src/index.css\")",
+      "Bash(pkill -f \"vite --port 5173\")",
+      "Bash(kill %1)"
     ]
   }
 }
