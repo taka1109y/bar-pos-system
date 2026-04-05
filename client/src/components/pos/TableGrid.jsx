@@ -43,25 +43,21 @@ export default function TableGrid({ tables, openOrders = [], selectedTableId, on
             key={table.id}
             onClick={() => onSelectTable(table)}
             className={`
-              relative rounded-xl text-left transition-all duration-150 overflow-hidden border-2 bg-white
+              relative rounded-xl text-left transition-all duration-150 overflow-hidden
               ${isOccupied
-                ? isCounter
-                  ? 'border-amber-300 shadow-md shadow-amber-100'
-                  : 'border-indigo-300 shadow-md shadow-indigo-100'
-                : 'border-slate-200 shadow-sm'
+                ? 'bg-white border-[1.5px] border-primary-200 shadow-sm'
+                : 'bg-white border border-slate-200 shadow-sm'
               }
               ${isSelected
-                ? `ring-2 ring-offset-2 ${isCounter ? 'ring-amber-500' : 'ring-indigo-500'}`
-                : 'hover:shadow-lg hover:-translate-y-0.5'
+                ? 'ring-2 ring-offset-2 ring-primary-400'
+                : 'hover:shadow-md hover:-translate-y-0.5'
               }
             `}
           >
             {/* 種別バッジ */}
-            <div className={`px-3 py-1.5 border-b text-xs font-bold tracking-wide ${
+            <div className={`px-3 py-1.5 border-b text-[10px] font-bold tracking-wider uppercase ${
               isOccupied
-                ? isCounter
-                  ? 'bg-amber-50 border-amber-200 text-amber-700'
-                  : 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                ? 'bg-primary-50 border-primary-100 text-primary-600'
                 : 'bg-slate-50 border-slate-100 text-slate-400'
             }`}>
               {isCounter ? 'カウンター' : 'テーブル'}
@@ -74,22 +70,16 @@ export default function TableGrid({ tables, openOrders = [], selectedTableId, on
               </p>
 
               <div className={`mt-2 space-y-0.5 ${isOccupied ? '' : 'invisible'}`}>
-                <p className={`text-base font-black ${isCounter ? 'text-amber-600' : 'text-indigo-600'}`}>
+                <p className="text-base font-black text-primary-600">
                   {order ? `¥${Math.floor(order.total_amount).toLocaleString()}` : '¥0'}
                 </p>
-                <p className="text-xs text-slate-400 flex items-center gap-1">
-                  <span>⏱</span>
+                <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                   {order ? elapsed(order.opened_at, now) : '00:00'}
                 </p>
               </div>
             </div>
 
-            {/* 在席インジケーター */}
-            {isOccupied && (
-              <div className={`absolute top-2 right-2 w-2 h-2 rounded-full ${
-                isCounter ? 'bg-amber-400' : 'bg-indigo-400'
-              }`} />
-            )}
           </button>
         );
       })}
