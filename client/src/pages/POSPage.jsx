@@ -151,6 +151,7 @@ export default function POSPage() {
             </div>
             <button
               onClick={() => setSidebarCollapsed(false)}
+              aria-label="サイドバーを展開"
               title="サイドバーを展開"
               className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded-lg bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-primary-500 cursor-pointer"
             >
@@ -168,6 +169,7 @@ export default function POSPage() {
             </div>
             <button
               onClick={() => setSidebarCollapsed(true)}
+              aria-label="サイドバーを折りたたむ"
               title="サイドバーを折りたたむ"
               className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded-lg bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer flex-shrink-0"
             >
@@ -177,13 +179,14 @@ export default function POSPage() {
         )}
 
         {/* ナビゲーション */}
-        <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
+        <nav aria-label="メインナビゲーション" className="flex-1 p-2 space-y-0.5 overflow-y-auto">
           {NAV_ITEMS.map((item) => {
             const isActive = view === item.id;
             return (
               <button
                 key={item.id}
                 onClick={() => handleSetView(item.id)}
+                aria-label={sidebarCollapsed ? item.label : undefined}
                 title={sidebarCollapsed ? item.label : undefined}
                 className={`w-full text-left rounded-lg transition-all flex items-center gap-2.5 ${
                   sidebarCollapsed ? 'justify-center px-0 py-2.5' : 'px-2.5 py-2'
