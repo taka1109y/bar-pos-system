@@ -14,7 +14,7 @@ function elapsed(openedAt) {
 function CancelConfirmModal({ item, onConfirm, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in">
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 w-80 shadow-2xl pop-in">
+      <div className="bg-white border border-slate-200 rounded-xl p-6 w-80 shadow-xl pop-in">
         <h3 className="text-base font-bold text-slate-900 mb-2">注文をキャンセルしますか？</h3>
         <p className="text-sm text-slate-500 mb-1">
           <span className="text-slate-900 font-semibold">{item.tableName}</span>
@@ -25,13 +25,13 @@ function CancelConfirmModal({ item, onConfirm, onClose }) {
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-xl transition-colors"
+            className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors"
           >
             戻る
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl transition-colors"
+            className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-lg transition-colors"
           >
             キャンセルする
           </button>
@@ -82,27 +82,32 @@ export default function KitchenPage() {
   const now = Date.now();
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-gray-50 text-slate-900">
       {/* ヘッダー */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+      <header className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center text-xl">🍳</div>
+          <div className="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2">
+              <path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
+              <line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
+            </svg>
+          </div>
           <div>
-            <h1 className="font-black text-slate-900 text-xl leading-tight">キッチン</h1>
-            <p className="text-xs text-slate-400">オープン注文 リアルタイム表示</p>
+            <h1 className="font-bold text-slate-900 text-base leading-tight">キッチン</h1>
+            <p className="text-xs text-slate-400 mt-0.5">オープン注文 リアルタイム表示</p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <span className={`text-sm font-semibold px-3 py-1.5 rounded-full ${
             rows.length === 0
               ? 'bg-slate-100 text-slate-400'
-              : 'bg-amber-100 text-amber-700'
+              : 'bg-amber-100 text-amber-800'
           }`}>
             {rows.length} 件対応中
           </span>
           <button
             onClick={refetch}
-            className="text-xs text-slate-400 hover:text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors font-medium"
+            className="text-xs text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors font-medium"
           >
             更新
           </button>
@@ -122,7 +127,7 @@ export default function KitchenPage() {
         ) : (
           <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
             {/* テーブルヘッダー */}
-            <div className="grid grid-cols-[120px_140px_1fr_64px_100px_100px] gap-0 bg-slate-50 border-b border-slate-200 px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <div className="grid grid-cols-[120px_140px_1fr_64px_100px_100px] gap-0 bg-gray-50 border-b border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               <span>受注時刻</span>
               <span>テーブル</span>
               <span>商品名</span>
@@ -176,7 +181,7 @@ export default function KitchenPage() {
                       <button
                         onClick={() => serveMutation.mutate(row.itemId)}
                         disabled={isServePending || isCancelPending}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-colors"
+                        className="px-3 py-1.5 bg-primary-500 hover:bg-primary-700 disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-colors"
                       >
                         {isServePending ? '...' : '提供完了'}
                       </button>
@@ -187,7 +192,7 @@ export default function KitchenPage() {
                       <button
                         onClick={() => setCancelTarget(row)}
                         disabled={isServePending || isCancelPending}
-                        className="px-3 py-1.5 bg-slate-100 hover:bg-red-100 hover:text-red-700 disabled:opacity-40 text-slate-500 text-xs font-bold rounded-lg transition-colors"
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-red-50 hover:text-red-600 disabled:opacity-40 text-slate-500 text-xs font-semibold rounded-lg transition-colors"
                       >
                         {isCancelPending ? '...' : 'キャンセル'}
                       </button>

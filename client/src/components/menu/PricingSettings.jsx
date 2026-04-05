@@ -2,6 +2,11 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 
+const inp =
+  'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
+
+const lbl = 'block text-xs font-semibold text-slate-500 mb-1.5';
+
 const FIELD_META = [
   {
     key: 'TICK_INTERVAL_MS',
@@ -62,7 +67,7 @@ export default function PricingSettings() {
   });
 
   if (isLoading || !data) {
-    return <div className="p-6 text-sm text-gray-400">読み込み中...</div>;
+    return <div className="p-8 text-sm text-slate-400">読み込み中...</div>;
   }
 
   // data 取得後に draft を初期化 (まだ未設定の場合)
@@ -85,10 +90,10 @@ export default function PricingSettings() {
   };
 
   return (
-    <div className="p-6 max-w-2xl">
+    <div className="p-8 max-w-2xl mx-auto">
       <div className="mb-6">
-        <h2 className="text-base font-bold text-gray-900">価格エンジン設定</h2>
-        <p className="text-xs text-gray-400 mt-1">
+        <h2 className="text-base font-bold text-slate-900">価格エンジン設定</h2>
+        <p className="text-xs text-slate-400 mt-1">
           ダイナミックプライシングのパラメータをリアルタイムで変更できます。
         </p>
       </div>
@@ -100,18 +105,18 @@ export default function PricingSettings() {
           const isChanged = current !== def;
 
           return (
-            <div key={field.key} className="bg-white rounded-xl border border-gray-200 p-4">
+            <div key={field.key} className="bg-white rounded-xl border border-slate-200 p-6">
               <div className="flex items-start justify-between gap-4 mb-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-800">{field.label}</span>
+                    <span className="text-sm font-semibold text-slate-800">{field.label}</span>
                     {isChanged && (
                       <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-medium">
                         変更済
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-400 mt-0.5">{field.desc}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{field.desc}</p>
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   <input
@@ -121,13 +126,13 @@ export default function PricingSettings() {
                     min={field.min}
                     max={field.max}
                     step={field.step}
-                    className="w-28 text-right px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                    className={`${inp} w-28 text-right`}
                   />
-                  <span className="text-xs text-gray-400 w-8">{field.unit}</span>
+                  <span className="text-xs text-slate-400 w-8">{field.unit}</span>
                 </div>
               </div>
-              <div className="text-xs text-gray-400">
-                デフォルト: <span className="font-mono text-gray-500">{def}</span>
+              <div className="text-xs text-slate-400">
+                デフォルト: <span className="font-mono text-slate-500">{def}</span>
               </div>
             </div>
           );
@@ -138,19 +143,21 @@ export default function PricingSettings() {
         <button
           onClick={handleSave}
           disabled={!isDirty || updateMutation.isPending}
-          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors"
+          className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold bg-primary-500 text-white rounded-lg hover:bg-primary-700 cursor-pointer disabled:opacity-40 transition-colors"
         >
           {updateMutation.isPending ? '保存中...' : '変更を保存'}
         </button>
         <button
           onClick={handleReset}
           disabled={resetMutation.isPending}
-          className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-medium rounded-xl transition-colors"
+          className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer disabled:opacity-40 transition-colors"
         >
           デフォルトに戻す
         </button>
         {saved && (
-          <span className="text-xs text-emerald-600 font-medium">✓ 保存しました</span>
+          <div className="flex items-start gap-3 px-4 py-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-medium">
+            ✓ 保存しました
+          </div>
         )}
         {(updateMutation.isError || resetMutation.isError) && (
           <span className="text-xs text-red-500">
