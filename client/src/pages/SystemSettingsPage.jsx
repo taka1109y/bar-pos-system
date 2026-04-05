@@ -56,11 +56,12 @@ function CrashModal({ categories, subcategories, menuItems, onClose, onExecute, 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 border border-slate-200 max-h-[80vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 flex-shrink-0">
           <h2 className="text-base font-bold text-slate-900">暴落対象を選択</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            aria-label="閉じる"
+            className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -102,7 +103,7 @@ function CrashModal({ categories, subcategories, menuItems, onClose, onExecute, 
             );
           })}
         </div>
-        <div className="px-5 py-4 border-t border-slate-100 flex-shrink-0 space-y-3">
+        <div className="px-5 py-4 border-t border-slate-200 flex-shrink-0 space-y-3">
           <p className="text-sm text-slate-600">
             対象商品: <span className="font-bold text-red-600">{eligibleCount} 商品</span>が暴落します
           </p>
