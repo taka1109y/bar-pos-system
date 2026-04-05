@@ -179,7 +179,7 @@ export default function POSPage() {
         )}
 
         {/* ナビゲーション */}
-        <nav aria-label="メインナビゲーション" className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+        <nav aria-label="メインナビゲーション" className="flex-1 p-3 space-y-1 overflow-y-auto">
           {NAV_ITEMS.map((item) => {
             const isActive = view === item.id;
             return (
@@ -213,7 +213,7 @@ export default function POSPage() {
             );
           })}
 
-          <div className="pt-2 mt-1 border-t border-slate-100 space-y-0.5">
+          <div className="pt-2 mt-1 border-t border-slate-100 space-y-1">
             {[
               {
                 href: '/board',
