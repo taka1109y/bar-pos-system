@@ -9,13 +9,13 @@ import PaymentModal from './PaymentModal';
 function ConfirmModal({ title, description, confirmLabel, confirmClass, onConfirm, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in">
-      <div className="bg-white rounded-2xl p-6 w-80 shadow-2xl pop-in border border-slate-100">
+      <div className="bg-white rounded-xl p-6 w-80 shadow-xl pop-in border border-slate-200">
         <h3 className="text-sm font-bold text-slate-900 mb-2">{title}</h3>
         {description && <p className="text-xs text-slate-500 leading-relaxed">{description}</p>}
         <div className="flex gap-2.5 mt-5">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium rounded-xl transition-colors"
+            className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium rounded-lg transition-colors"
           >
             キャンセル
           </button>
@@ -85,7 +85,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   const handleAddItem = (menuItem) => {
     setPendingAction({
       label:        '追加する',
-      confirmClass: 'bg-indigo-600 hover:bg-indigo-700',
+      confirmClass: 'bg-primary-500 hover:bg-primary-700',
       title:        `「${menuItem.name}」を追加しますか？`,
       description:  `${table.name} の注文に追加します。`,
       onConfirm: async () => {
@@ -102,7 +102,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
     // 現在価格で新規追加（価格が変わっていれば別行、同じなら既存行に積む）
     setPendingAction({
       label:        '追加する',
-      confirmClass: 'bg-indigo-600 hover:bg-indigo-700',
+      confirmClass: 'bg-primary-500 hover:bg-primary-700',
       title:        `「${item.item_name}」をもう1杯追加しますか？`,
       description:  '注文時の現在価格で追加されます。',
       onConfirm: () => {
@@ -115,7 +115,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
     const isDelete = item.quantity === 1;
     setPendingAction({
       label:        isDelete ? '削除する' : '減らす',
-      confirmClass: isDelete ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700',
+      confirmClass: isDelete ? 'bg-red-600 hover:bg-red-700' : 'bg-primary-500 hover:bg-primary-700',
       title:        isDelete ? `「${item.item_name}」を削除しますか？` : `「${item.item_name}」を減らしますか？`,
       description:  isDelete ? '注文明細から取り除きます。' : `${item.quantity} → ${item.quantity - 1} に変更します。`,
       onConfirm: () => {
@@ -141,9 +141,11 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
         </div>
         <button
           onClick={onClose}
-          className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors text-lg leading-none"
+          className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
         >
-          ✕
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
         </button>
       </div>
 
@@ -204,12 +206,12 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
                       </span>
                       <button
                         onClick={() => handleQtyIncrease(item)}
-                        className="w-7 h-7 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-base font-bold flex items-center justify-center transition-colors"
+                        className="w-7 h-7 rounded-lg bg-primary-500 hover:bg-primary-700 text-white text-base font-bold flex items-center justify-center transition-colors"
                       >
                         +
                       </button>
                     </div>
-                    <span className="text-sm font-bold text-indigo-700 w-16 text-right flex-shrink-0">
+                    <span className="text-sm font-bold text-primary-600 w-16 text-right flex-shrink-0">
                       ¥{(item.quantity * item.unit_price).toLocaleString()}
                     </span>
                   </div>
@@ -238,7 +240,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
           <button
             onClick={() => openOrderMutation.mutate()}
             disabled={openOrderMutation.isPending}
-            className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors shadow-sm"
+            className="w-full py-3.5 bg-primary-500 hover:bg-primary-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors shadow-sm"
           >
             {openOrderMutation.isPending ? '開始中...' : '注文を開始する'}
           </button>
