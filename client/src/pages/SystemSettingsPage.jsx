@@ -144,14 +144,14 @@ function Section({ title, desc, children }) {
 
 function NumberPctInput({ value, onChange }) {
   return (
-    <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-primary-500/50 bg-white">
+    <div className="flex items-center gap-2">
       <input
         type="number" min="0" max="100" step="1"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-24 px-3 py-2.5 text-sm text-slate-900 outline-none text-right"
+        className={`${inp} w-20 text-right`}
       />
-      <span className="px-3 py-2.5 text-sm text-slate-500 bg-slate-50 border-l border-slate-200">%</span>
+      <span className="text-sm text-slate-500">%</span>
     </div>
   );
 }
@@ -161,7 +161,7 @@ function HourSelect({ value, onChange }) {
     <select
       value={value}
       onChange={(e) => onChange(Number(e.target.value))}
-      className="bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-colors"
+      className={`${inp} w-32`}
     >
       {HOUR_OPTIONS.map((h) => (
         <option key={h} value={h}>{hourLabel(h)}</option>

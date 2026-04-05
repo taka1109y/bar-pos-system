@@ -105,7 +105,7 @@ export default function PricingSettings() {
           const isChanged = current !== def;
 
           return (
-            <div key={field.key} className="bg-white rounded-xl border border-slate-200 p-4">
+            <div key={field.key} className="bg-white rounded-xl border border-slate-200 p-6">
               <div className="flex items-start justify-between gap-4 mb-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
