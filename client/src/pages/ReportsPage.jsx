@@ -30,7 +30,7 @@ export default function ReportsPage({ onClose, inline = false }) {
     <div className={inline ? 'p-8 max-w-3xl mx-auto space-y-6' : 'flex-1 overflow-y-auto space-y-6'}>
       {/* 日付選択 */}
       <div className="flex items-center gap-3">
-        <label className={`text-sm font-medium text-slate-600`}>集計日</label>
+        <label className={lbl}>集計日</label>
         <input
           type="date"
           value={date}
@@ -100,12 +100,13 @@ export default function ReportsPage({ onClose, inline = false }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-3xl mx-4 shadow-xl max-h-[90vh] flex flex-col border border-slate-200 pop-in">
+      <div className="bg-white rounded-xl p-6 w-full max-w-3xl mx-4 shadow-xl max-h-[90vh] flex flex-col border border-slate-200 pop-in">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold text-slate-900">売上レポート</h2>
           <button
             onClick={onClose}
-            className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="w-9 h-9 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            aria-label="閉じる"
           >
             ✕
           </button>

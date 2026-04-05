@@ -29,7 +29,7 @@ export default function ReceiptsPage() {
       {/* 日付 + サマリー */}
       <div className="flex items-center gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-slate-600">日付</label>
+          <label className={lbl}>日付</label>
           <input
             type="date"
             value={date}
