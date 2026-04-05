@@ -179,7 +179,7 @@ export default function POSPage() {
         )}
 
         {/* ナビゲーション */}
-        <nav aria-label="メインナビゲーション" className="flex-1 p-2 space-y-0.5 overflow-y-auto">
+        <nav aria-label="メインナビゲーション" className="flex-1 p-3 space-y-0.5 overflow-y-auto">
           {NAV_ITEMS.map((item) => {
             const isActive = view === item.id;
             return (
@@ -189,14 +189,14 @@ export default function POSPage() {
                 aria-label={sidebarCollapsed ? item.label : undefined}
                 title={sidebarCollapsed ? item.label : undefined}
                 className={`w-full text-left rounded-lg transition-all flex items-center gap-2.5 ${
-                  sidebarCollapsed ? 'justify-center px-0 py-2.5' : 'px-2.5 py-2'
+                  sidebarCollapsed ? 'justify-center px-0 py-3' : 'px-2.5 py-2.5'
                 } ${
                   isActive
                     ? 'bg-primary-50 text-primary-700'
                     : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
                 }`}
               >
-                <span className={`flex-shrink-0 w-4 h-4 ${isActive ? 'text-primary-600' : ''}`}>
+                <span className={`flex-shrink-0 [&>svg]:w-full [&>svg]:h-full ${sidebarCollapsed ? 'w-5 h-5' : 'w-4 h-4'} ${isActive ? 'text-primary-600' : ''}`}>
                   {item.icon}
                 </span>
                 {!sidebarCollapsed && (
@@ -233,10 +233,10 @@ export default function POSPage() {
                 rel="noopener noreferrer"
                 title={sidebarCollapsed ? label : undefined}
                 className={`flex items-center gap-2.5 w-full rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors ${
-                  sidebarCollapsed ? 'justify-center px-0 py-2.5' : 'px-2.5 py-2'
+                  sidebarCollapsed ? 'justify-center px-0 py-3' : 'px-2.5 py-2.5'
                 }`}
               >
-                <span className="flex-shrink-0 w-4 h-4">{icon}</span>
+                <span className={`flex-shrink-0 [&>svg]:w-full [&>svg]:h-full ${sidebarCollapsed ? 'w-5 h-5' : 'w-4 h-4'}`}>{icon}</span>
                 {!sidebarCollapsed && (
                   <span className="text-sm font-semibold block flex-1">{label}</span>
                 )}
