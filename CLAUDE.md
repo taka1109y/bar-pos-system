@@ -57,15 +57,15 @@ No ORM — raw SQL via `pg` pool. No authentication.
 
 **Route modules** (`server/routes/`):
 - `tables.js` — CRUD; accepts `table_type` ('table'|'counter'); DELETE blocks if open orders exist (409)
-- `menu.js` — CRUD with soft delete (`is_active=false`); always returns `::float` casts for numeric fields; supports subcategories
-- `orders.js` — Order lifecycle + item add/update/delete; every item mutation runs `recalcTotal()` in a transaction; `GET /open` returns all open orders
-- `payments.js` — Closes orders with tax + late-night surcharge calculation; resets table status to `available`
+- `menu.js` — CRUD with soft delete (`is_active=false`); always returns `::float` casts for numeric fields; supports subcategories; crash/reset endpoints for forced price drops
+- `orders.js` — Order lifecycle + item add/update/delete; every item mutation runs `recalcTotal()` in a transaction; `GET /open` returns all open orders with charge fields; `POST /` accepts `guest_count`, reads charge settings from `system_settings`, writes `charge_per_person` and `charge_amount` to the order at creation time
+- `payments.js` — Closes orders (tax-inclusive 内税 calculation); applies late-night surcharge, discount, and gift certificate; resets table status to `available`
 - `prices.js` — Returns `current_price` with `pct_change` vs `base_price`; price history
-- `reports.js` — Daily/items aggregations from closed orders (hourly endpoint removed)
-- `receipts.js` — `GET /api/receipts?date=YYYY-MM-DD`: paid orders with full item breakdown and fee details
-- `system.js` — `GET/PATCH /api/system/settings`: tax_rate, late_night_rate, late_night_start, late_night_end
+- `reports.js` — Daily/items aggregations from closed orders; includes payment_breakdown and discount/gift_cert/late_night totals
+- `receipts.js` — `GET /api/receipts?date=YYYY-MM-DD`: paid orders with full item breakdown, charge, discount, gift_cert, and fee details
+- `system.js` — `GET/PATCH /api/system/settings`: tax_rate, late_night_rate, late_night_start, late_night_end, charge_enabled, charge_time_slots (JSON array of `{start, end, amount}` in 32h format)
 - `settings.js` — `GET/PATCH /api/settings/pricing`: runtime pricing engine parameters
-- `kitchen.js` — Kitchen display: pending/in-progress order items; PATCH to update item status
+- `kitchen.js` — Kitchen display: pending order items; PATCH to mark as served
 
 **Key services**:
 - `services/socketService.js` — Singleton wrapper around Socket.io (`setIo`/`broadcast`/`broadcastToRoom`). Routes import `{ broadcast, broadcastToRoom }` from here, not from `index.js`.
@@ -73,22 +73,22 @@ No ORM — raw SQL via `pg` pool. No authentication.
 - `services/pricingSettings.js` — In-memory runtime config for pricing engine parameters (TICK_INTERVAL_MS, WINDOW_SECONDS, PRICE_STEP_DOWN, HISTORY_KEEP, PRUNE_EVENTS_SECONDS).
 
 **Database schema** (`db/schema.sql`):
-- `tables` — id, name, table_type ('table'|'counter'), capacity, status
-- `categories` — id, name, sort_order
-- `subcategories` — id, category_id, name, sort_order
-- `menu_items` — id, category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, is_active
-- `orders` — id, table_id, status, total_amount, payment_method, opened_at, closed_at, discount_amount, tax_rate, tax_amount, late_night_rate, late_night_amount
+- `tables` — id, name, table_type ('table'|'counter'), status
+- `categories` — id, name, sort_order, crash_pct
+- `subcategories` — id, category_id, name, sort_order, crash_pct
+- `menu_items` — id, category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, is_active, crash_enabled, is_crashed
+- `orders` — id, table_id, status, total_amount, payment_method, opened_at, closed_at, guest_count, discount_amount, tax_rate, tax_amount, late_night_rate, late_night_amount, memo, gift_cert_amount, gift_cert_no_change, charge_per_person, charge_amount
 - `order_items` — id, order_id, menu_item_id, quantity, unit_price, item_name, status
 - `pricing_events` — demand tracking, pruned after 10 min
 - `price_history` — last 60 records per item (sparkline data)
-- `system_settings` — key-value table (tax_rate, late_night_rate, late_night_start, late_night_end)
+- `system_settings` — key-value table (tax_rate, late_night_rate, late_night_start, late_night_end, charge_enabled, charge_time_slots)
 
 ### Client (`client/src/`)
 
 **Routing** (`App.jsx`):
 - `/` → `POSPage` — staff-facing POS (table grid, menu, order panel, payment)
 - `/board` → `BoardPage` — price display board with sparklines
-- `/table/:tableId` → `TablePage` — customer-facing order screen
+- `/table/:tableId` → `TablePage` — customer-facing order screen; shows WelcomeScreen (guest count selection) on first visit, then menu. Guest count selection immediately creates the order (and charges) in the DB.
 - `/kitchen` → `KitchenPage` — kitchen display (order item status management)
 
 **POSPage navigation** (sidebar):
@@ -99,7 +99,7 @@ No ORM — raw SQL via `pg` pool. No authentication.
 - 価格設定 — PricingPage (pricing engine parameters)
 - 売上管理 — ReportsPage
 - 伝票情報 — ReceiptsPage (paid receipt details by date)
-- システム管理 — SystemSettingsPage (tax rate, late-night surcharge)
+- システム管理 — SystemSettingsPage (tax rate, late-night surcharge, charge settings: charge_enabled, charge_time_slots)
 - 価格ボード ↗ — opens /board in new tab
 - キッチン ↗ — opens /kitchen in new tab
 
@@ -119,17 +119,17 @@ No ORM — raw SQL via `pg` pool. No authentication.
 2. PricingEngine tick (30s) → reads demand per item and per subcategory, computes target price using `price_step_up`/`price_step_down`, updates `menu_items.current_price`, broadcasts `prices:updated`
 3. Client `usePriceStore.updatePrices()` → UI re-renders with flash animation
 
-**Payment calculation** (order of operations):
-1. subtotal (税抜き)
-2. + late_night_amount (深夜料金, if current time is within configured window)
+**Payment calculation** (order of operations, all prices are tax-inclusive 内税):
+1. subtotal = items subtotal + charge_amount
+2. + late_night_amount (`itemsSubtotal × late_night_rate`, applied to items only — charge excluded)
 3. − discount_amount
-4. = taxable_base
-5. + tax_amount (`taxable_base × tax_rate`)
-6. = total
+4. = taxable_base = **total** (tax is already included, not added)
+5. tax_amount = `Math.round(taxable_base × tax_rate / (1 + tax_rate))` — for display only (内税参考)
+6. gift_cert_amount reduces the cash amount due (if gift_cert_no_change=true, capped at total)
 
-**Table lifecycle**: `available` → (create order) → `occupied` → (payment) → `available`. Status changes broadcast as `table:status_changed`.
+**Table lifecycle**: `available` → (customer selects guest count on TablePage → order created immediately with charge) → `occupied` → (payment) → `available`. Status changes broadcast as `table:status_changed`.
 
-**Table cards** (POSPage TableGrid): Occupied tables show total_amount (税込み) + elapsed time (hh:mm since first order). Empty tables render the same DOM block with `invisible` class to maintain equal card heights.
+**Table cards** (POSPage TableGrid): Occupied tables show total_amount (items + charge, 税込み) + guest count + elapsed time (hh:mm since opened_at). Empty tables render the same DOM block with `invisible` class to maintain equal card heights. The card updates immediately after order creation (before any items) via `order:updated` socket event invalidating `['orders-open']`.
 
 ## Important Constraints
 
@@ -139,6 +139,10 @@ No ORM — raw SQL via `pg` pool. No authentication.
 - **Socket rooms**: Table-specific events use room `table:${tableId}`. Subscribe via `client:subscribe_table` / `client:unsubscribe_table` events.
 - **Late-night time format**: 32-hour format (e.g., 29 = 5:00 AM next day). Server-side check uses JST via `toLocaleString('en-US', { timeZone: 'Asia/Tokyo' })`. Client-side check uses `new Date().getHours()` with same 32h math.
 - **System settings**: Always read from `system_settings` table at payment time — never cache in application memory.
+- **`order:updated` socket payload**: Always include `{ tableId, orderId, items, total, chargeAmount, chargePerPerson, guestCount }`. Missing charge fields cause the client to fall back to stale cached values; include all fields in every broadcast.
+- **Charge creation**: `POST /api/orders` reads `charge_enabled` and `charge_time_slots` from `system_settings` at order creation time and stores the resolved `charge_per_person` and `charge_amount` on the order row. Charge is not recalculated after order creation.
+- **Tax-inclusive pricing**: All menu prices are 税込み. Do not add tax on top of `total_amount`. `tax_amount` is back-calculated for display only using `taxable_base × tax_rate / (1 + tax_rate)`.
+- **Crash feature**: `menu_items.crash_enabled` / `is_crashed` and `categories.crash_pct` / `subcategories.crash_pct` support forced price drops. Crash/reset endpoints exist in `menu.js`.
 
 
 # melta UI - AI向け指示
