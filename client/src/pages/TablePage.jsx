@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
@@ -6,6 +6,71 @@ import socket from '../socket';
 import usePriceStore from '../store/usePriceStore';
 import TickerBar from '../components/layout/TickerBar';
 import MenuGrid from '../components/pos/MenuGrid';
+
+// ───────────────────────────────────────────
+// 時刻フック
+// ───────────────────────────────────────────
+function useClock() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
+// ───────────────────────────────────────────
+// 人数選択 初期画面
+// ───────────────────────────────────────────
+function WelcomeScreen({ tableName, onSelectGuests }) {
+  const now = useClock();
+  const timeStr = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  return (
+    <div className="flex flex-col h-screen bg-slate-900 overflow-hidden select-none">
+      {/* トップバー */}
+      <div className="flex items-start justify-between px-8 pt-8 pb-0 flex-shrink-0">
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">TABLE</p>
+          <p className="text-3xl font-black text-white leading-none">{tableName}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-4xl font-black text-slate-200 tabular-nums leading-none">{timeStr}</p>
+        </div>
+      </div>
+
+      {/* 中央コンテンツ */}
+      <div className="flex-1 flex flex-col items-center justify-center px-8 gap-10">
+        <div className="text-center">
+          <p className="text-slate-400 text-base font-medium mb-2">いらっしゃいませ</p>
+          <p className="text-white text-3xl font-black leading-snug">
+            何名様でいらっしゃいますか？
+          </p>
+        </div>
+
+        {/* 人数ボタングリッド */}
+        <div className="grid grid-cols-5 gap-3 w-full max-w-lg">
+          {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+            <button
+              key={n}
+              onClick={() => onSelectGuests(n)}
+              className="aspect-square flex flex-col items-center justify-center bg-slate-800 hover:bg-amber-500 active:scale-95 border border-slate-700 hover:border-amber-400 rounded-2xl transition-all duration-150 group"
+            >
+              <span className="text-2xl font-black text-white group-hover:text-slate-900 leading-none">
+                {n}
+              </span>
+              <span className="text-[10px] font-semibold text-slate-500 group-hover:text-slate-800 mt-0.5">
+                名
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <p className="text-slate-600 text-sm">タップして人数をお選びください</p>
+      </div>
+    </div>
+  );
+}
 
 // ───────────────────────────────────────────
 // 注文確認ボトムシート
@@ -64,6 +129,7 @@ export default function TablePage() {
   const queryClient = useQueryClient();
   const { initPrices, updatePrices, prices } = usePriceStore();
   const [confirmItem, setConfirmItem] = useState(null);
+  const [guestCount, setGuestCount] = useState(null); // null = 初期画面
 
   const orderKey = ['order', tableIdNum];
 
@@ -74,6 +140,20 @@ export default function TablePage() {
   const { data: categories = [] } = useQuery({ queryKey: ['categories'], queryFn: api.getCategories, staleTime: 60_000 });
   const { data: subcategories = [] } = useQuery({ queryKey: ['subcategories'], queryFn: api.getSubcategories, staleTime: 60_000 });
   const { data: order } = useQuery({ queryKey: orderKey, queryFn: () => api.getOrderByTable(tableIdNum), enabled: !!tableIdNum });
+
+  // 既存注文がある場合は初期画面をスキップ（注文のguest_countを復元）
+  useEffect(() => {
+    if (order != null && guestCount === null) {
+      setGuestCount(order.guest_count ?? 1);
+    }
+  }, [order]);
+
+  // 会計完了後に初期画面へ戻す
+  const resetToWelcome = useCallback(() => {
+    setGuestCount(null);
+    setConfirmItem(null);
+    queryClient.removeQueries({ queryKey: orderKey });
+  }, [tableIdNum]);
 
   useEffect(() => {
     api.getPrices().then(initPrices).catch(console.error);
@@ -93,26 +173,37 @@ export default function TablePage() {
           table_id: tableIdNum,
           items: data.items,
           total_amount: data.total,
+          charge_amount: data.chargeAmount ?? old?.charge_amount,
+          charge_per_person: data.chargePerPerson ?? old?.charge_per_person,
+          guest_count: data.guestCount ?? old?.guest_count,
         }));
       }
     };
+    // 会計完了 → available になったら初期画面へ
+    const handleTableStatus = (data) => {
+      if (data.tableId === tableIdNum && data.status === 'available') {
+        resetToWelcome();
+      }
+    };
 
-    socket.on('prices:updated', handlePricesUpdated);
-    socket.on('prices:sync',    handlePricesSync);
-    socket.on('connect',        handleReconnect);
-    socket.on('order:updated',  handleOrderUpdated);
+    socket.on('prices:updated',       handlePricesUpdated);
+    socket.on('prices:sync',          handlePricesSync);
+    socket.on('connect',              handleReconnect);
+    socket.on('order:updated',        handleOrderUpdated);
+    socket.on('table:status_changed', handleTableStatus);
 
     return () => {
       socket.emit('client:unsubscribe_table', { tableId: tableIdNum });
-      socket.off('prices:updated', handlePricesUpdated);
-      socket.off('prices:sync',    handlePricesSync);
-      socket.off('connect',        handleReconnect);
-      socket.off('order:updated',  handleOrderUpdated);
+      socket.off('prices:updated',       handlePricesUpdated);
+      socket.off('prices:sync',          handlePricesSync);
+      socket.off('connect',              handleReconnect);
+      socket.off('order:updated',        handleOrderUpdated);
+      socket.off('table:status_changed', handleTableStatus);
     };
-  }, [tableIdNum]);
+  }, [tableIdNum, resetToWelcome]);
 
   const openOrderMutation = useMutation({
-    mutationFn: () => api.createOrder(tableIdNum),
+    mutationFn: (count) => api.createOrder(tableIdNum, count ?? guestCount ?? 1),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
@@ -137,6 +228,11 @@ export default function TablePage() {
     },
   });
 
+  const handleSelectGuests = (count) => {
+    setGuestCount(count);
+    openOrderMutation.mutate(count);
+  };
+
   const handleTapItem = (menuItem) => setConfirmItem(menuItem);
 
   const handleConfirmAdd = async (qty) => {
@@ -145,12 +241,20 @@ export default function TablePage() {
     const livePrice = prices[item.id];
     const price = livePrice?.current_price ?? item.current_price;
     let currentOrder = order;
-    if (!currentOrder) currentOrder = await openOrderMutation.mutateAsync();
+    if (!currentOrder) currentOrder = await openOrderMutation.mutateAsync(guestCount ?? 1);
     addItemMutation.mutate({ orderId: currentOrder.id, menu_item_id: item.id, quantity: qty, price, name: item.name });
   };
 
-  const total     = order?.items?.reduce((s, i) => s + i.quantity * i.unit_price, 0) ?? 0;
-  const itemCount = order?.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
+  const chargeAmt = parseFloat(order?.charge_amount) || 0;
+  const itemsTotal = order?.items?.reduce((s, i) => s + i.quantity * i.unit_price, 0) ?? 0;
+  const total      = itemsTotal + chargeAmt;
+  const itemCount  = order?.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
+  const tableName = table?.name ?? `テーブル ${tableId}`;
+
+  // 人数未選択 → 初期画面
+  if (guestCount === null) {
+    return <WelcomeScreen tableName={tableName} onSelectGuests={handleSelectGuests} />;
+  }
 
   return (
     <div className="flex flex-col h-screen bg-slate-900 overflow-hidden">
@@ -165,9 +269,12 @@ export default function TablePage() {
           <header className="flex items-center justify-between px-6 py-4 bg-slate-900 border-b border-slate-800 flex-shrink-0">
             <div>
               <h1 className="font-black text-white text-xl leading-tight">
-                {table?.name ?? `テーブル ${tableId}`}
+                {tableName}
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">ご自由にご注文ください</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">{order?.guest_count ?? guestCount}名様</span>
             </div>
           </header>
 
@@ -191,12 +298,26 @@ export default function TablePage() {
 
           {/* 注文アイテムリスト */}
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            {!order?.items?.length ? (
+            {/* チャージ行 */}
+            {chargeAmt > 0 && (
+              <div className="bg-amber-900/30 rounded-xl px-4 py-3 border border-amber-700/30">
+                <p className="text-sm font-semibold text-amber-300 mb-1">チャージ</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400">
+                    {order.guest_count}名 × ¥{Math.floor(order.charge_per_person).toLocaleString()}
+                  </span>
+                  <span className="text-sm font-black text-amber-400">
+                    ¥{Math.floor(chargeAmt).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            )}
+            {!order?.items?.length && chargeAmt === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 text-slate-600 text-sm gap-2">
                 <span className="text-2xl">🍺</span>
                 <p>まだ注文がありません</p>
               </div>
-            ) : (
+            ) : order?.items?.length > 0 ? (
               order.items.map((item) => (
                 <div
                   key={item.id}
@@ -215,16 +336,18 @@ export default function TablePage() {
                   </div>
                 </div>
               ))
-            )}
+            ) : null}
           </div>
 
           {/* フッター合計 */}
           <div className="flex-shrink-0 border-t border-slate-800">
-            {itemCount > 0 ? (
+            {total > 0 ? (
               <div className="bg-amber-500 px-5 py-4">
-                <p className="text-xs text-amber-800 font-semibold">
-                  合計 <span className="font-black">{itemCount}点</span>
-                </p>
+                {itemCount > 0 && (
+                  <p className="text-xs text-amber-800 font-semibold">
+                    合計 <span className="font-black">{itemCount}点</span>
+                  </p>
+                )}
                 <p className="text-2xl font-black text-slate-900 mt-0.5">
                   ¥{total.toLocaleString()}
                 </p>

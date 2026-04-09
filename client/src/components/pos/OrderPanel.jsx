@@ -54,6 +54,9 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
           table_id: table.id,
           items: data.items,
           total_amount: data.total,
+          charge_amount: data.chargeAmount ?? old?.charge_amount,
+          charge_per_person: data.chargePerPerson ?? old?.charge_per_person,
+          guest_count: data.guestCount ?? old?.guest_count,
         }));
       }
     };
@@ -129,7 +132,8 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
     setPendingAction(null);
   };
 
-  const total = order?.items?.reduce((s, i) => s + i.quantity * i.unit_price, 0) ?? 0;
+  const chargeAmt = parseFloat(order?.charge_amount) || 0;
+  const total = (order?.items?.reduce((s, i) => s + i.quantity * i.unit_price, 0) ?? 0) + chargeAmt;
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -137,7 +141,6 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50 flex-shrink-0">
         <div>
           <h2 className="font-bold text-slate-900">{table.name}</h2>
-          <span className="text-xs text-slate-400 mt-0.5 block">{table.capacity}席</span>
         </div>
         <button
           onClick={onClose}
@@ -165,12 +168,26 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
         </div>
 
         {/* 注文明細 */}
-        {order?.items?.length > 0 && (
+        {(order?.items?.length > 0 || chargeAmt > 0) && (
           <div>
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">
               注文明細
             </p>
             <div className="space-y-2">
+              {/* チャージ行 */}
+              {chargeAmt > 0 && (
+                <div className="flex items-center gap-3 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm text-slate-800 font-medium block">チャージ</span>
+                    <span className="text-[11px] text-slate-400 mt-0.5 block">
+                      {order.guest_count}名 × ¥{Math.floor(order.charge_per_person).toLocaleString()}
+                    </span>
+                  </div>
+                  <span className="text-sm font-bold text-amber-600 w-16 text-right flex-shrink-0">
+                    ¥{Math.floor(chargeAmt).toLocaleString()}
+                  </span>
+                </div>
+              )}
               {order.items.map((item) => {
                 const sameNameItems = order.items.filter((i) => i.item_name === item.item_name);
                 const hasPriceVariants = sameNameItems.length > 1;

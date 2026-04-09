@@ -51,7 +51,11 @@
       "WebFetch(domain:localhost)",
       "Bash(curl -s \"http://localhost:5173/src/index.css\")",
       "Bash(pkill -f \"vite --port 5173\")",
-      "Bash(kill %1)"
+      "Bash(kill %1)",
+      "Bash(npx --prefix client vite build)",
+      "Bash(node_modules/.bin/vite build:*)",
+      "Bash(curl -s http://localhost:3001/api/tables)",
+      "Bash(curl:*)"
     ]
   }
 }

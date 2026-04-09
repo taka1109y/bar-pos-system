@@ -50,7 +50,9 @@ router.post('/:orderId', async (req, res, next) => {
       [order.id]
     );
 
-    const subtotal = items.reduce((sum, i) => sum + i.quantity * parseFloat(i.unit_price), 0);
+    const itemsSubtotal = items.reduce((sum, i) => sum + i.quantity * parseFloat(i.unit_price), 0);
+    const chargeAmount  = parseFloat(order.charge_amount) || 0;
+    const subtotal = itemsSubtotal + chargeAmount;
     const discount = Math.max(0, Math.min(parseFloat(discount_amount) || 0, subtotal));
 
     const { rows: settingRows } = await client.query('SELECT key, value FROM system_settings');
@@ -63,11 +65,13 @@ router.post('/:orderId', async (req, res, next) => {
 
     const isLate            = checkLateNight(late_night_start, late_night_end);
     const late_night_rate   = isLate ? late_night_rate_s : 0;
-    const late_night_amount = isLate ? Math.round(subtotal * late_night_rate) : 0;
+    // 深夜料金はアイテム小計のみに適用（チャージは固定料金のため除外）
+    const late_night_amount = isLate ? Math.round(itemsSubtotal * late_night_rate) : 0;
 
+    // 全て税込み価格で処理。内税額は参考表示用のみ。
     const taxable_base = subtotal + late_night_amount - discount;
-    const tax_amount   = Math.round(taxable_base * tax_rate);
-    const total        = taxable_base + tax_amount;
+    const tax_amount   = Math.round(taxable_base * tax_rate / (1 + tax_rate));
+    const total        = taxable_base;
 
     // 金券: 釣り無しの場合は合計を超えない
     const raw_gift_cert       = Math.max(0, parseFloat(gift_cert_amount) || 0);

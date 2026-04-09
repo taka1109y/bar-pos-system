@@ -174,12 +174,15 @@ function HourSelect({ value, onChange }) {
 export default function SystemSettingsPage() {
   const queryClient = useQueryClient();
 
-  const [taxInput,  setTaxInput]  = useState('');
-  const [lnRate,    setLnRate]    = useState('');
-  const [lnStart,   setLnStart]   = useState(22);
-  const [lnEnd,     setLnEnd]     = useState(29);
-  const [savedTax,  setSavedTax]  = useState(false);
-  const [savedLn,   setSavedLn]   = useState(false);
+  const [taxInput,       setTaxInput]       = useState('');
+  const [lnRate,         setLnRate]         = useState('');
+  const [lnStart,        setLnStart]        = useState(22);
+  const [lnEnd,          setLnEnd]          = useState(29);
+  const [savedTax,       setSavedTax]       = useState(false);
+  const [savedLn,        setSavedLn]        = useState(false);
+  const [chargeEnabled,  setChargeEnabled]  = useState(true);
+  const [chargeSlots,    setChargeSlots]    = useState([]);
+  const [savedCharge,    setSavedCharge]    = useState(false);
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['system-settings'],
@@ -231,6 +234,8 @@ export default function SystemSettingsPage() {
     setLnRate(String(Math.round(settings.late_night_rate * 100)));
     setLnStart(settings.late_night_start);
     setLnEnd(settings.late_night_end);
+    setChargeEnabled(settings.charge_enabled !== false);
+    setChargeSlots(settings.charge_time_slots ?? []);
   }, [settings]);
 
   const saveMutation = useMutation({
@@ -255,6 +260,26 @@ export default function SystemSettingsPage() {
       { onSuccess: () => { setSavedLn(true); setTimeout(() => setSavedLn(false), 2000); } }
     );
   };
+
+  const handleSaveCharge = () => {
+    for (const s of chargeSlots) {
+      if (s.start >= s.end) return;
+      if (s.amount < 0) return;
+    }
+    saveMutation.mutate(
+      { charge_enabled: chargeEnabled, charge_time_slots: chargeSlots },
+      { onSuccess: () => { setSavedCharge(true); setTimeout(() => setSavedCharge(false), 2000); } }
+    );
+  };
+
+  const addSlot = () =>
+    setChargeSlots((prev) => [...prev, { label: '', start: 17, end: 23, amount: 500 }]);
+
+  const updateSlot = (i, key, val) =>
+    setChargeSlots((prev) => prev.map((s, idx) => idx === i ? { ...s, [key]: val } : s));
+
+  const removeSlot = (i) =>
+    setChargeSlots((prev) => prev.filter((_, idx) => idx !== i));
 
   const saveBtn = (saved, onClick) => (
     <button
@@ -366,6 +391,103 @@ export default function SystemSettingsPage() {
                   </span>
                 </div>
               </div>
+            </div>
+          </Section>
+
+          {/* ── チャージ設定 ── */}
+          <Section
+            title="チャージ設定"
+            desc="入店時に人数×料金を自動で注文に追加します。時間帯ごとに料金を設定できます。"
+          >
+            <div className="space-y-4">
+              {/* 有効/無効 */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">チャージを有効にする</p>
+                  <p className="text-xs text-slate-400 mt-0.5">無効にするとチャージは発生しません</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setChargeEnabled((v) => !v)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${chargeEnabled ? 'bg-primary-500' : 'bg-slate-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${chargeEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {/* 時間帯スロット */}
+              <div>
+                <p className="text-xs font-semibold text-slate-500 mb-2">時間帯別料金（人数 × 料金/人）</p>
+                {chargeSlots.length === 0 && (
+                  <p className="text-xs text-slate-400 py-2">時間帯が設定されていません（チャージなし）</p>
+                )}
+                <div className="space-y-2">
+                  {chargeSlots.map((slot, i) => (
+                    <div key={i} className="bg-slate-50 rounded-lg border border-slate-200 p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="ラベル（例: ハッピーアワー）"
+                          value={slot.label ?? ''}
+                          onChange={(e) => updateSlot(i, 'label', e.target.value)}
+                          className="flex-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeSlot(i)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-50 border border-red-200 flex-shrink-0"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="leading-normal">
+                          <p className="text-[10px] text-slate-400 mb-1">開始</p>
+                          <HourSelect value={slot.start} onChange={(v) => updateSlot(i, 'start', v)} />
+                        </div>
+                        <span className="text-slate-400 text-sm mt-4">〜</span>
+                        <div className="leading-normal">
+                          <p className="text-[10px] text-slate-400 mb-1">終了</p>
+                          <HourSelect value={slot.end} onChange={(v) => updateSlot(i, 'end', v)} />
+                        </div>
+                        <div className="leading-normal">
+                          <p className="text-[10px] text-slate-400 mb-1">料金/人（円）</p>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-slate-400">¥</span>
+                            <input
+                              type="number" min="0" step="100"
+                              value={slot.amount}
+                              onChange={(e) => updateSlot(i, 'amount', parseInt(e.target.value) || 0)}
+                              className="w-24 bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-sm text-right text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      {slot.start >= slot.end && (
+                        <p className="text-[10px] text-red-500">終了時刻は開始より後にしてください</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={addSlot}
+                  className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  + 時間帯を追加
+                </button>
+              </div>
+
+              <div className="flex justify-end">
+                {saveBtn(savedCharge, handleSaveCharge)}
+              </div>
+              {savedCharge && (
+                <div className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-medium">
+                  ✓ 保存しました
+                </div>
+              )}
             </div>
           </Section>
 

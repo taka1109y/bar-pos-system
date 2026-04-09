@@ -5,11 +5,12 @@ import { api } from '../api';
 const inp = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
 const lbl = 'block text-xs font-semibold text-slate-500 mb-1.5';
 
-function StatCard({ label, value }) {
+function StatCard({ label, value, sub, accent }) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
       <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{label}</p>
-      <p className="text-2xl font-black text-slate-900 leading-none">{value}</p>
+      <p className={`text-2xl font-black leading-none ${accent ?? 'text-slate-900'}`}>{value}</p>
+      {sub && <p className="text-xs text-slate-400 mt-1.5">{sub}</p>}
     </div>
   );
 }
@@ -25,6 +26,9 @@ export default function ReportsPage({ onClose, inline = false }) {
 
   const topItems   = report?.items?.slice(0, 10) || [];
   const maxRevenue = topItems[0]?.revenue || 1;
+
+  const breakdown    = report?.payment_breakdown ?? [];
+  const maxBreakdown = Math.max(...breakdown.map(b => b.revenue), 1);
 
   const content = (
     <div className={inline ? 'p-8 max-w-3xl mx-auto space-y-6' : 'flex-1 overflow-y-auto space-y-6'}>
@@ -46,12 +50,55 @@ export default function ReportsPage({ onClose, inline = false }) {
         </div>
       ) : (
         <>
-          {/* サマリーカード */}
+          {/* サマリーカード（上段） */}
           <div className="grid grid-cols-3 gap-4">
-            <StatCard label="総売上" value={`¥${report?.total_revenue?.toLocaleString() || 0}`} />
-            <StatCard label="会計件数" value={`${report?.order_count || 0}件`} />
-            <StatCard label="平均単価" value={`¥${report?.avg_order_value?.toLocaleString() || 0}`} />
+            <StatCard label="総売上" value={`¥${Math.floor(report?.total_revenue ?? 0).toLocaleString()}`} />
+            <StatCard label="会計件数" value={`${report?.order_count ?? 0}件`} />
+            <StatCard label="平均単価" value={`¥${Math.floor(report?.avg_order_value ?? 0).toLocaleString()}`} />
           </div>
+
+          {/* サマリーカード（下段: 割引・金券・深夜） */}
+          <div className="grid grid-cols-3 gap-4">
+            <StatCard
+              label="割引合計"
+              value={report?.total_discount > 0 ? `−¥${Math.floor(report.total_discount).toLocaleString()}` : '¥0'}
+              accent={report?.total_discount > 0 ? 'text-red-500' : 'text-slate-400'}
+            />
+            <StatCard
+              label="金券合計"
+              value={report?.total_gift_cert > 0 ? `¥${Math.floor(report.total_gift_cert).toLocaleString()}` : '¥0'}
+              accent={report?.total_gift_cert > 0 ? 'text-emerald-600' : 'text-slate-400'}
+            />
+            <StatCard
+              label="深夜料金合計"
+              value={report?.total_late_night > 0 ? `¥${Math.floor(report.total_late_night).toLocaleString()}` : '¥0'}
+              accent={report?.total_late_night > 0 ? 'text-amber-600' : 'text-slate-400'}
+            />
+          </div>
+
+          {/* 支払い方法内訳 */}
+          {(report?.order_count ?? 0) > 0 && (
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+              <h3 className="text-sm font-bold text-slate-700 mb-5">支払い方法内訳</h3>
+              <div className="space-y-4">
+                {breakdown.filter(b => b.count > 0).map((b) => (
+                  <div key={b.method} className="flex items-center gap-3">
+                    <span className="w-20 text-sm font-medium text-slate-700 flex-shrink-0">{b.label}</span>
+                    <div className="flex-1 bg-slate-100 rounded-full h-2.5">
+                      <div
+                        className="bg-primary-400 h-2.5 rounded-full transition-all"
+                        style={{ width: `${(b.revenue / maxBreakdown) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-slate-400 w-8 text-right flex-shrink-0">{b.count}件</span>
+                    <span className="text-sm font-bold text-slate-900 w-24 text-right flex-shrink-0">
+                      ¥{Math.floor(b.revenue).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 商品別ランキング */}
           {topItems.length > 0 ? (

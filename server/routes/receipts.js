@@ -27,6 +27,9 @@ router.get('/', async (req, res, next) => {
          o.memo,
          o.gift_cert_amount::float,
          o.gift_cert_no_change,
+         o.charge_per_person::float,
+         o.charge_amount::float,
+         o.guest_count,
          t.name AS table_name,
          json_agg(
            json_build_object(
@@ -42,6 +45,7 @@ router.get('/', async (req, res, next) => {
        GROUP BY o.id, o.closed_at, o.total_amount, o.discount_amount,
                 o.late_night_rate, o.late_night_amount, o.tax_rate, o.tax_amount,
                 o.payment_method, o.memo, o.gift_cert_amount, o.gift_cert_no_change,
+                o.charge_per_person, o.charge_amount, o.guest_count,
                 t.name
        ORDER BY o.closed_at DESC`,
       [date, TZ]

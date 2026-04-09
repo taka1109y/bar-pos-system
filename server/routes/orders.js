@@ -8,7 +8,8 @@ async function getOrderWithItems(orderId) {
   const { rows: orderRows } = await query(
     `SELECT id, table_id, status, payment_method, opened_at, closed_at,
        total_amount::float, discount_amount::float, tax_rate::float, tax_amount::float,
-       late_night_rate::float, late_night_amount::float
+       late_night_rate::float, late_night_amount::float,
+       guest_count, charge_per_person::float, charge_amount::float
      FROM orders WHERE id = $1`,
     [orderId]
   );
@@ -41,7 +42,8 @@ async function recalcTotal(client, orderId) {
 router.get('/open', async (req, res, next) => {
   try {
     const { rows } = await query(
-      `SELECT id, table_id, total_amount::float, opened_at
+      `SELECT id, table_id, total_amount::float, opened_at, guest_count,
+              charge_per_person::float, charge_amount::float
        FROM orders WHERE status = 'open' ORDER BY table_id`
     );
     res.json(rows);
@@ -75,6 +77,9 @@ router.get('/table/:tableId', async (req, res, next) => {
       discount_amount: parseFloat(order.discount_amount),
       tax_rate: parseFloat(order.tax_rate), tax_amount: parseFloat(order.tax_amount),
       late_night_rate: parseFloat(order.late_night_rate), late_night_amount: parseFloat(order.late_night_amount),
+      guest_count: order.guest_count,
+      charge_per_person: parseFloat(order.charge_per_person),
+      charge_amount: parseFloat(order.charge_amount),
       items,
     });
   } catch (err) {
@@ -82,10 +87,26 @@ router.get('/table/:tableId', async (req, res, next) => {
   }
 });
 
+const TZ_ORDERS = process.env.TZ_REPORT || 'Asia/Tokyo';
+
+function resolveCharge(slots, guestCount) {
+  const now = new Date();
+  const jst = new Date(now.toLocaleString('en-US', { timeZone: TZ_ORDERS }));
+  const h   = jst.getHours();
+  const slot = slots.find((s) => {
+    const { start, end } = s;
+    if (start < 24 && end > 24) return h >= start || h < (end - 24);
+    if (start >= 24)             return h >= (start - 24) && h < (end - 24);
+    return h >= start && h < end;
+  });
+  const perPerson = slot ? (parseInt(slot.amount) || 0) : 0;
+  return { charge_per_person: perPerson, charge_amount: perPerson * guestCount };
+}
+
 // POST /api/orders — 新しい注文を開く
 router.post('/', async (req, res, next) => {
   try {
-    const { table_id } = req.body;
+    const { table_id, guest_count = 1 } = req.body;
     if (!table_id) return res.status(400).json({ error: 'table_id is required' });
 
     const { rows: existing } = await query(
@@ -96,9 +117,22 @@ router.post('/', async (req, res, next) => {
       return res.status(409).json({ error: 'Table already has an open order', orderId: existing[0].id });
     }
 
+    // チャージ設定を読み取り
+    const { rows: csRows } = await query(
+      `SELECT key, value FROM system_settings WHERE key IN ('charge_enabled', 'charge_time_slots')`
+    );
+    const cs = csRows.reduce((acc, r) => { acc[r.key] = r.value; return acc; }, {});
+    const chargeEnabled = cs.charge_enabled !== 'false';
+    const slots = (() => { try { return JSON.parse(cs.charge_time_slots ?? '[]'); } catch { return []; } })();
+    const guestCountNum = Math.max(1, parseInt(guest_count) || 1);
+    const { charge_per_person, charge_amount } = chargeEnabled
+      ? resolveCharge(slots, guestCountNum)
+      : { charge_per_person: 0, charge_amount: 0 };
+
     const { rows } = await query(
-      'INSERT INTO orders (table_id) VALUES ($1) RETURNING *',
-      [table_id]
+      `INSERT INTO orders (table_id, guest_count, charge_per_person, charge_amount)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [table_id, guestCountNum, charge_per_person, charge_amount]
     );
     await query(`UPDATE tables SET status = 'occupied' WHERE id = $1`, [table_id]);
     broadcast('table:status_changed', { tableId: Number(table_id), status: 'occupied' });
@@ -183,6 +217,9 @@ router.post('/:id/items', async (req, res, next) => {
       orderId: order.id,
       items: updated.items,
       total: updated.total_amount,
+      chargeAmount: updated.charge_amount,
+      chargePerPerson: updated.charge_per_person,
+      guestCount: updated.guest_count,
     });
 
     res.json(updated);
@@ -231,6 +268,9 @@ router.patch('/:id/items/:itemId', async (req, res, next) => {
       orderId: order.id,
       items: updated.items,
       total: updated.total_amount,
+      chargeAmount: updated.charge_amount,
+      chargePerPerson: updated.charge_per_person,
+      guestCount: updated.guest_count,
     });
 
     res.json(updated);
@@ -264,6 +304,9 @@ router.delete('/:id/items/:itemId', async (req, res, next) => {
       orderId: order.id,
       items: updated.items,
       total: updated.total_amount,
+      chargeAmount: updated.charge_amount,
+      chargePerPerson: updated.charge_per_person,
+      guestCount: updated.guest_count,
     });
 
     res.json(updated);

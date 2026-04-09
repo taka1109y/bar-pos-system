@@ -133,7 +133,6 @@ export default function POSPage() {
     ? tables.find((t) => t.id === selectedTable.id) ?? selectedTable
     : null;
 
-  const occupiedCount = openOrders.length;
   const currentNav = NAV_ITEMS.find((n) => n.id === view);
 
   return (
@@ -248,18 +247,6 @@ export default function POSPage() {
           </div>
         </nav>
 
-        {/* ステータス */}
-        <div className="p-2.5 border-t border-slate-100 flex-shrink-0">
-          <div className="px-3 py-2.5 bg-slate-50 rounded-lg border border-slate-100">
-            {!sidebarCollapsed && (
-              <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-1">テーブル稼働</p>
-            )}
-            <div className="flex items-baseline gap-1">
-              <span className="text-xl font-black text-slate-800">{occupiedCount}</span>
-              {!sidebarCollapsed && <span className="text-sm text-slate-400 font-medium">/ {tables.length} 席</span>}
-            </div>
-          </div>
-        </div>
       </aside>
 
       {/* ─── メインコンテンツ ─── */}

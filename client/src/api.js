@@ -39,7 +39,7 @@ export const api = {
   // Orders
   getOpenOrders: () => req('/orders/open'),
   getOrderByTable: (tableId) => req(`/orders/table/${tableId}`),
-  createOrder: (tableId) => req('/orders', { method: 'POST', body: JSON.stringify({ table_id: tableId }) }),
+  createOrder: (tableId, guestCount = 1) => req('/orders', { method: 'POST', body: JSON.stringify({ table_id: tableId, guest_count: guestCount }) }),
   addOrderItem: (orderId, data) => req(`/orders/${orderId}/items`, { method: 'POST', body: JSON.stringify(data) }),
   updateOrderItem: (orderId, itemId, data) => req(`/orders/${orderId}/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteOrderItem: (orderId, itemId) => req(`/orders/${orderId}/items/${itemId}`, { method: 'DELETE' }),

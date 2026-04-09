@@ -9,10 +9,10 @@ async function seed() {
 
   // テーブル
   for (let i = 1; i <= 8; i++) {
-    await query('INSERT INTO tables (name, capacity) VALUES ($1, $2)', [`テーブル ${i}`, 4]);
+    await query('INSERT INTO tables (name) VALUES ($1)', [`テーブル ${i}`]);
   }
   for (let i = 1; i <= 4; i++) {
-    await query('INSERT INTO tables (name, capacity) VALUES ($1, $2)', [`カウンター ${i}`, 1]);
+    await query('INSERT INTO tables (name, table_type) VALUES ($1, $2)', [`カウンター ${i}`, 'counter']);
   }
 
   // カテゴリ
