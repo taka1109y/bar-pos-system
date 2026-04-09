@@ -205,6 +205,15 @@ export default function TablePage() {
   const openOrderMutation = useMutation({
     mutationFn: (count) => api.createOrder(tableIdNum, count ?? guestCount ?? 1),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
+    onError: (err) => {
+      // 409: 注文がすでに存在する（ページ更新直後に稀に起こる競合）→ 既存注文を再フェッチ
+      if (err.message?.includes('already has an open order')) {
+        queryClient.invalidateQueries({ queryKey: orderKey });
+      } else {
+        // その他のエラーは初期画面に戻す
+        setGuestCount(null);
+      }
+    },
   });
 
   const addItemMutation = useMutation({
@@ -241,7 +250,16 @@ export default function TablePage() {
     const livePrice = prices[item.id];
     const price = livePrice?.current_price ?? item.current_price;
     let currentOrder = order;
-    if (!currentOrder) currentOrder = await openOrderMutation.mutateAsync(guestCount ?? 1);
+    if (!currentOrder) {
+      try {
+        currentOrder = await openOrderMutation.mutateAsync(guestCount ?? 1);
+      } catch {
+        // 409など: orderKeyを再フェッチして既存注文を取得
+        await queryClient.invalidateQueries({ queryKey: orderKey });
+        currentOrder = queryClient.getQueryData(orderKey);
+        if (!currentOrder) return; // 取得できなければ中止
+      }
+    }
     addItemMutation.mutate({ orderId: currentOrder.id, menu_item_id: item.id, quantity: qty, price, name: item.name });
   };
 

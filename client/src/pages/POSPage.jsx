@@ -90,25 +90,28 @@ export default function POSPage() {
   }, []);
 
   useEffect(() => {
-    socket.on('prices:updated', ({ items }) => updatePrices(items));
-    socket.on('prices:sync',    ({ items }) => initPrices(items));
-
-    socket.on('table:status_changed', ({ tableId, status }) => {
+    const handlePricesUpdated    = ({ items }) => updatePrices(items);
+    const handlePricesSync       = ({ items }) => initPrices(items);
+    const handleTableStatusChanged = ({ tableId, status }) => {
       queryClient.setQueryData(['tables'], (old) =>
         old?.map((t) => (t.id === tableId ? { ...t, status } : t)) ?? old
       );
       queryClient.invalidateQueries({ queryKey: ['orders-open'] });
-    });
-
-    socket.on('order:updated', () => {
+    };
+    const handleOrderUpdated = () => {
       queryClient.invalidateQueries({ queryKey: ['orders-open'] });
-    });
+    };
+
+    socket.on('prices:updated',       handlePricesUpdated);
+    socket.on('prices:sync',          handlePricesSync);
+    socket.on('table:status_changed', handleTableStatusChanged);
+    socket.on('order:updated',        handleOrderUpdated);
 
     return () => {
-      socket.off('prices:updated');
-      socket.off('prices:sync');
-      socket.off('table:status_changed');
-      socket.off('order:updated');
+      socket.off('prices:updated',       handlePricesUpdated);
+      socket.off('prices:sync',          handlePricesSync);
+      socket.off('table:status_changed', handleTableStatusChanged);
+      socket.off('order:updated',        handleOrderUpdated);
     };
   }, []);
 

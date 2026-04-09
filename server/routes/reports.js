@@ -45,7 +45,6 @@ router.get('/daily', async (req, res, next) => {
     );
 
     const orderCount = parseInt(summary[0].order_count);
-    const totalRevenue = summary[0].total_revenue;
 
     const s = summary[0];
     res.json({

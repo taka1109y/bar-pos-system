@@ -39,7 +39,7 @@ async function recalcTotal(client, orderId) {
 }
 
 // GET /api/orders/open — 全オープン注文（table_id, total_amount, opened_at）
-router.get('/open', async (req, res, next) => {
+router.get('/open', async (_req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT id, table_id, total_amount::float, opened_at, guest_count,
