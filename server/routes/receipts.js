@@ -5,7 +5,7 @@ const { query } = require('../db/database');
 const TZ = process.env.TZ_REPORT || 'Asia/Tokyo';
 
 function todayJST() {
-  return new Date().toLocaleDateString('sv-SE', { timeZone: TZ }); // YYYY-MM-DD
+  return new Date().toLocaleDateString('sv-SE', { timeZone: TZ });
 }
 
 // GET /api/receipts?date=YYYY-MM-DD
@@ -24,6 +24,9 @@ router.get('/', async (req, res, next) => {
          o.tax_rate::float,
          o.tax_amount::float,
          o.payment_method,
+         o.memo,
+         o.gift_cert_amount::float,
+         o.gift_cert_no_change,
          t.name AS table_name,
          json_agg(
            json_build_object(
@@ -36,7 +39,10 @@ router.get('/', async (req, res, next) => {
        JOIN tables t ON o.table_id = t.id
        LEFT JOIN order_items oi ON oi.order_id = o.id
        WHERE o.status = 'paid' AND (o.closed_at AT TIME ZONE $2)::date = $1
-       GROUP BY o.id, o.closed_at, o.total_amount, o.discount_amount, o.late_night_rate, o.late_night_amount, o.tax_rate, o.tax_amount, o.payment_method, t.name
+       GROUP BY o.id, o.closed_at, o.total_amount, o.discount_amount,
+                o.late_night_rate, o.late_night_amount, o.tax_rate, o.tax_amount,
+                o.payment_method, o.memo, o.gift_cert_amount, o.gift_cert_no_change,
+                t.name
        ORDER BY o.closed_at DESC`,
       [date, TZ]
     );

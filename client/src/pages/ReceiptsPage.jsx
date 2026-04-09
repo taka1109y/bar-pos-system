@@ -114,6 +114,12 @@ export default function ReceiptsPage() {
                                 <span className="text-red-500">−¥{Math.floor(r.discount_amount).toLocaleString()}</span>
                               </div>
                             )}
+                            {r.gift_cert_amount > 0 && (
+                              <div className="flex justify-between text-xs text-emerald-700">
+                                <span>金券適用{r.gift_cert_no_change ? '（釣り無し）' : '（釣り有り）'}</span>
+                                <span>¥{Math.floor(r.gift_cert_amount).toLocaleString()}</span>
+                              </div>
+                            )}
                             <div className="flex justify-between text-xs text-slate-500">
                               <span>消費税（{Math.round((r.tax_rate ?? 0.10) * 100)}%）</span>
                               <span>¥{Math.floor(r.tax_amount ?? 0).toLocaleString()}</span>
@@ -126,6 +132,14 @@ export default function ReceiptsPage() {
                         );
                       })()}
                     </div>
+
+                    {/* メモ */}
+                    {r.memo && (
+                      <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-widest mb-1">メモ</p>
+                        <p className="text-xs text-amber-900 whitespace-pre-wrap">{r.memo}</p>
+                      </div>
+                    )}
 
                     <p className="text-xs text-slate-400 mt-3">
                       伝票 #{r.id} &nbsp;·&nbsp; {new Date(r.closed_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}

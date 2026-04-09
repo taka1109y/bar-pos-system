@@ -6,27 +6,30 @@ const { broadcast } = require('../services/socketService');
 const VALID_METHODS = ['cash', 'card', 'emoney'];
 const TZ = process.env.TZ_REPORT || 'Asia/Tokyo';
 
-// 32時間制で現在時刻が深夜帯かを判定
 function checkLateNight(startH, endH) {
-  const now  = new Date();
-  const jst  = new Date(now.toLocaleString('en-US', { timeZone: TZ }));
-  const h    = jst.getHours();
+  const now = new Date();
+  const jst = new Date(now.toLocaleString('en-US', { timeZone: TZ }));
+  const h   = jst.getHours();
 
   if (startH < 24 && endH > 24) {
-    // 例: 22〜29（日跨ぎ）
     return h >= startH || h < (endH - 24);
   } else if (startH >= 24) {
-    // 例: 25〜29（深夜のみ）
     return h >= (startH - 24) && h < (endH - 24);
   } else {
-    // 例: 20〜23（日跨ぎなし）
     return h >= startH && h < endH;
   }
 }
 
 // POST /api/payments/:orderId
 router.post('/:orderId', async (req, res, next) => {
-  const { payment_method = 'cash', discount_amount = 0 } = req.body;
+  const {
+    payment_method   = 'cash',
+    discount_amount  = 0,
+    memo             = null,
+    gift_cert_amount = 0,
+    gift_cert_no_change = false,
+  } = req.body;
+
   if (!VALID_METHODS.includes(payment_method)) {
     return res.status(400).json({ error: 'Invalid payment_method. Use cash, card, or emoney.' });
   }
@@ -50,22 +53,27 @@ router.post('/:orderId', async (req, res, next) => {
     const subtotal = items.reduce((sum, i) => sum + i.quantity * parseFloat(i.unit_price), 0);
     const discount = Math.max(0, Math.min(parseFloat(discount_amount) || 0, subtotal));
 
-    // システム設定を取得
     const { rows: settingRows } = await client.query('SELECT key, value FROM system_settings');
     const s = settingRows.reduce((acc, r) => { acc[r.key] = r.value; return acc; }, {});
 
-    const tax_rate          = parseFloat(s.tax_rate         ?? '0.10');
+    const tax_rate         = parseFloat(s.tax_rate         ?? '0.10');
     const late_night_rate_s = parseFloat(s.late_night_rate  ?? '0.10');
     const late_night_start  = parseInt(  s.late_night_start ?? '22', 10);
     const late_night_end    = parseInt(  s.late_night_end   ?? '29', 10);
 
-    const isLate             = checkLateNight(late_night_start, late_night_end);
-    const late_night_rate    = isLate ? late_night_rate_s : 0;
-    const late_night_amount  = isLate ? Math.round(subtotal * late_night_rate) : 0;
+    const isLate            = checkLateNight(late_night_start, late_night_end);
+    const late_night_rate   = isLate ? late_night_rate_s : 0;
+    const late_night_amount = isLate ? Math.round(subtotal * late_night_rate) : 0;
 
     const taxable_base = subtotal + late_night_amount - discount;
     const tax_amount   = Math.round(taxable_base * tax_rate);
     const total        = taxable_base + tax_amount;
+
+    // 金券: 釣り無しの場合は合計を超えない
+    const raw_gift_cert       = Math.max(0, parseFloat(gift_cert_amount) || 0);
+    const effective_gift_cert = gift_cert_no_change
+      ? Math.min(raw_gift_cert, total)
+      : raw_gift_cert;
 
     await client.query('BEGIN');
     await client.query(
@@ -73,10 +81,13 @@ router.post('/:orderId', async (req, res, next) => {
        SET status = 'paid', closed_at = NOW(),
            total_amount = $1, payment_method = $2,
            discount_amount = $3, tax_rate = $4, tax_amount = $5,
-           late_night_rate = $6, late_night_amount = $7
-       WHERE id = $8`,
+           late_night_rate = $6, late_night_amount = $7,
+           memo = $8, gift_cert_amount = $9, gift_cert_no_change = $10
+       WHERE id = $11`,
       [total, payment_method, discount, tax_rate, tax_amount,
-       late_night_rate, late_night_amount, order.id]
+       late_night_rate, late_night_amount,
+       memo || null, effective_gift_cert, gift_cert_no_change,
+       order.id]
     );
     await client.query(`UPDATE tables SET status = 'available' WHERE id = $1`, [order.table_id]);
     await client.query('COMMIT');
@@ -94,6 +105,7 @@ router.post('/:orderId', async (req, res, next) => {
       tax_amount,
       total,
       paymentMethod: payment_method,
+      giftCertAmount: effective_gift_cert,
       paidAt: new Date().toISOString(),
     });
   } catch (err) {

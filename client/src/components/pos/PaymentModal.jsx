@@ -3,79 +3,254 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 
 const PAYMENT_METHODS = [
-  { id: 'cash',   label: '現金',       icon: '💴' },
-  { id: 'card',   label: 'カード',     icon: '💳' },
-  { id: 'emoney', label: '電子マネー', icon: '📱' },
+  { id: 'cash',   label: '現金' },
+  { id: 'card',   label: 'カード' },
+  { id: 'emoney', label: '電子マネー' },
 ];
 
-const QUICK_AMOUNTS = [1000, 5000, 10000];
-
-// ── 電卓キーパッド ────────────────────────────────────────
-const PAD_KEYS = [
-  ['7','8','9','⌫'],
-  ['4','5','6','C'],
-  ['1','2','3', ''],
-  ['000','0','00', ''],
-];
-
-function Numpad({ value, onChange }) {
+// ── テンキー ──────────────────────────────────────────────
+function Numpad({ value, onChange, onConfirm, exactAmount }) {
   const handleKey = (key) => {
-    if (key === '') return;
-    if (key === 'C') { onChange(''); return; }
-    if (key === '⌫') { onChange(value.slice(0, -1)); return; }
-    // 先頭の0を除去、8桁上限
+    if (key === 'C')    { onChange(''); return; }
+    if (key === '残額') { onChange(String(exactAmount)); return; }
+    if (key === '決定') { onConfirm(); return; }
     const next = (value + key).replace(/^0+/, '') || '0';
     if (next.length > 8) return;
     onChange(next);
   };
 
+  const digitBtn = (label) => (
+    <button
+      key={label}
+      type="button"
+      onClick={() => handleKey(label)}
+      className="h-12 rounded-xl text-sm font-bold bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-900 shadow-sm transition-all active:scale-95"
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div className="space-y-1.5">
-      {PAD_KEYS.map((row, ri) => (
-        <div key={ri} className="grid grid-cols-4 gap-1.5">
-          {row.map((key, ki) => {
-            if (key === '') return <div key={ki} />;
-            const isAction = key === '⌫' || key === 'C';
-            return (
-              <button
-                key={ki}
-                type="button"
-                onClick={() => handleKey(key)}
-                className={`h-11 rounded-xl text-sm font-bold transition-all active:scale-95 ${
-                  isAction
-                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                    : 'bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-900 shadow-sm'
-                }`}
-              >
-                {key}
-              </button>
-            );
-          })}
-        </div>
-      ))}
+      <div className="grid grid-cols-3 gap-1.5">
+        <button type="button" onClick={() => handleKey('C')}
+          className="h-12 rounded-xl text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all active:scale-95">
+          C
+        </button>
+        <button type="button" onClick={() => handleKey('残額')}
+          className="col-span-2 h-12 rounded-xl text-sm font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition-all active:scale-95">
+          残額
+        </button>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5">{['7','8','9'].map(digitBtn)}</div>
+      <div className="grid grid-cols-3 gap-1.5">{['4','5','6'].map(digitBtn)}</div>
+      <div className="grid grid-cols-3 gap-1.5">{['1','2','3'].map(digitBtn)}</div>
+      <div className="grid grid-cols-3 gap-1.5">
+        {['0','00'].map(digitBtn)}
+        <button type="button" onClick={() => handleKey('決定')}
+          className="h-12 rounded-xl text-sm font-bold bg-primary-600 hover:bg-primary-700 text-white transition-all active:scale-95 shadow-sm">
+          決定
+        </button>
+      </div>
     </div>
   );
 }
 
-// ── メインコンポーネント ──────────────────────────────────
+// ── 割引登録サブモーダル ──────────────────────────────────
+function DiscountModal({ subtotal, discountType, discountInput, onTypeChange, onInputChange, discountAmount, onApply, onClose }) {
+  const tempNum = parseFloat(discountInput) || 0;
+  const preview = discountType === 'amount'
+    ? Math.min(tempNum, subtotal)
+    : Math.round(subtotal * Math.min(tempNum, 100) / 100);
+
+  return (
+    <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10 rounded-xl">
+      <div className="bg-white rounded-xl w-80 shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <h3 className="text-sm font-bold text-slate-900">割引登録</h3>
+          <button onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          {/* タイプ */}
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm font-semibold">
+            <button
+              onClick={() => { onTypeChange('amount'); onInputChange(''); }}
+              className={`flex-1 py-2.5 transition-colors ${discountType === 'amount' ? 'bg-primary-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+            >値引額</button>
+            <button
+              onClick={() => { onTypeChange('rate'); onInputChange(''); }}
+              className={`flex-1 py-2.5 transition-colors ${discountType === 'rate' ? 'bg-primary-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+            >割引率</button>
+          </div>
+          {/* 入力 */}
+          <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-slate-50 focus-within:ring-2 focus-within:ring-primary-400">
+            <span className="pl-4 text-slate-400 text-sm">{discountType === 'amount' ? '¥' : ''}</span>
+            <input
+              type="number" min="0"
+              max={discountType === 'rate' ? 100 : subtotal}
+              value={discountInput}
+              onChange={(e) => onInputChange(e.target.value)}
+              placeholder="0"
+              autoFocus
+              className="flex-1 px-3 py-3 bg-transparent outline-none text-slate-900 text-right text-lg font-bold"
+            />
+            <span className="pr-4 text-slate-400 text-sm">{discountType === 'rate' ? '%' : ''}</span>
+          </div>
+          {/* プレビュー */}
+          <div className="flex justify-between items-center px-1">
+            <span className="text-sm text-slate-500">割引額プレビュー</span>
+            <span className="text-xl font-black text-red-500">
+              {preview > 0 ? `−¥${preview.toLocaleString()}` : '¥0'}
+            </span>
+          </div>
+          {/* ボタン */}
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={() => { onTypeChange('amount'); onInputChange(''); }}
+              className="flex-1 py-2.5 text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
+            >クリア</button>
+            <button
+              onClick={onApply}
+              className="flex-1 py-2.5 text-sm font-bold bg-primary-600 hover:bg-primary-700 text-white rounded-xl transition-colors"
+            >適用</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 金券サブモーダル ──────────────────────────────────────
+function GiftCertModal({ finalTotal, giftCertTotal, onAddCert, onClear, giftCertNoChange, onToggleNoChange, onApply, onClose }) {
+  const effectiveGiftCert = giftCertNoChange
+    ? Math.min(giftCertTotal, finalTotal)
+    : giftCertTotal;
+  const remaining  = Math.max(finalTotal - effectiveGiftCert, 0);
+  const giftChange = !giftCertNoChange ? Math.max(giftCertTotal - finalTotal, 0) : 0;
+
+  return (
+    <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10 rounded-xl">
+      <div className="bg-white rounded-xl w-80 shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <h3 className="text-sm font-bold text-slate-900">金券</h3>
+          <button onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          {/* 金券追加 */}
+          <div>
+            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2.5">金券を追加</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onAddCert(500)}
+                className="flex-1 py-3 text-sm font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl transition-all active:scale-95"
+              >+ ¥500券</button>
+              <button
+                onClick={() => onAddCert(1000)}
+                className="flex-1 py-3 text-sm font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl transition-all active:scale-95"
+              >+ ¥1,000券</button>
+            </div>
+          </div>
+
+          {/* 合計 */}
+          <div className="bg-slate-50 rounded-xl px-4 py-3 flex justify-between items-center">
+            <span className="text-sm text-slate-500">金券合計</span>
+            <span className="text-2xl font-black text-slate-900">¥{giftCertTotal.toLocaleString()}</span>
+          </div>
+
+          {/* 釣り有り / 無し */}
+          <div>
+            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2.5">お釣り</p>
+            <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm font-semibold">
+              <button
+                onClick={() => onToggleNoChange(false)}
+                className={`flex-1 py-2.5 transition-colors ${!giftCertNoChange ? 'bg-primary-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+              >釣り有り</button>
+              <button
+                onClick={() => onToggleNoChange(true)}
+                className={`flex-1 py-2.5 transition-colors ${giftCertNoChange ? 'bg-primary-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+              >釣り無し</button>
+            </div>
+          </div>
+
+          {/* 計算結果 */}
+          {giftCertTotal > 0 && (
+            <div className="border border-slate-200 rounded-xl px-4 py-3 space-y-1.5">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">金券後残額</span>
+                <span className={`font-semibold ${remaining > 0 ? 'text-slate-900' : 'text-emerald-600'}`}>
+                  ¥{remaining.toLocaleString()}
+                </span>
+              </div>
+              {giftChange > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">金券おつり</span>
+                  <span className="font-semibold text-emerald-600">¥{giftChange.toLocaleString()}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ボタン */}
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={onClear}
+              className="flex-1 py-2.5 text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
+            >クリア</button>
+            <button
+              onClick={onApply}
+              className="flex-1 py-2.5 text-sm font-bold bg-primary-600 hover:bg-primary-700 text-white rounded-xl transition-colors"
+            >適用</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── メインコンポーネント ─────────────────────────────────────
 export default function PaymentModal({ order, table, onClose, onPaid }) {
   const queryClient = useQueryClient();
-  const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [discountType,  setDiscountType]  = useState('amount'); // 'amount' | 'rate'
-  const [discountInput, setDiscountInput] = useState('');
-  const [receivedInput, setReceivedInput] = useState('');
 
+  // 支払い
+  const [paymentMethod,    setPaymentMethod]    = useState('cash');
+  const [showOtherPayment, setShowOtherPayment] = useState(false);
+  const [receivedInput,    setReceivedInput]    = useState('');
+  // メモ
+  const [memo, setMemo] = useState('');
+  // 割引 (modal用 temp state)
+  const [discountType,  setDiscountType]  = useState('amount');
+  const [discountInput, setDiscountInput] = useState('');
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [savedDiscountType,  setSavedDiscountType]  = useState('amount');
+  const [savedDiscountInput, setSavedDiscountInput] = useState('');
+  // 金券 (modal用 temp state)
+  const [giftCertTotal,    setGiftCertTotal]    = useState(0);
+  const [giftCertNoChange, setGiftCertNoChange] = useState(false);
+  const [showGiftCertModal,    setShowGiftCertModal]    = useState(false);
+  const [tempGiftCertTotal,    setTempGiftCertTotal]    = useState(0);
+  const [tempGiftCertNoChange, setTempGiftCertNoChange] = useState(false);
+
+  // システム設定
   const { data: sysSettings } = useQuery({
     queryKey: ['system-settings'],
     queryFn: api.getSystemSettings,
     staleTime: 60_000,
   });
-  const taxRate        = sysSettings?.tax_rate        ?? 0.10;
-  const lnRate         = sysSettings?.late_night_rate  ?? 0.10;
-  const lnStart        = sysSettings?.late_night_start ?? 22;
-  const lnEnd          = sysSettings?.late_night_end   ?? 29;
+  const taxRate = sysSettings?.tax_rate        ?? 0.10;
+  const lnRate  = sysSettings?.late_night_rate  ?? 0.10;
+  const lnStart = sysSettings?.late_night_start ?? 22;
+  const lnEnd   = sysSettings?.late_night_end   ?? 29;
 
-  // 深夜帯判定（ブラウザのローカル時刻で判定）
   const isLateNight = (() => {
     const h = new Date().getHours();
     if (lnStart < 24 && lnEnd > 24) return h >= lnStart || h < (lnEnd - 24);
@@ -83,26 +258,48 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
     return h >= lnStart && h < lnEnd;
   })();
 
-  const subtotal = order.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
-
-  // 深夜料金
+  // ── 金額計算 ──
+  const subtotal        = order.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
   const lateNightAmount = isLateNight ? Math.round(subtotal * lnRate) : 0;
-
-  // 割引計算
-  const discountNum = parseFloat(discountInput) || 0;
-  const discountAmount = discountType === 'amount'
+  const discountNum     = parseFloat(savedDiscountInput) || 0;
+  const discountAmount  = savedDiscountType === 'amount'
     ? Math.min(discountNum, subtotal)
     : Math.round(subtotal * Math.min(discountNum, 100) / 100);
   const taxableBase = subtotal + lateNightAmount - discountAmount;
   const taxAmount   = Math.round(taxableBase * taxRate);
   const finalTotal  = taxableBase + taxAmount;
 
-  // お釣り計算 (現金のみ)
-  const received = parseInt(receivedInput, 10) || 0;
-  const change   = received - finalTotal;
+  // 金券
+  const effectiveGiftCert  = giftCertNoChange
+    ? Math.min(giftCertTotal, finalTotal)
+    : giftCertTotal;
+  const remainingAfterGift = Math.max(finalTotal - effectiveGiftCert, 0);
+
+  // 現金
+  const isCash    = paymentMethod === 'cash';
+  const received  = parseInt(receivedInput, 10) || 0;
+  const totalPaid = received + effectiveGiftCert;
+  const balance   = Math.max(finalTotal - totalPaid, 0);
+  const change    = Math.max(totalPaid - finalTotal, 0);
+
+  // 経過時間
+  const elapsedTime = (() => {
+    if (!order.opened_at) return '--:--';
+    const diff = Date.now() - new Date(order.opened_at).getTime();
+    const h = Math.floor(diff / 3_600_000);
+    const m = Math.floor((diff % 3_600_000) / 60_000);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  })();
 
   const payMutation = useMutation({
-    mutationFn: () => api.pay(order.id, paymentMethod, discountAmount),
+    mutationFn: () => api.pay(
+      order.id,
+      paymentMethod,
+      discountAmount,
+      memo || null,
+      effectiveGiftCert,
+      giftCertNoChange,
+    ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tables'] });
       queryClient.invalidateQueries({ queryKey: ['order', table.id] });
@@ -110,222 +307,366 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
     },
   });
 
-  const isCash = paymentMethod === 'cash';
-  const canPay = !payMutation.isPending && (isCash ? received >= finalTotal : true);
+  const canPay = !payMutation.isPending && (isCash ? totalPaid >= finalTotal : true);
+
+  const handleConfirm = () => {
+    if (canPay) payMutation.mutate();
+  };
+
+  // ── 割引モーダル操作 ──
+  const openDiscountModal = () => {
+    setDiscountType(savedDiscountType);
+    setDiscountInput(savedDiscountInput);
+    setShowDiscountModal(true);
+  };
+  const applyDiscount = () => {
+    setSavedDiscountType(discountType);
+    setSavedDiscountInput(discountInput);
+    setShowDiscountModal(false);
+  };
+  const closeDiscountModal = () => {
+    // 変更を破棄して閉じる
+    setDiscountType(savedDiscountType);
+    setDiscountInput(savedDiscountInput);
+    setShowDiscountModal(false);
+  };
+
+  // ── 金券モーダル操作 ──
+  const openGiftCertModal = () => {
+    setTempGiftCertTotal(giftCertTotal);
+    setTempGiftCertNoChange(giftCertNoChange);
+    setShowGiftCertModal(true);
+  };
+  const applyGiftCert = () => {
+    setGiftCertTotal(tempGiftCertTotal);
+    setGiftCertNoChange(tempGiftCertNoChange);
+    setShowGiftCertModal(false);
+  };
+  const closeGiftCertModal = () => {
+    setShowGiftCertModal(false);
+  };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in p-4">
-      <div className="bg-slate-50 rounded-xl w-full max-w-lg shadow-xl pop-in border border-slate-200 flex flex-col max-h-[95vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3">
+      <div className="relative bg-slate-100 rounded-xl w-full max-w-5xl shadow-2xl border border-slate-200 flex flex-col h-[88vh] overflow-hidden">
 
-        {/* ── ヘッダー ── */}
-        <div className="bg-white px-5 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
-          <div>
-            <h2 className="text-base font-bold text-slate-900">会計</h2>
-            <p className="text-xs text-slate-400 mt-0.5">{table.name}</p>
+        {/* ── サブモーダル ── */}
+        {showDiscountModal && (
+          <DiscountModal
+            subtotal={subtotal}
+            discountType={discountType}
+            discountInput={discountInput}
+            onTypeChange={setDiscountType}
+            onInputChange={setDiscountInput}
+            discountAmount={discountAmount}
+            onApply={applyDiscount}
+            onClose={closeDiscountModal}
+          />
+        )}
+        {showGiftCertModal && (
+          <GiftCertModal
+            finalTotal={finalTotal}
+            giftCertTotal={tempGiftCertTotal}
+            onAddCert={(amt) => setTempGiftCertTotal((p) => p + amt)}
+            onClear={() => setTempGiftCertTotal(0)}
+            giftCertNoChange={tempGiftCertNoChange}
+            onToggleNoChange={setTempGiftCertNoChange}
+            onApply={applyGiftCert}
+            onClose={closeGiftCertModal}
+          />
+        )}
+
+        {/* ── トップバー ── */}
+        <div className="bg-white px-4 py-2.5 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <span className="font-semibold text-slate-700">{table.name}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+            <span>レジ会計</span>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
         </div>
 
-        <div className="overflow-y-auto flex-1">
-          <div className="p-5 space-y-4">
+        {/* ── 3カラムレイアウト ── */}
+        <div className="flex flex-1 min-h-0">
 
-            {/* ── 注文明細 ── */}
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">注文明細</p>
+          {/* ─── 左パネル: 注文明細 ─── */}
+          <div className="w-52 bg-white border-r border-slate-200 flex flex-col flex-shrink-0">
+            {/* テーブル情報 */}
+            <div className="px-3 py-2.5 border-b border-slate-100 bg-slate-50 flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-slate-900">{table.name}</span>
               </div>
-              <div className="divide-y divide-slate-50 max-h-32 overflow-y-auto">
-                {order.items.map((item) => (
-                  <div key={item.id} className="flex justify-between text-sm px-4 py-2">
-                    <span className="text-slate-600">
-                      {item.item_name}
-                      <span className="text-slate-400 ml-1">× {item.quantity}</span>
+              <div className="flex items-center gap-2.5 mt-1">
+                <span className="text-[11px] text-slate-400">
+                  席数 <span className="text-slate-600 font-medium">{table.capacity ?? '--'}</span>
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  時間 <span className="text-slate-600 font-medium">{elapsedTime}</span>
+                </span>
+              </div>
+            </div>
+
+            {/* 商品リスト */}
+            <div className="flex-1 overflow-y-auto">
+              {order.items.map((item) => (
+                <div key={item.id} className="flex items-center justify-between px-3 py-2.5 border-b border-slate-50 text-xs">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-slate-800 truncate leading-tight">{item.item_name}</p>
+                    <p className="text-slate-400 mt-0.5">×{item.quantity}</p>
+                  </div>
+                  <span className="text-slate-700 font-semibold ml-2 flex-shrink-0">
+                    ¥{(item.quantity * item.unit_price).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* フッターボタン */}
+            <div className="border-t border-slate-100 p-2 flex-shrink-0">
+              {/* 注文: モーダルを閉じて注文画面に戻る */}
+              <button
+                onClick={onClose}
+                className="w-full py-2 text-xs font-medium bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                注文
+              </button>
+            </div>
+          </div>
+
+          {/* ─── 中央パネル: レジ会計 ─── */}
+          <div className="flex-1 flex flex-col bg-slate-50 border-r border-slate-200">
+            {/* 中央ヘッダー */}
+            <div className="flex items-center justify-center px-3 py-2 bg-white border-b border-slate-100 flex-shrink-0">
+              <span className="text-xs font-bold text-slate-700">レジ会計</span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+
+              {/* 小計内訳 */}
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">小計</span>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  <div className="flex justify-between items-center px-4 py-2.5 text-sm">
+                    <span className="text-slate-600 flex items-center gap-1.5">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-emerald-500 flex-shrink-0">
+                        <path d="M20 6L9 17l-5-5"/>
+                      </svg>
+                      フードサービス
                     </span>
-                    <span className="text-slate-900 font-semibold">
-                      ¥{(item.quantity * item.unit_price).toLocaleString()}
+                    <span className="font-semibold text-slate-900">¥{subtotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center px-4 py-2.5 text-sm">
+                    <span className={isLateNight ? 'text-amber-600' : 'text-slate-600'}>
+                      深夜料金{isLateNight && `（${Math.round(lnRate * 100)}%）`}
+                    </span>
+                    <span className={`font-semibold ${isLateNight ? 'text-amber-600' : 'text-slate-900'}`}>
+                      ¥{lateNightAmount.toLocaleString()}
                     </span>
                   </div>
-                ))}
+                  <div className="flex justify-between items-center px-4 py-2.5 text-sm">
+                    <span className="text-red-500">値引合計</span>
+                    <span className="font-semibold text-red-500">
+                      {discountAmount > 0 ? `−¥${discountAmount.toLocaleString()}` : '¥0'}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between px-4 py-2.5 border-t border-slate-100 bg-slate-50">
-                <span className="text-xs font-medium text-slate-500">小計</span>
-                <span className="text-sm font-bold text-slate-900">¥{subtotal.toLocaleString()}</span>
+
+              {/* お支払い金額 */}
+              <div className="bg-white rounded-xl border border-slate-200 px-4 py-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500">お支払い総額</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      消費税（{Math.round(taxRate * 100)}%）: ¥{taxAmount.toLocaleString()}
+                    </p>
+                  </div>
+                  <span className="text-2xl font-black text-slate-900">¥{finalTotal.toLocaleString()}</span>
+                </div>
               </div>
+
+              {/* メモ */}
+              <div className="bg-white rounded-xl border border-slate-200 px-4 py-3">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">メモ</p>
+                <textarea
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
+                  placeholder="メモを入力..."
+                  rows={2}
+                  className="w-full text-xs text-slate-700 bg-transparent outline-none resize-none placeholder-slate-300 leading-relaxed"
+                />
+              </div>
+
+              {/* お預かり / 金券 / 残高 / おつり */}
+              <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">お預かり（現金）</span>
+                  <span className="font-semibold text-slate-900">¥{received.toLocaleString()}</span>
+                </div>
+                {effectiveGiftCert > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">
+                      金券適用{giftCertNoChange ? '（釣り無し）' : ''}
+                    </span>
+                    <span className="font-semibold text-emerald-700">¥{effectiveGiftCert.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">残高</span>
+                  <span className={`font-semibold ${balance > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                    ¥{balance.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm border-t border-slate-100 pt-2">
+                  <span className="text-slate-500">おつり</span>
+                  <span className="font-bold text-slate-900">¥{change.toLocaleString()}</span>
+                </div>
+              </div>
+
             </div>
 
-            {/* ── 割引 ── */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-3">割引</p>
-              <div className="flex gap-2 items-center">
-                {/* トグル */}
-                <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-semibold flex-shrink-0">
-                  <button
-                    onClick={() => { setDiscountType('amount'); setDiscountInput(''); }}
-                    className={`px-3 py-2 transition-colors ${
-                      discountType === 'amount' ? 'bg-primary-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
-                    }`}
-                  >
-                    値引額
-                  </button>
-                  <button
-                    onClick={() => { setDiscountType('rate'); setDiscountInput(''); }}
-                    className={`px-3 py-2 transition-colors ${
-                      discountType === 'rate' ? 'bg-primary-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
-                    }`}
-                  >
-                    割引率
-                  </button>
-                </div>
-                {/* 入力 */}
-                <div className="flex items-center flex-1 border border-slate-200 rounded-lg overflow-hidden bg-slate-50 focus-within:ring-2 focus-within:ring-primary-400 focus-within:border-transparent">
-                  <span className="pl-3 text-slate-400 text-sm flex-shrink-0">
-                    {discountType === 'amount' ? '¥' : ''}
-                  </span>
-                  <input
-                    type="number"
-                    min="0"
-                    max={discountType === 'rate' ? 100 : subtotal}
-                    value={discountInput}
-                    onChange={(e) => setDiscountInput(e.target.value)}
-                    placeholder="0"
-                    className="flex-1 px-2 py-2 text-sm bg-transparent outline-none text-slate-900 text-right"
-                  />
-                  <span className="pr-3 text-slate-400 text-sm flex-shrink-0">
-                    {discountType === 'rate' ? '%' : ''}
-                  </span>
-                </div>
-                {/* 割引額プレビュー */}
+            {/* 会計ボタン */}
+            <div className="p-3 bg-white border-t border-slate-200 flex-shrink-0">
+              <button
+                onClick={handleConfirm}
+                disabled={!canPay || payMutation.isPending}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-bold transition-colors text-sm shadow-sm"
+              >
+                {payMutation.isPending ? '処理中...' : '会計'}
+              </button>
+            </div>
+          </div>
+
+          {/* ─── 右パネル: 支払い方法 ─── */}
+          <div className="w-72 bg-white flex flex-col flex-shrink-0">
+
+            {/* 割引登録 / 金券 */}
+            <div className="px-3 pt-3 pb-2 flex gap-2 border-b border-slate-100 flex-shrink-0">
+              {/* 割引登録 */}
+              <button
+                onClick={openDiscountModal}
+                className={`flex-1 py-2 text-xs font-medium rounded-lg border transition-colors relative ${
+                  discountAmount > 0
+                    ? 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                割引登録
                 {discountAmount > 0 && (
-                  <span className="text-sm font-bold text-red-500 flex-shrink-0">
-                    −¥{discountAmount.toLocaleString()}
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                    適用中
                   </span>
                 )}
-              </div>
+              </button>
+              {/* 金券 */}
+              <button
+                onClick={openGiftCertModal}
+                className={`flex-1 py-2 text-xs font-medium rounded-lg border transition-colors relative ${
+                  effectiveGiftCert > 0
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                金券
+                {effectiveGiftCert > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                    適用中
+                  </span>
+                )}
+              </button>
             </div>
 
-            {/* ── 合計 ── */}
-            <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 space-y-2">
-              <div className="flex justify-between text-sm text-slate-500">
-                <span>小計（税抜き）</span>
-                <span>¥{subtotal.toLocaleString()}</span>
-              </div>
-              {isLateNight && (
-                <div className="flex justify-between text-sm text-amber-600">
-                  <span>深夜料金（{Math.round(lnRate * 100)}%）</span>
-                  <span>¥{lateNightAmount.toLocaleString()}</span>
-                </div>
-              )}
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-sm text-slate-500">
-                  <span>割引</span>
-                  <span className="text-red-500 font-semibold">−¥{discountAmount.toLocaleString()}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-sm text-slate-500">
-                <span>消費税（{Math.round(taxRate * 100)}%）</span>
-                <span>¥{taxAmount.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-                <span className="text-sm font-semibold text-slate-700">請求金額（税込み）</span>
-                <span className="text-2xl font-black text-slate-900">¥{finalTotal.toLocaleString()}</span>
-              </div>
-            </div>
+            <div className="flex-1 flex flex-col p-3 gap-2.5 overflow-hidden">
 
-            {/* ── 支払い方法 ── */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-3">支払い方法</p>
-              <div className="grid grid-cols-3 gap-2">
-                {PAYMENT_METHODS.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => setPaymentMethod(m.id)}
-                    className={`flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 transition-all ${
-                      paymentMethod === m.id
-                        ? 'border-primary-500 bg-primary-50 text-primary-700'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className="text-lg">{m.icon}</span>
-                    <span className="text-xs font-semibold">{m.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+              {/* 現金ボタン */}
+              <button
+                onClick={() => { setPaymentMethod('cash'); setShowOtherPayment(false); }}
+                className={`w-full py-4 rounded-xl text-lg font-bold transition-all ${
+                  paymentMethod === 'cash'
+                    ? 'bg-primary-600 text-white shadow-md'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                現金
+              </button>
 
-            {/* ── 受取金額 (現金のみ) ── */}
-            {isCash && (
-              <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-3">受取金額</p>
+              {/* その他支払ボタン */}
+              <button
+                onClick={() => {
+                  const next = !showOtherPayment;
+                  setShowOtherPayment(next);
+                  if (next && paymentMethod === 'cash') setPaymentMethod('card');
+                  if (!next) setPaymentMethod('cash');
+                }}
+                className={`w-full py-2.5 rounded-xl text-sm font-medium transition-all border ${
+                  paymentMethod !== 'cash'
+                    ? 'border-primary-500 bg-primary-50 text-primary-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                その他支払
+              </button>
 
-                {/* ディスプレイ */}
-                <div className="bg-slate-900 rounded-xl px-4 py-3 mb-3 text-right">
-                  <p className="text-2xl font-black text-white tracking-wider">
-                    ¥{receivedInput ? parseInt(receivedInput, 10).toLocaleString() : '0'}
-                  </p>
-                </div>
-
-                {/* クイック金額ボタン */}
-                <div className="grid grid-cols-3 gap-1.5 mb-3">
-                  {QUICK_AMOUNTS.map((amt) => (
+              {/* カード / 電子マネー サブ選択 */}
+              {showOtherPayment && (
+                <div className="flex gap-2">
+                  {PAYMENT_METHODS.filter((m) => m.id !== 'cash').map((m) => (
                     <button
-                      key={amt}
-                      type="button"
-                      onClick={() => setReceivedInput(String(amt))}
-                      className={`py-2 rounded-xl text-xs font-bold border transition-all active:scale-95 ${
-                        received === amt
-                          ? 'bg-primary-600 border-primary-600 text-white'
-                          : 'bg-white border-slate-200 text-slate-700 hover:border-primary-400 hover:text-primary-600'
+                      key={m.id}
+                      onClick={() => setPaymentMethod(m.id)}
+                      className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                        paymentMethod === m.id
+                          ? 'border-primary-500 bg-primary-50 text-primary-700'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      ¥{amt.toLocaleString()}
+                      {m.label}
                     </button>
                   ))}
                 </div>
+              )}
 
-                {/* キーパッド */}
-                <Numpad value={receivedInput} onChange={setReceivedInput} />
-
-                {/* お釣り表示 */}
-                <div className={`mt-3 rounded-xl px-4 py-3 flex justify-between items-center ${
-                  change >= 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'
-                }`}>
-                  <span className={`text-sm font-semibold ${change >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                    {change >= 0 ? 'お釣り' : '不足金額'}
-                  </span>
-                  <span className={`text-2xl font-black ${change >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                    ¥{Math.abs(change).toLocaleString()}
-                  </span>
+              {/* 受取金額ディスプレイ（現金時のみ） */}
+              {isCash && (
+                <div className="bg-slate-900 rounded-xl px-4 py-3 text-right flex-shrink-0">
+                  <p className="text-xl font-black text-white tracking-wider">
+                    ¥{receivedInput ? parseInt(receivedInput, 10).toLocaleString() : '0'}
+                  </p>
+                  {remainingAfterGift > 0 && effectiveGiftCert > 0 && (
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      金券後残額 ¥{remainingAfterGift.toLocaleString()}
+                    </p>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
 
+              {/* テンキー（現金時のみ） */}
+              {isCash && (
+                <div className="flex-1 flex flex-col justify-end">
+                  <Numpad
+                    value={receivedInput}
+                    onChange={setReceivedInput}
+                    onConfirm={handleConfirm}
+                    exactAmount={remainingAfterGift}
+                  />
+                </div>
+              )}
+
+            </div>
           </div>
-        </div>
 
-        {/* ── フッター ── */}
-        <div className="bg-white px-5 py-4 border-t border-slate-200 flex gap-3 flex-shrink-0">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-colors text-sm"
-          >
-            キャンセル
-          </button>
-          <button
-            onClick={() => payMutation.mutate()}
-            disabled={!canPay}
-            className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-bold transition-colors text-sm shadow-sm"
-          >
-            {payMutation.isPending ? '処理中...' : '支払い完了'}
-          </button>
         </div>
-
       </div>
     </div>
   );

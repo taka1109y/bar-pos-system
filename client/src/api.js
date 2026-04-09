@@ -45,8 +45,17 @@ export const api = {
   deleteOrderItem: (orderId, itemId) => req(`/orders/${orderId}/items/${itemId}`, { method: 'DELETE' }),
 
   // Payments
-  pay: (orderId, paymentMethod = 'cash', discountAmount = 0) =>
-    req(`/payments/${orderId}`, { method: 'POST', body: JSON.stringify({ payment_method: paymentMethod, discount_amount: discountAmount }) }),
+  pay: (orderId, paymentMethod = 'cash', discountAmount = 0, memo = null, giftCertAmount = 0, giftCertNoChange = false) =>
+    req(`/payments/${orderId}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        payment_method:    paymentMethod,
+        discount_amount:   discountAmount,
+        memo:              memo || null,
+        gift_cert_amount:  giftCertAmount,
+        gift_cert_no_change: giftCertNoChange,
+      }),
+    }),
 
   // System
   getSystemSettings: () => req('/system/settings'),
