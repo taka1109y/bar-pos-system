@@ -12,6 +12,7 @@ import ReportsPage from './ReportsPage';
 import TableManager from '../components/tables/TableManager';
 import ReceiptsPage from './ReceiptsPage';
 import SystemSettingsPage from './SystemSettingsPage';
+import RegisterClosePage from './RegisterClosePage';
 
 const NAV_ITEMS = [
   {
@@ -41,6 +42,10 @@ const NAV_ITEMS = [
   {
     id: 'receipts', label: '伝票情報', desc: '会計済み伝票の閲覧',
     icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+  },
+  {
+    id: 'close', label: 'レジクローズ', desc: '日次清算・集計',
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 10h2M16 14h2M6 10h6M6 14h4"/></svg>,
   },
   {
     id: 'system', label: 'システム管理', desc: '消費税・システム設定',
@@ -295,6 +300,7 @@ export default function POSPage() {
         {view === 'pricing'    && <div className="flex-1 overflow-y-auto p-4"><PricingSettings /></div>}
         {view === 'reports'    && <div className="flex-1 overflow-y-auto p-4"><ReportsPage inline /></div>}
         {view === 'receipts'   && <div className="flex-1 overflow-y-auto p-4"><ReceiptsPage /></div>}
+        {view === 'close'      && <div className="flex-1 flex flex-col overflow-hidden"><RegisterClosePage /></div>}
         {view === 'system'     && <div className="flex-1 overflow-y-auto p-4"><SystemSettingsPage /></div>}
       </div>
     </div>

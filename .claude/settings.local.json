@@ -55,7 +55,12 @@
       "Bash(npx --prefix client vite build)",
       "Bash(node_modules/.bin/vite build:*)",
       "Bash(curl -s http://localhost:3001/api/tables)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(sips -g pixelWidth -g pixelHeight /Users/takaadm/Desktop/bar-pos-system/docs/img/close1.png)",
+      "Bash(sips --cropToHeightWidth 384 512 --cropOffset 0 0 /Users/takaadm/Desktop/bar-pos-system/docs/img/close1.png --out /tmp/close_tl.png)",
+      "Bash(sips --cropToHeightWidth 384 512 --cropOffset 0 512 /Users/takaadm/Desktop/bar-pos-system/docs/img/close1.png --out /tmp/close_tr.png)",
+      "Bash(sips --cropToHeightWidth 384 512 --cropOffset 384 0 /Users/takaadm/Desktop/bar-pos-system/docs/img/close1.png --out /tmp/close_bl.png)",
+      "Bash(sips --cropToHeightWidth 384 512 --cropOffset 384 512 /Users/takaadm/Desktop/bar-pos-system/docs/img/close1.png --out /tmp/close_br.png)"
     ]
   }
 }
