@@ -174,15 +174,17 @@ function HourSelect({ value, onChange }) {
 export default function SystemSettingsPage() {
   const queryClient = useQueryClient();
 
-  const [taxInput,       setTaxInput]       = useState('');
-  const [lnRate,         setLnRate]         = useState('');
-  const [lnStart,        setLnStart]        = useState(22);
-  const [lnEnd,          setLnEnd]          = useState(29);
-  const [savedTax,       setSavedTax]       = useState(false);
-  const [savedLn,        setSavedLn]        = useState(false);
-  const [chargeEnabled,  setChargeEnabled]  = useState(true);
-  const [chargeSlots,    setChargeSlots]    = useState([]);
-  const [savedCharge,    setSavedCharge]    = useState(false);
+  const [taxInput,          setTaxInput]          = useState('');
+  const [reducedTaxInput,   setReducedTaxInput]   = useState('');
+  const [defaultTaxCategory, setDefaultTaxCategory] = useState('standard');
+  const [lnRate,            setLnRate]            = useState('');
+  const [lnStart,           setLnStart]           = useState(22);
+  const [lnEnd,             setLnEnd]             = useState(29);
+  const [savedTax,          setSavedTax]          = useState(false);
+  const [savedLn,           setSavedLn]           = useState(false);
+  const [chargeEnabled,     setChargeEnabled]     = useState(true);
+  const [chargeSlots,       setChargeSlots]       = useState([]);
+  const [savedCharge,       setSavedCharge]       = useState(false);
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['system-settings'],
@@ -231,6 +233,8 @@ export default function SystemSettingsPage() {
   useEffect(() => {
     if (!settings) return;
     setTaxInput(String(Math.round(settings.tax_rate * 100)));
+    setReducedTaxInput(String(Math.round((settings.reduced_tax_rate ?? 0.08) * 100)));
+    setDefaultTaxCategory(settings.default_tax_category ?? 'standard');
     setLnRate(String(Math.round(settings.late_night_rate * 100)));
     setLnStart(settings.late_night_start);
     setLnEnd(settings.late_night_end);
@@ -244,11 +248,14 @@ export default function SystemSettingsPage() {
   });
 
   const handleSaveTax = () => {
-    const pct = parseFloat(taxInput);
-    if (isNaN(pct) || pct < 0 || pct > 100) return;
-    saveMutation.mutate({ tax_rate: pct / 100 }, {
-      onSuccess: () => { setSavedTax(true); setTimeout(() => setSavedTax(false), 2000); },
-    });
+    const pct        = parseFloat(taxInput);
+    const reducedPct = parseFloat(reducedTaxInput);
+    if (isNaN(pct)        || pct < 0        || pct > 100)        return;
+    if (isNaN(reducedPct) || reducedPct < 0 || reducedPct > 100) return;
+    saveMutation.mutate(
+      { tax_rate: pct / 100, reduced_tax_rate: reducedPct / 100, default_tax_category: defaultTaxCategory },
+      { onSuccess: () => { setSavedTax(true); setTimeout(() => setSavedTax(false), 2000); } }
+    );
   };
 
   const handleSaveLn = () => {
@@ -303,34 +310,48 @@ export default function SystemSettingsPage() {
       ) : (
         <>
           {/* ── 消費税設定 ── */}
-          <Section title="消費税設定" desc="会計時に適用される消費税率。変更後の会計から反映されます。">
+          <Section title="消費税設定" desc="会計時に適用される消費税率。商品ごとに標準・軽減を選択できます。">
             <div className="space-y-4">
-              <div>
-                <label className={lbl}>消費税率（%）</label>
-                <div className="flex items-center gap-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={lbl}>標準税率（%）</label>
                   <NumberPctInput value={taxInput} onChange={setTaxInput} />
-                  {saveBtn(savedTax, handleSaveTax)}
                 </div>
-                {savedTax && (
-                  <div className="mt-3 flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-medium">
-                    ✓ 保存しました
-                  </div>
-                )}
-              </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm space-y-1">
-                <p className="text-xs font-medium text-slate-500 mb-2">計算例（¥1,000 の場合）</p>
-                <div className="flex justify-between text-slate-600">
-                  <span>小計（税抜き）</span><span>¥1,000</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>消費税（{taxPct}%）</span>
-                  <span>¥{Math.round(1000 * taxPct / 100).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between font-bold text-slate-900 pt-1 border-t border-slate-200 mt-1">
-                  <span>合計（税込み）</span>
-                  <span>¥{(1000 + Math.round(1000 * taxPct / 100)).toLocaleString()}</span>
+                <div>
+                  <label className={lbl}>軽減税率（%）</label>
+                  <NumberPctInput value={reducedTaxInput} onChange={setReducedTaxInput} />
                 </div>
               </div>
+              <div>
+                <label className={lbl}>新規商品のデフォルト税率区分</label>
+                <div className="flex gap-2">
+                  {[
+                    { value: 'standard', label: `標準（${taxInput}%）` },
+                    { value: 'reduced',  label: `軽減（${reducedTaxInput}%）` },
+                  ].map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setDefaultTaxCategory(value)}
+                      className={`flex-1 h-10 rounded-lg border-2 text-sm font-medium transition-colors ${
+                        defaultTaxCategory === value
+                          ? 'border-primary-500 bg-primary-50 text-primary-700'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end">
+                {saveBtn(savedTax, handleSaveTax)}
+              </div>
+              {savedTax && (
+                <div className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-medium">
+                  ✓ 保存しました
+                </div>
+              )}
             </div>
           </Section>
 
