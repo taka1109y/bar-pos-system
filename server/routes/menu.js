@@ -9,7 +9,7 @@ const ITEM_SELECT = `
     m.min_price::float, m.max_price::float,
     m.price_step_up::float, m.price_step_down::float,
     m.is_drink, m.is_active, m.crash_enabled, m.is_crashed,
-    m.image_url,
+    m.image_url, m.tax_category,
     c.name  AS category_name,  c.sort_order,
     sc.name AS subcategory_name, sc.sort_order AS subcategory_sort_order
   FROM menu_items m
@@ -179,7 +179,8 @@ router.get('/all', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const { category_id, subcategory_id, name, base_price, min_price, max_price,
-            price_step_up, price_step_down, is_drink = true, image_url = null } = req.body;
+            price_step_up, price_step_down, is_drink = true, image_url = null,
+            tax_category } = req.body;
     if (!category_id || !name || base_price == null) {
       return res.status(400).json({ error: 'category_id, name, base_price are required' });
     }
@@ -189,16 +190,27 @@ router.post('/', async (req, res, next) => {
     if (isNaN(Number(base_price)) || Number(base_price) < 0) {
       return res.status(400).json({ error: 'base_price must be a non-negative number' });
     }
+    // tax_category 未指定時は system_settings の default_tax_category を使用
+    let effectiveTaxCategory = tax_category;
+    if (!effectiveTaxCategory) {
+      const { rows: s } = await query(
+        "SELECT value FROM system_settings WHERE key = 'default_tax_category'"
+      );
+      effectiveTaxCategory = s[0]?.value ?? 'standard';
+    }
+    if (!['standard', 'reduced'].includes(effectiveTaxCategory)) {
+      return res.status(400).json({ error: 'tax_category must be standard or reduced' });
+    }
     const minP   = min_price        ?? base_price * 0.7;
     const maxP   = max_price        ?? base_price * 2.0;
     const stepUp = price_step_up   ?? 50;
     const stepDn = price_step_down ?? 25;
     const { rows } = await query(
       `INSERT INTO menu_items
-         (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, image_url)
-       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10)
+         (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, image_url, tax_category)
+       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING id`,
-      [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink, image_url || null]
+      [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink, image_url || null, effectiveTaxCategory]
     );
     const { rows: result } = await query(`${ITEM_SELECT} WHERE m.id = $1`, [rows[0].id]);
     res.status(201).json(result[0]);
@@ -302,7 +314,8 @@ router.patch('/:id', async (req, res, next) => {
     if (!existing[0]) return res.status(404).json({ error: 'Item not found' });
 
     const { name, base_price, min_price, max_price, price_step_up, price_step_down,
-            is_drink, is_active, subcategory_id, crash_enabled, is_crashed, image_url } = req.body;
+            is_drink, is_active, subcategory_id, crash_enabled, is_crashed,
+            image_url, tax_category } = req.body;
     const updates = [];
     const values = [];
     let idx = 1;
@@ -319,6 +332,13 @@ router.patch('/:id', async (req, res, next) => {
     if (crash_enabled !== undefined)    { updates.push(`crash_enabled = $${idx++}`);    values.push(crash_enabled); }
     if (is_crashed !== undefined)       { updates.push(`is_crashed = $${idx++}`);       values.push(is_crashed); }
     if (image_url !== undefined)        { updates.push(`image_url = $${idx++}`);        values.push(image_url || null); }
+    if (tax_category !== undefined)    {
+      if (!['standard', 'reduced'].includes(tax_category)) {
+        return res.status(400).json({ error: 'tax_category must be standard or reduced' });
+      }
+      updates.push(`tax_category = $${idx++}`);
+      values.push(tax_category);
+    }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 

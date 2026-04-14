@@ -110,6 +110,11 @@ ALTER TABLE menu_items   ADD COLUMN IF NOT EXISTS is_crashed     BOOLEAN       N
 -- 商品画像URL
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS image_url TEXT;
 
+-- 消費税軽減税率対応
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS tax_category TEXT NOT NULL DEFAULT 'standard';
+INSERT INTO system_settings (key, value) VALUES ('reduced_tax_rate',     '0.08')     ON CONFLICT DO NOTHING;
+INSERT INTO system_settings (key, value) VALUES ('default_tax_category', 'standard') ON CONFLICT DO NOTHING;
+
 CREATE INDEX IF NOT EXISTS idx_pricing_events_item_time ON pricing_events(menu_item_id, event_time);
 CREATE INDEX IF NOT EXISTS idx_price_history_item_time  ON price_history(menu_item_id, recorded_at);
 CREATE INDEX IF NOT EXISTS idx_order_items_order        ON order_items(order_id);

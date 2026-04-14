@@ -41,6 +41,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     is_drink:        item?.is_drink ?? 1,
     is_active:       item?.is_active ?? 1,
     image_url:       item?.image_url || '',
+    tax_category:    item?.tax_category || 'standard',
   });
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -69,6 +70,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
       is_drink:        Number(form.is_drink),
       is_active:       Number(form.is_active),
       image_url:       form.image_url.trim() || null,
+      tax_category:    form.tax_category,
     });
   };
 
@@ -154,6 +156,25 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
                 onClick={() => set('is_drink', value)}
                 className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
                   form.is_drink === value
+                    ? 'border-primary-500 bg-primary-50 text-primary-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label className={lbl}>税率区分</label>
+          <div className="flex gap-2">
+            {[{ value: 'standard', label: '標準 (10%)' }, { value: 'reduced', label: '軽減 (8%)' }].map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => set('tax_category', value)}
+                className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
+                  form.tax_category === value
                     ? 'border-primary-500 bg-primary-50 text-primary-700'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                 }`}
@@ -292,6 +313,13 @@ export default function MenuManager() {
                       item.is_drink ? 'bg-primary-50 text-primary-600' : 'bg-slate-100 text-slate-600'
                     }`}>
                       {item.is_drink ? 'ドリンク' : 'フード'}
+                    </span>
+                    <span className={`text-xs px-2.5 py-1.5 rounded-full font-medium flex-shrink-0 ${
+                      item.tax_category === 'reduced'
+                        ? 'bg-green-50 text-green-700'
+                        : 'bg-slate-50 text-slate-500'
+                    }`}>
+                      {item.tax_category === 'reduced' ? '軽減8%' : '標準10%'}
                     </span>
                     {!item.is_active && (
                       <span className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-400 flex-shrink-0">

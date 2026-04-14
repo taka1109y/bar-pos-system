@@ -44,7 +44,7 @@ router.post('/:orderId', async (req, res, next) => {
     if (!order) return res.status(404).json({ error: 'Open order not found' });
 
     const { rows: items } = await client.query(
-      `SELECT oi.*, m.name as menu_name
+      `SELECT oi.*, m.name as menu_name, COALESCE(m.tax_category, 'standard') as tax_category
        FROM order_items oi JOIN menu_items m ON oi.menu_item_id = m.id
        WHERE oi.order_id = $1`,
       [order.id]
@@ -58,20 +58,34 @@ router.post('/:orderId', async (req, res, next) => {
     const { rows: settingRows } = await client.query('SELECT key, value FROM system_settings');
     const s = settingRows.reduce((acc, r) => { acc[r.key] = r.value; return acc; }, {});
 
-    const tax_rate         = parseFloat(s.tax_rate         ?? '0.10');
-    const late_night_rate_s = parseFloat(s.late_night_rate  ?? '0.10');
-    const late_night_start  = parseInt(  s.late_night_start ?? '22', 10);
-    const late_night_end    = parseInt(  s.late_night_end   ?? '29', 10);
+    const tax_rate          = parseFloat(s.tax_rate          ?? '0.10');
+    const reduced_tax_rate  = parseFloat(s.reduced_tax_rate  ?? '0.08');
+    const late_night_rate_s = parseFloat(s.late_night_rate   ?? '0.10');
+    const late_night_start  = parseInt(  s.late_night_start  ?? '22', 10);
+    const late_night_end    = parseInt(  s.late_night_end    ?? '29', 10);
 
     const isLate            = checkLateNight(late_night_start, late_night_end);
     const late_night_rate   = isLate ? late_night_rate_s : 0;
     // 深夜料金はアイテム小計のみに適用（チャージは固定料金のため除外）
     const late_night_amount = isLate ? Math.round(itemsSubtotal * late_night_rate) : 0;
 
-    // 全て税込み価格で処理。内税額は参考表示用のみ。
-    const taxable_base = subtotal + late_night_amount - discount;
-    const tax_amount   = Math.round(taxable_base * tax_rate / (1 + tax_rate));
-    const total        = taxable_base;
+    // 商品別税率で内税額を計算
+    const standardItemsTotal = items
+      .filter(i => i.tax_category !== 'reduced')
+      .reduce((sum, i) => sum + i.quantity * parseFloat(i.unit_price), 0);
+    const reducedItemsTotal = items
+      .filter(i => i.tax_category === 'reduced')
+      .reduce((sum, i) => sum + i.quantity * parseFloat(i.unit_price), 0);
+
+    // チャージ・深夜料金は標準税率扱い。割引は標準税率分から先に引く。
+    const taxable_standard_raw = standardItemsTotal + chargeAmount + late_night_amount - discount;
+    const discountRemainder = Math.max(0, discount - standardItemsTotal - chargeAmount - late_night_amount);
+    const taxable_standard = Math.max(0, taxable_standard_raw);
+    const taxable_reduced  = Math.max(0, reducedItemsTotal - discountRemainder);
+
+    const tax_amount = Math.round(taxable_standard * tax_rate / (1 + tax_rate))
+                     + Math.round(taxable_reduced  * reduced_tax_rate / (1 + reduced_tax_rate));
+    const total = taxable_standard + taxable_reduced;
 
     // 金券: 釣り無しの場合は合計を超えない
     const raw_gift_cert       = Math.max(0, parseFloat(gift_cert_amount) || 0);
