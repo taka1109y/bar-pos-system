@@ -107,6 +107,9 @@ ALTER TABLE subcategories ADD COLUMN IF NOT EXISTS crash_pct    NUMERIC(5,2)  NO
 ALTER TABLE menu_items   ADD COLUMN IF NOT EXISTS crash_enabled  BOOLEAN       NOT NULL DEFAULT FALSE;
 ALTER TABLE menu_items   ADD COLUMN IF NOT EXISTS is_crashed     BOOLEAN       NOT NULL DEFAULT FALSE;
 
+-- 商品画像URL
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS image_url TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_pricing_events_item_time ON pricing_events(menu_item_id, event_time);
 CREATE INDEX IF NOT EXISTS idx_price_history_item_time  ON price_history(menu_item_id, recorded_at);
 CREATE INDEX IF NOT EXISTS idx_order_items_order        ON order_items(order_id);

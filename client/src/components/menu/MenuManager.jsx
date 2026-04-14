@@ -40,6 +40,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     crash_enabled:   item?.crash_enabled ?? false,
     is_drink:        item?.is_drink ?? 1,
     is_active:       item?.is_active ?? 1,
+    image_url:       item?.image_url || '',
   });
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -67,6 +68,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
       crash_enabled:   Boolean(form.crash_enabled),
       is_drink:        Number(form.is_drink),
       is_active:       Number(form.is_active),
+      image_url:       form.image_url.trim() || null,
     });
   };
 
@@ -81,6 +83,26 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
           placeholder="例: スーパードライ"
           required
         />
+      </div>
+      <div>
+        <label className={lbl}>商品画像URL（任意）</label>
+        <input
+          className={inp}
+          type="url"
+          value={form.image_url}
+          onChange={(e) => set('image_url', e.target.value)}
+          placeholder="https://example.com/image.jpg"
+        />
+        {form.image_url && (
+          <div className="mt-2">
+            <img
+              src={form.image_url}
+              alt="プレビュー"
+              className="h-20 w-20 object-cover rounded-lg border border-slate-200"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          </div>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -247,6 +269,16 @@ export default function MenuManager() {
                     key={item.id}
                     className={`flex items-center gap-4 px-6 py-5 ${item.is_active ? '' : 'opacity-40'} ${idx !== 0 ? 'border-t border-slate-50' : ''}`}
                   >
+                    {item.image_url ? (
+                      <img
+                        src={item.image_url}
+                        alt={item.name}
+                        className="w-10 h-10 object-cover rounded-lg border border-slate-100 flex-shrink-0"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <div className="w-10 h-10 bg-slate-100 rounded-lg flex-shrink-0" />
+                    )}
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-semibold text-slate-900 block truncate">{item.name}</span>
                       <span className="text-xs text-slate-400 mt-1 block">

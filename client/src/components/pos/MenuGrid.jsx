@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import usePriceStore from '../../store/usePriceStore';
 
-function MenuItem({ item, onAdd }) {
+function MenuItem({ item, onAdd, showImage = false }) {
   const livePrice = usePriceStore((s) => s.prices[item.id]);
   const price     = livePrice?.current_price ?? item.current_price;
   const pctChange = livePrice?.pct_change ?? 0;
@@ -12,38 +12,64 @@ function MenuItem({ item, onAdd }) {
   return (
     <button
       onClick={() => onAdd(item)}
-      className={`flex flex-col justify-between p-3.5 bg-white hover:bg-primary-50 active:scale-95 rounded-xl border border-slate-200 hover:border-primary-300 hover:shadow-sm transition-all text-left w-full ${
-        flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : ''
-      }`}
+      className={`flex flex-col justify-between bg-white hover:bg-primary-50 active:scale-95 rounded-xl border border-slate-200 hover:border-primary-300 hover:shadow-sm transition-all text-left w-full overflow-hidden ${
+        showImage ? '' : 'p-3.5'
+      } ${flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : ''}`}
     >
-      <span className="text-sm font-semibold text-slate-700 leading-snug mb-3 line-clamp-2">
-        {item.name}
-      </span>
-      <div>
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-base font-black text-primary-600">¥{price.toLocaleString()}</span>
+      {/* 画像エリア（顧客画面のみ） */}
+      {showImage && (
+        <div className="w-full aspect-[4/3] bg-slate-100 flex-shrink-0 overflow-hidden">
+          {item.image_url ? (
+            <img
+              src={item.image_url}
+              alt={item.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling.style.display = 'flex';
+              }}
+            />
+          ) : null}
+          <div
+            className="w-full h-full items-center justify-center"
+            style={{ display: item.image_url ? 'none' : 'flex' }}
+          >
+            <span className="text-xs text-slate-400 font-medium">写真準備中</span>
+          </div>
+        </div>
+      )}
+
+      {/* テキスト・価格エリア */}
+      <div className={showImage ? 'p-3 flex flex-col justify-between flex-1' : 'flex flex-col justify-between flex-1'}>
+        <span className="text-sm font-semibold text-slate-700 leading-snug mb-3 line-clamp-2">
+          {item.name}
+        </span>
+        <div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-base font-black text-primary-600">¥{price.toLocaleString()}</span>
+            {item.is_drink && (
+              <span className={`text-xs font-bold ${isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
+                {isUp ? '▲' : isDown ? '▼' : '—'}{pctChange !== 0 ? `${Math.abs(pctChange).toFixed(1)}%` : ''}
+              </span>
+            )}
+          </div>
           {item.is_drink && (
-            <span className={`text-xs font-bold ${isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
-              {isUp ? '▲' : isDown ? '▼' : '—'}{pctChange !== 0 ? `${Math.abs(pctChange).toFixed(1)}%` : ''}
-            </span>
+            <div className="mt-2 w-full h-1 rounded-full bg-slate-100 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-1000 ${
+                  isUp ? 'bg-emerald-500' : isDown ? 'bg-red-400' : 'bg-slate-300'
+                }`}
+                style={{ width: `${Math.min(100, 50 + pctChange * 5)}%` }}
+              />
+            </div>
           )}
         </div>
-        {item.is_drink && (
-          <div className="mt-2 w-full h-1 rounded-full bg-slate-100 overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-1000 ${
-                isUp ? 'bg-emerald-500' : isDown ? 'bg-red-400' : 'bg-slate-300'
-              }`}
-              style={{ width: `${Math.min(100, 50 + pctChange * 5)}%` }}
-            />
-          </div>
-        )}
       </div>
     </button>
   );
 }
 
-export default function MenuGrid({ menuItems, categories, subcategories = [], onAddItem }) {
+export default function MenuGrid({ menuItems, categories, subcategories = [], onAddItem, showImage = false }) {
   const [activeCategory,    setActiveCategory]    = useState(null);
   const [activeSubcategory, setActiveSubcategory] = useState(null);
 
@@ -112,7 +138,7 @@ export default function MenuGrid({ menuItems, categories, subcategories = [], on
       {/* メニューグリッド */}
       <div className="grid grid-cols-2 gap-3">
         {filteredItems.map((item) => (
-          <MenuItem key={item.id} item={item} onAdd={onAddItem} />
+          <MenuItem key={item.id} item={item} onAdd={onAddItem} showImage={showImage} />
         ))}
       </div>
     </div>
