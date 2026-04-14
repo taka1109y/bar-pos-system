@@ -1,31 +1,19 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../api';
 
-// ── モック精算データ ─────────────────────────────────────────
-const MOCK = {
-  ken_count: 1,
-  guest_count: 2,
-  avg_per_guest: 2382,
+// ── DBに存在しない項目のゼロ値固定モック ─────────────────────
+const MOCK_STATIC = {
   tsubu_count: 0,
-  sales: 4763,
-  tax: 433,
-  sales_breakdown: '●',
-  service_charge: 0, service_count: 0,
-  late_night: 0, late_night_count: 0,
-  discount_count: 0,
-  cancel_amount: 4257, cancel_count: 2,
+  cancel_amount: 0, cancel_count: 0,
   correction_amount: 0, correction_count: 0,
   unsold: 0,
-  register_open_cash_count: 1,
+  register_open_cash_count: 0,
   deposit_count: 0,
   withdraw_count: 0,
-  change_amount: 4763, change_count: 1,
-  credit_count: 0, credit_amount: 0,
   point_count: 0, point_amount: 0,
-  emoney_count: 0, emoney_amount: 0,
-  gift_no_change_count: 0, gift_no_change_amount: 0,
-  gift_change_count: 0, gift_change_amount: 0,
   kakeuri_count: 0, kakeuri_amount: 0,
-  register_open_cash: 100000,
+  register_open_cash: 0,
 };
 
 const DIFF_REASONS = ['未選択', 'つり銭補充', '誤操作', '在高相違', 'その他'];
@@ -54,7 +42,7 @@ function LRow({ label, value, sub, dot }) {
 }
 
 // ── 実績入力: 通常行（入力 + 差異） ───────────────────────────
-function IRow({ label, value, onChange, diff, indent, readOnly }) {
+function IRow({ label, value, onChange, onBlur, diff, indent, readOnly }) {
   return (
     <div className={`flex items-center gap-1.5 px-3 py-1 border-b border-slate-100 last:border-0 min-h-[34px] ${indent ? 'bg-slate-50' : ''}`}>
       <span className={`flex-shrink-0 w-32 text-[11px] ${indent ? 'pl-3 text-slate-400' : 'text-slate-600'}`}>
@@ -71,6 +59,7 @@ function IRow({ label, value, onChange, diff, indent, readOnly }) {
             inputMode="numeric"
             value={value}
             onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))}
+            onBlur={onBlur}
             placeholder="¥0"
             className={INPUT_CLS}
           />
@@ -114,7 +103,61 @@ function IRowBtn({ label, value, onChange, btnLabel, onBtn, diff }) {
 
 // ── メインコンポーネント ─────────────────────────────────────
 export default function RegisterClosePage() {
-  const m = MOCK;
+  const today = new Date().toISOString().split('T')[0];
+
+  const { data: report, isLoading } = useQuery({
+    queryKey: ['report-daily', today],
+    queryFn: () => api.getDailyReport(today),
+  });
+
+  const { data: settings } = useQuery({
+    queryKey: ['system-settings'],
+    queryFn: () => api.getSystemSettings(),
+  });
+
+  // レジオープン時現金（手動入力・DB保持）
+  const [openCashInput, setOpenCashInput] = useState('');
+  const openCashInitialized = useRef(false);
+  useEffect(() => {
+    if (settings && !openCashInitialized.current) {
+      setOpenCashInput(String(settings.register_open_cash ?? 0));
+      openCashInitialized.current = true;
+    }
+  }, [settings]);
+
+  const registerOpenCash = parseInt(openCashInput, 10) || 0;
+
+  const handleOpenCashBlur = async () => {
+    try {
+      await api.updateSystemSettings({ register_open_cash: registerOpenCash });
+    } catch (e) {
+      console.error('レジオープン時現金の保存に失敗しました', e);
+    }
+  };
+
+  // DBから取得した値（ロード中はゼロ値）
+  const kenCount       = report?.order_count ?? 0;
+  const guestCount     = report?.guest_count ?? 0;
+  const avgPerGuest    = report?.avg_per_guest ?? 0;
+  const sales          = report?.total_revenue ?? 0;
+  const tax            = report?.total_tax ?? 0;
+  const serviceCharge  = report?.total_charge ?? 0;
+  const serviceCount   = report?.charge_count ?? 0;
+  const lateNight      = report?.total_late_night ?? 0;
+  const lateNightCount = report?.late_night_count ?? 0;
+  const discountCount  = report?.discount_count ?? 0;
+
+  const cashPay    = report?.payment_breakdown?.find(b => b.method === 'cash')   ?? { count: 0, revenue: 0 };
+  const cardPay    = report?.payment_breakdown?.find(b => b.method === 'card')   ?? { count: 0, revenue: 0 };
+  const emoneyPay  = report?.payment_breakdown?.find(b => b.method === 'emoney') ?? { count: 0, revenue: 0 };
+
+  const giftNoChgAmount = report?.gift_no_change_amount ?? 0;
+  const giftNoChgCount  = report?.gift_no_change_count  ?? 0;
+  const giftChgAmount   = report?.gift_change_amount    ?? 0;
+  const giftChgCount    = report?.gift_change_count     ?? 0;
+
+  // DBにない項目はゼロ値固定
+  const m = MOCK_STATIC;
 
   const [cashActual,      setCashActual]      = useState('');
   const [creditActual,    setCreditActual]    = useState('');
@@ -130,15 +173,15 @@ export default function RegisterClosePage() {
 
   const prevDaySaving = 0;
 
-  // 差異 = 入力値 − 精算レポート値
-  const cashSystem = m.change_amount + m.register_open_cash;
-  const cashDiff     = useMemo(() => cashActual     !== '' ? (parseInt(cashActual, 10)   || 0) - cashSystem        : 0, [cashActual]);
-  const creditDiff   = useMemo(() => creditActual   !== '' ? (parseInt(creditActual, 10) || 0) - m.credit_amount   : 0, [creditActual]);
-  const pointDiff    = useMemo(() => pointActual    !== '' ? (parseInt(pointActual, 10)  || 0) - m.point_amount    : 0, [pointActual]);
-  const emoneyDiff   = useMemo(() => emoneyActual   !== '' ? (parseInt(emoneyActual, 10) || 0) - m.emoney_amount   : 0, [emoneyActual]);
-  const giftNoChgDiff= useMemo(() => giftNoChg      !== '' ? (parseInt(giftNoChg, 10)    || 0) - m.gift_no_change_amount : 0, [giftNoChg]);
-  const giftChgDiff  = useMemo(() => giftChg        !== '' ? (parseInt(giftChg, 10)      || 0) - m.gift_change_amount    : 0, [giftChg]);
-  const kakeuriDiff  = useMemo(() => kakeuri        !== '' ? (parseInt(kakeuri, 10)      || 0) - m.kakeuri_amount  : 0, [kakeuri]);
+  // 差異 = 入力値 − システム値（現金在高 = オープン時現金 + 現金払い合計）
+  const cashSystem   = registerOpenCash + cashPay.revenue;
+  const cashDiff     = useMemo(() => cashActual   !== '' ? (parseInt(cashActual, 10)   || 0) - cashSystem       : 0, [cashActual, cashSystem]);
+  const creditDiff   = useMemo(() => creditActual !== '' ? (parseInt(creditActual, 10) || 0) - cardPay.revenue  : 0, [creditActual, cardPay.revenue]);
+  const pointDiff    = useMemo(() => pointActual  !== '' ? (parseInt(pointActual, 10)  || 0) - m.point_amount   : 0, [pointActual]);
+  const emoneyDiff   = useMemo(() => emoneyActual !== '' ? (parseInt(emoneyActual, 10) || 0) - emoneyPay.revenue: 0, [emoneyActual, emoneyPay.revenue]);
+  const giftNoChgDiff= useMemo(() => giftNoChg   !== '' ? (parseInt(giftNoChg, 10)    || 0) - giftNoChgAmount  : 0, [giftNoChg, giftNoChgAmount]);
+  const giftChgDiff  = useMemo(() => giftChg     !== '' ? (parseInt(giftChg, 10)      || 0) - giftChgAmount    : 0, [giftChg, giftChgAmount]);
+  const kakeuriDiff  = useMemo(() => kakeuri      !== '' ? (parseInt(kakeuri, 10)      || 0) - m.kakeuri_amount : 0, [kakeuri]);
 
   return (
     <div className="flex flex-col h-full bg-slate-100">
@@ -150,58 +193,61 @@ export default function RegisterClosePage() {
           {/* ヘッダー */}
           <div className={`flex items-center justify-between px-3 py-2 flex-shrink-0 ${BLUE_HEADER}`}>
             <h2 className="text-[13px] font-bold">精算レポート</h2>
-            <button className="w-6 h-6 flex items-center justify-center rounded bg-white/20 hover:bg-white/30 transition-colors">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                <polyline points="15 18 9 12 15 6"/>
-              </svg>
+            <button
+              onClick={() => alert('入出金履歴機能は未実装です')}
+              className="h-6 px-2.5 flex items-center text-[11px] font-bold rounded bg-white/20 hover:bg-white/30 transition-colors whitespace-nowrap"
+            >
+              入出金履歴
             </button>
           </div>
 
-          {/* 2サブ列 */}
-          <div className="flex-1 flex overflow-hidden mx-2">
-            {/* 左サブ列: 売上系 */}
-            <div className="flex-1 overflow-y-auto border-r border-slate-100 pr-2">
-              <LRow label="件数"          value={`${m.ken_count}件`} />
-              <LRow label="客数"          value={`${m.guest_count}客`} />
-              <LRow label="客単価"        value={`¥${m.avg_per_guest.toLocaleString()}`} />
-              <LRow label="粒売上点数"    value="" sub={`${m.tsubu_count}件`} />
-              <LRow label="売上"          value={`¥${m.sales.toLocaleString()}`} />
-              <LRow label="消費税"        value={`¥${m.tax.toLocaleString()}`} />
-              <LRow label="売上・消費税 内訳" value="" dot />
-              <LRow label="サービス料金"  value={`¥${m.service_charge.toLocaleString()}`} sub={`${m.service_count}件`} />
-              <LRow label="深夜料金"      value={`¥${m.late_night.toLocaleString()}`} sub={`${m.late_night_count}件`} />
-              <LRow label="値引引"        value="" sub={`${m.discount_count}件`} />
-              <LRow label="取消（返品等）" value={`¥${m.cancel_amount.toLocaleString()}`} sub={`${m.cancel_count}件`} />
-              <LRow label="訂正（同品等）" value={`¥${m.correction_amount.toLocaleString()}`} sub={`${m.correction_count}件`} />
-              <LRow label="未売上"        value={`¥${m.unsold.toLocaleString()}`} />
+          {/* ローディング */}
+          {isLoading ? (
+            <div className="flex-1 flex items-center justify-center text-[12px] text-slate-400">
+              読み込み中...
             </div>
+          ) : (
+            /* 2サブ列 */
+            <div className="flex-1 flex overflow-hidden mx-2">
+              {/* 左サブ列: 売上系 */}
+              <div className="flex-1 overflow-y-auto border-r border-slate-100 pr-2">
+                <LRow label="件数"           value={`${kenCount}件`} />
+                <LRow label="客数"           value={`${guestCount}名様`} />
+                <LRow label="客単価"         value={`¥${avgPerGuest.toLocaleString()}`} />
+                <LRow label="粒売上点数"     value="" sub={`${m.tsubu_count}件`} />
+                <LRow label="売上"           value={`¥${Math.floor(sales).toLocaleString()}`} />
+                <LRow label="消費税"         value={`¥${Math.floor(tax).toLocaleString()}`} />
+                <LRow label="売上・消費税 内訳" value="" />
+                <LRow label="サービス料金"   value={`¥${Math.floor(serviceCharge).toLocaleString()}`} sub={`${serviceCount}件`} />
+                <LRow label="深夜料金"       value={`¥${Math.floor(lateNight).toLocaleString()}`} sub={`${lateNightCount}件`} />
+                <LRow label="値引引"         value="" sub={`${discountCount}件`} />
+                <LRow label="取消（返品等）"  value={`¥${m.cancel_amount.toLocaleString()}`} sub={`${m.cancel_count}件`} />
+                <LRow label="訂正（同品等）"  value={`¥${m.correction_amount.toLocaleString()}`} sub={`${m.correction_count}件`} />
+                <LRow label="未売上"         value={`¥${m.unsold.toLocaleString()}`} />
+              </div>
 
-            {/* 右サブ列: 支払い系 */}
-            <div className="flex-1 overflow-y-auto">
-              <LRow label="レジオープン時現金" value="" sub={`${m.register_open_cash_count}件`} />
-              <LRow label="入金"           value="" sub={`${m.deposit_count}件`} />
-              <LRow label="出金"           value={`¥${0}`} sub={`${m.withdraw_count}件`} />
-              <LRow label="現金"           value={`¥${m.change_amount.toLocaleString()}`} sub={`${m.change_count}件`} />
-              <LRow label="クレジット"     value={`¥${m.credit_amount.toLocaleString()}`} sub={`${m.credit_count}件`} dot />
-              <LRow label="ポイント"       value={`¥${m.point_amount.toLocaleString()}`}  sub={`${m.point_count}件`} />
-              <LRow label="電子マネー"     value={`¥${m.emoney_amount.toLocaleString()}`} sub={`${m.emoney_count}件`} />
-              <LRow label="商品券（釣無し）" value={`¥${m.gift_no_change_amount.toLocaleString()}`} sub={`${m.gift_no_change_count}件`} />
-              <LRow label="商品券（釣有り）" value={`¥${m.gift_change_amount.toLocaleString()}`}    sub={`${m.gift_change_count}件`} />
-              <LRow label="掛売"           value={`¥${m.kakeuri_amount.toLocaleString()}`} sub={`${m.kakeuri_count}件`} />
+              {/* 右サブ列: 支払い系 */}
+              <div className="flex-1 overflow-y-auto">
+                <LRow label="レジオープン時現金" value="" sub={`${m.register_open_cash_count}件`} />
+                <LRow label="入金"           value="" sub={`${m.deposit_count}件`} />
+                <LRow label="出金"           value={`¥0`} sub={`${m.withdraw_count}件`} />
+                <LRow label="現金"           value={`¥${Math.floor(cashPay.revenue).toLocaleString()}`}   sub={`${cashPay.count}件`} />
+                <LRow label="クレジット"     value={`¥${Math.floor(cardPay.revenue).toLocaleString()}`}   sub={`${cardPay.count}件`} />
+                <LRow label="ポイント"       value={`¥${m.point_amount.toLocaleString()}`}                sub={`${m.point_count}件`} />
+                <LRow label="電子マネー"     value={`¥${Math.floor(emoneyPay.revenue).toLocaleString()}`} sub={`${emoneyPay.count}件`} />
+                <LRow label="商品券（釣無し）" value={`¥${Math.floor(giftNoChgAmount).toLocaleString()}`} sub={`${giftNoChgCount}件`} />
+                <LRow label="商品券（釣有り）" value={`¥${Math.floor(giftChgAmount).toLocaleString()}`}   sub={`${giftChgCount}件`} />
+                <LRow label="掛売"           value={`¥${m.kakeuri_amount.toLocaleString()}`}              sub={`${m.kakeuri_count}件`} />
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* ══ 右列: レジクローズ時レジ実績入力 ══ */}
         <div className="flex flex-col rounded-lg overflow-hidden shadow-sm bg-white ml-1" style={{ flex: 1 }}>
-          {/* タブ行 */}
-          <div className="flex items-stretch flex-shrink-0 border-b border-slate-200">
-            <button className="px-3 py-2 text-[11px] font-bold text-sky-500 border-r border-slate-200 bg-white hover:bg-sky-50 transition-colors whitespace-nowrap">
-              出金履歴
-            </button>
-            <div className={`flex-1 flex items-center justify-between px-3 py-2 ${BLUE_HEADER}`}>
-              <span className="text-[12px] font-bold">レジクローズ時レジ実績入力</span>
-            </div>
+          {/* ヘッダー */}
+          <div className={`flex items-center px-3 py-2 flex-shrink-0 ${BLUE_HEADER}`}>
+            <span className="text-[12px] font-bold">レジクローズ時レジ実績入力</span>
           </div>
 
           {/* 差異ヘッダー */}
@@ -222,8 +268,9 @@ export default function RegisterClosePage() {
             />
             <IRow
               label="レジオープン時現金"
-              value={m.register_open_cash}
-              readOnly
+              value={openCashInput}
+              onChange={setOpenCashInput}
+              onBlur={handleOpenCashBlur}
               indent
             />
             <IRow label="クレジット"        value={creditActual}  onChange={setCreditActual}  diff={creditDiff} />
@@ -238,7 +285,7 @@ export default function RegisterClosePage() {
               value={openFloat}
               onChange={setOpenFloat}
               btnLabel="同額"
-              onBtn={() => setOpenFloat(String(m.register_open_cash))}
+              onBtn={() => setOpenFloat(String(registerOpenCash))}
               diff={(parseInt(openFloat, 10) || 0) - 0}
             />
             <IRowBtn

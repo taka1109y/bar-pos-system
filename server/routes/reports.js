@@ -25,7 +25,17 @@ router.get('/daily', async (req, res, next) => {
          COUNT(*) FILTER (WHERE payment_method = 'emoney')::int  AS emoney_count,
          COALESCE(SUM(total_amount) FILTER (WHERE payment_method = 'cash'), 0)::float   AS cash_revenue,
          COALESCE(SUM(total_amount) FILTER (WHERE payment_method = 'card'), 0)::float   AS card_revenue,
-         COALESCE(SUM(total_amount) FILTER (WHERE payment_method = 'emoney'), 0)::float AS emoney_revenue
+         COALESCE(SUM(total_amount) FILTER (WHERE payment_method = 'emoney'), 0)::float AS emoney_revenue,
+         COALESCE(SUM(guest_count), 0)::int           AS guest_count,
+         COALESCE(SUM(tax_amount), 0)::float           AS total_tax,
+         COALESCE(SUM(charge_amount), 0)::float        AS total_charge,
+         COUNT(*) FILTER (WHERE charge_amount > 0)::int          AS charge_count,
+         COUNT(*) FILTER (WHERE discount_amount > 0)::int        AS discount_count,
+         COUNT(*) FILTER (WHERE late_night_amount > 0)::int      AS late_night_count,
+         COALESCE(SUM(gift_cert_amount) FILTER (WHERE gift_cert_no_change = true), 0)::float                       AS gift_no_change_amount,
+         COUNT(*) FILTER (WHERE gift_cert_no_change = true AND gift_cert_amount > 0)::int                          AS gift_no_change_count,
+         COALESCE(SUM(gift_cert_amount) FILTER (WHERE gift_cert_no_change = false AND gift_cert_amount > 0), 0)::float AS gift_change_amount,
+         COUNT(*) FILTER (WHERE gift_cert_no_change = false AND gift_cert_amount > 0)::int                         AS gift_change_count
        FROM orders
        WHERE status = 'paid' AND (closed_at AT TIME ZONE $2)::date = $1`,
       [date, TZ]
@@ -47,14 +57,26 @@ router.get('/daily', async (req, res, next) => {
     const orderCount = parseInt(summary[0].order_count);
 
     const s = summary[0];
+    const guestCount = parseInt(s.guest_count);
     res.json({
       date,
-      total_revenue:    s.total_revenue,
-      order_count:      orderCount,
-      avg_order_value:  orderCount > 0 ? Math.round(s.total_revenue / orderCount) : 0,
-      total_discount:   s.total_discount,
-      total_gift_cert:  s.total_gift_cert,
-      total_late_night: s.total_late_night,
+      total_revenue:         s.total_revenue,
+      order_count:           orderCount,
+      avg_order_value:       orderCount > 0 ? Math.round(s.total_revenue / orderCount) : 0,
+      guest_count:           guestCount,
+      avg_per_guest:         guestCount > 0 ? Math.round(s.total_revenue / guestCount) : 0,
+      total_tax:             s.total_tax,
+      total_discount:        s.total_discount,
+      discount_count:        s.discount_count,
+      total_gift_cert:       s.total_gift_cert,
+      total_late_night:      s.total_late_night,
+      late_night_count:      s.late_night_count,
+      total_charge:          s.total_charge,
+      charge_count:          s.charge_count,
+      gift_no_change_amount: s.gift_no_change_amount,
+      gift_no_change_count:  s.gift_no_change_count,
+      gift_change_amount:    s.gift_change_amount,
+      gift_change_count:     s.gift_change_count,
       payment_breakdown: [
         { method: 'cash',   label: '現金',       count: s.cash_count,   revenue: s.cash_revenue },
         { method: 'card',   label: 'カード',     count: s.card_count,   revenue: s.card_revenue },

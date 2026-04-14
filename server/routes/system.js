@@ -5,12 +5,13 @@ const { query } = require('../db/database');
 function parseSettings(rows) {
   const s = rows.reduce((acc, r) => { acc[r.key] = r.value; return acc; }, {});
   return {
-    tax_rate:          parseFloat(s.tax_rate         ?? '0.10'),
-    late_night_rate:   parseFloat(s.late_night_rate  ?? '0.10'),
-    late_night_start:  parseInt(  s.late_night_start ?? '22', 10),
-    late_night_end:    parseInt(  s.late_night_end   ?? '29', 10),
-    charge_enabled:    s.charge_enabled !== 'false',
-    charge_time_slots: (() => { try { return JSON.parse(s.charge_time_slots ?? '[]'); } catch { return []; } })(),
+    tax_rate:            parseFloat(s.tax_rate           ?? '0.10'),
+    late_night_rate:     parseFloat(s.late_night_rate    ?? '0.10'),
+    late_night_start:    parseInt(  s.late_night_start   ?? '22', 10),
+    late_night_end:      parseInt(  s.late_night_end     ?? '29', 10),
+    charge_enabled:      s.charge_enabled !== 'false',
+    charge_time_slots:   (() => { try { return JSON.parse(s.charge_time_slots ?? '[]'); } catch { return []; } })(),
+    register_open_cash:  parseInt(  s.register_open_cash ?? '0',  10),
   };
 }
 
@@ -74,6 +75,16 @@ router.patch('/settings', async (req, res, next) => {
         `INSERT INTO system_settings (key, value) VALUES ('charge_time_slots', $1)
          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
         [JSON.stringify(slots)]
+      );
+    }
+
+    if (req.body.register_open_cash !== undefined) {
+      const n = parseInt(req.body.register_open_cash, 10);
+      if (isNaN(n) || n < 0) return res.status(400).json({ error: 'register_open_cash must be >= 0' });
+      await query(
+        `INSERT INTO system_settings (key, value) VALUES ('register_open_cash', $1)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+        [String(n)]
       );
     }
 
