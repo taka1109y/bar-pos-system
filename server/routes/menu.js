@@ -9,6 +9,7 @@ const ITEM_SELECT = `
     m.min_price::float, m.max_price::float,
     m.price_step_up::float, m.price_step_down::float,
     m.is_drink, m.is_active, m.crash_enabled, m.is_crashed,
+    m.image_url,
     c.name  AS category_name,  c.sort_order,
     sc.name AS subcategory_name, sc.sort_order AS subcategory_sort_order
   FROM menu_items m
@@ -178,7 +179,7 @@ router.get('/all', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const { category_id, subcategory_id, name, base_price, min_price, max_price,
-            price_step_up, price_step_down, is_drink = true } = req.body;
+            price_step_up, price_step_down, is_drink = true, image_url = null } = req.body;
     if (!category_id || !name || base_price == null) {
       return res.status(400).json({ error: 'category_id, name, base_price are required' });
     }
@@ -194,10 +195,10 @@ router.post('/', async (req, res, next) => {
     const stepDn = price_step_down ?? 25;
     const { rows } = await query(
       `INSERT INTO menu_items
-         (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink)
-       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9)
+         (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, image_url)
+       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10)
        RETURNING id`,
-      [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink]
+      [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink, image_url || null]
     );
     const { rows: result } = await query(`${ITEM_SELECT} WHERE m.id = $1`, [rows[0].id]);
     res.status(201).json(result[0]);
@@ -301,7 +302,7 @@ router.patch('/:id', async (req, res, next) => {
     if (!existing[0]) return res.status(404).json({ error: 'Item not found' });
 
     const { name, base_price, min_price, max_price, price_step_up, price_step_down,
-            is_drink, is_active, subcategory_id, crash_enabled, is_crashed } = req.body;
+            is_drink, is_active, subcategory_id, crash_enabled, is_crashed, image_url } = req.body;
     const updates = [];
     const values = [];
     let idx = 1;
@@ -317,6 +318,7 @@ router.patch('/:id', async (req, res, next) => {
     if (subcategory_id !== undefined)   { updates.push(`subcategory_id = $${idx++}`);   values.push(subcategory_id || null); }
     if (crash_enabled !== undefined)    { updates.push(`crash_enabled = $${idx++}`);    values.push(crash_enabled); }
     if (is_crashed !== undefined)       { updates.push(`is_crashed = $${idx++}`);       values.push(is_crashed); }
+    if (image_url !== undefined)        { updates.push(`image_url = $${idx++}`);        values.push(image_url || null); }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 

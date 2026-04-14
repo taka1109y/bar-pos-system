@@ -303,6 +303,7 @@ export default function TablePage() {
               categories={categories}
               subcategories={subcategories}
               onAddItem={handleTapItem}
+              showImage={true}
             />
           </div>
         </div>
