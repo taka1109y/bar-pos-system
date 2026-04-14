@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import usePriceStore from '../../store/usePriceStore';
+import Sparkline from './Sparkline';
 
 function MenuItem({ item, onAdd, showImage = false }) {
   const livePrice = usePriceStore((s) => s.prices[item.id]);
@@ -22,12 +23,12 @@ function MenuItem({ item, onAdd, showImage = false }) {
           ? (item.image_url.startsWith('http') ? item.image_url : `/uploads/${item.image_url}`)
           : null;
         return (
-          <div className="w-full aspect-[4/3] bg-slate-100 flex-shrink-0 overflow-hidden">
+          <div className="w-full aspect-video bg-slate-100 flex-shrink-0 overflow-hidden">
             {imgSrc ? (
               <img
                 src={imgSrc}
                 alt={item.name}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                   e.currentTarget.nextElementSibling.style.display = 'flex';
@@ -58,16 +59,7 @@ function MenuItem({ item, onAdd, showImage = false }) {
               </span>
             )}
           </div>
-          {item.is_drink && (
-            <div className="mt-2 w-full h-1 rounded-full bg-slate-100 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-1000 ${
-                  isUp ? 'bg-emerald-500' : isDown ? 'bg-red-400' : 'bg-slate-300'
-                }`}
-                style={{ width: `${Math.min(100, 50 + pctChange * 5)}%` }}
-              />
-            </div>
-          )}
+          <Sparkline itemId={item.id} basePrice={item.base_price} isUp={isUp} isDown={isDown} />
         </div>
       </div>
     </button>
@@ -141,7 +133,7 @@ export default function MenuGrid({ menuItems, categories, subcategories = [], on
       )}
 
       {/* メニューグリッド */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className={`grid gap-3 ${showImage ? 'grid-cols-3' : 'grid-cols-2'}`}>
         {filteredItems.map((item) => (
           <MenuItem key={item.id} item={item} onAdd={onAddItem} showImage={showImage} />
         ))}
