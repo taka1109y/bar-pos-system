@@ -1,6 +1,12 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
+
+// 保存済みファイル名 → 表示用 URL に変換
+function toImageSrc(filename) {
+  if (!filename) return null;
+  return filename.startsWith('http') ? filename : `/uploads/${filename}`;
+}
 
 const inp = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
 const lbl = 'block text-xs font-semibold text-slate-500 mb-1.5';
@@ -40,10 +46,17 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     crash_enabled:   item?.crash_enabled ?? false,
     is_drink:        item?.is_drink ?? 1,
     is_active:       item?.is_active ?? 1,
-    image_url:       item?.image_url || '',
+    image_url:       item?.image_url || '',  // DBに保存されているファイル名
     tax_category:    item?.tax_category || 'standard',
     is_staff_only:   item?.is_staff_only ?? false,
   });
+
+  // 新たに選択した画像ファイルとプレビューURL
+  const [pendingFile, setPendingFile]       = useState(null);
+  const [previewSrc,  setPreviewSrc]        = useState(toImageSrc(item?.image_url));
+  const [uploadError, setUploadError]       = useState('');
+  const [uploading,   setUploading]         = useState(false);
+  const fileInputRef = useRef(null);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -56,8 +69,45 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     (s) => String(s.category_id) === String(form.category_id)
   );
 
-  const handleSubmit = (e) => {
+  // ファイル選択時: プレビューのみ更新し、アップロードは保存時に行う
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadError('');
+    setPendingFile(file);
+    setPreviewSrc(URL.createObjectURL(file));
+  };
+
+  // 画像を削除（DB上の画像名をクリア）
+  const handleRemoveImage = () => {
+    setPendingFile(null);
+    setPreviewSrc(null);
+    set('image_url', '');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setUploadError('');
+
+    let imageFilename = form.image_url;
+
+    // 新しいファイルが選択されている場合はアップロード
+    if (pendingFile) {
+      setUploading(true);
+      try {
+        const fd = new FormData();
+        fd.append('image', pendingFile);
+        const result = await api.uploadMenuImage(fd);
+        imageFilename = result.filename;
+      } catch (err) {
+        setUploadError(err.message || '画像のアップロードに失敗しました');
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+
     onSave({
       ...form,
       category_id:     Number(form.category_id),
@@ -70,11 +120,13 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
       crash_enabled:   Boolean(form.crash_enabled),
       is_drink:        Number(form.is_drink),
       is_active:       Number(form.is_active),
-      image_url:       form.image_url.trim() || null,
+      image_url:       imageFilename || null,
       tax_category:    form.tax_category,
       is_staff_only:   Boolean(form.is_staff_only),
     });
   };
+
+  const isBusy = isLoading || uploading;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -88,24 +140,57 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
           required
         />
       </div>
+
+      {/* 画像アップロード */}
       <div>
-        <label className={lbl}>商品画像URL（任意）</label>
-        <input
-          className={inp}
-          type="url"
-          value={form.image_url}
-          onChange={(e) => set('image_url', e.target.value)}
-          placeholder="https://example.com/image.jpg"
-        />
-        {form.image_url && (
-          <div className="mt-2">
+        <label className={lbl}>商品画像（任意・5MB以下）</label>
+        {previewSrc ? (
+          <div className="flex items-start gap-3">
             <img
-              src={form.image_url}
+              src={previewSrc}
               alt="プレビュー"
-              className="h-20 w-20 object-cover rounded-lg border border-slate-200"
-              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              className="h-24 w-24 object-cover rounded-lg border border-slate-200 flex-shrink-0"
+              onError={(e) => { e.currentTarget.style.opacity = '0.3'; }}
             />
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="h-8 px-3 text-xs font-medium bg-white border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 cursor-pointer"
+              >
+                画像を変更
+              </button>
+              <button
+                type="button"
+                onClick={handleRemoveImage}
+                className="h-8 px-3 text-xs font-medium bg-red-50 border border-red-200 text-red-600 rounded-lg hover:bg-red-100 cursor-pointer"
+              >
+                画像を削除
+              </button>
+            </div>
           </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full h-24 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center gap-1.5 text-slate-400 hover:border-primary-400 hover:text-primary-500 transition-colors cursor-pointer"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+            <span className="text-xs font-medium">クリックして画像を選択</span>
+          </button>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        {uploadError && (
+          <p className="text-xs text-red-600 mt-1.5">{uploadError}</p>
         )}
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -246,11 +331,11 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
         )}
       </div>
       <div className="flex gap-2.5 pt-1">
-        <button type="button" onClick={onCancel} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors">
+        <button type="button" onClick={onCancel} disabled={isBusy} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
           キャンセル
         </button>
-        <button type="submit" disabled={isLoading} className="flex-1 py-2.5 bg-primary-500 hover:bg-primary-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
-          保存
+        <button type="submit" disabled={isBusy} className="flex-1 py-2.5 bg-primary-500 hover:bg-primary-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
+          {uploading ? 'アップロード中...' : isLoading ? '保存中...' : '保存'}
         </button>
       </div>
     </form>
@@ -306,9 +391,9 @@ export default function MenuManager() {
                     key={item.id}
                     className={`flex items-center gap-4 px-6 py-5 ${item.is_active ? '' : 'opacity-40'} ${idx !== 0 ? 'border-t border-slate-50' : ''}`}
                   >
-                    {item.image_url ? (
+                    {toImageSrc(item.image_url) ? (
                       <img
-                        src={item.image_url}
+                        src={toImageSrc(item.image_url)}
                         alt={item.name}
                         className="w-10 h-10 object-cover rounded-lg border border-slate-100 flex-shrink-0"
                         onError={(e) => { e.currentTarget.style.display = 'none'; }}

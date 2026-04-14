@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const fs   = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -25,7 +26,13 @@ socketService.setIo(io);
 app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
+// アップロード画像の静的配信（ローカル開発用 / Docker では Nginx が担当）
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+app.use('/uploads', express.static(UPLOAD_DIR));
+
 // APIルート
+app.use('/api/uploads', require('./routes/uploads'));
 app.use('/api/tables', require('./routes/tables'));
 app.use('/api/menu', require('./routes/menu'));
 app.use('/api/orders', require('./routes/orders'));

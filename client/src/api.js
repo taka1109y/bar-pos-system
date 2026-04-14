@@ -82,4 +82,15 @@ export const api = {
   // Kitchen
   getKitchenOrders: () => req('/kitchen/orders'),
   serveKitchenItem: (itemId) => req(`/kitchen/items/${itemId}/serve`, { method: 'PATCH' }),
+
+  // 画像アップロード（FormData を受け取り multipart/form-data で送信）
+  uploadMenuImage: (formData) =>
+    fetch('/api/uploads/menu-images', { method: 'POST', body: formData })
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(err.error || res.statusText);
+        }
+        return res.json();
+      }),
 };
