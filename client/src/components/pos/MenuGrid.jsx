@@ -17,27 +17,32 @@ function MenuItem({ item, onAdd, showImage = false }) {
       } ${flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : ''}`}
     >
       {/* 画像エリア（顧客画面のみ） */}
-      {showImage && (
-        <div className="w-full aspect-[4/3] bg-slate-100 flex-shrink-0 overflow-hidden">
-          {item.image_url ? (
-            <img
-              src={item.image_url}
-              alt={item.name}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-                e.currentTarget.nextElementSibling.style.display = 'flex';
-              }}
-            />
-          ) : null}
-          <div
-            className="w-full h-full items-center justify-center"
-            style={{ display: item.image_url ? 'none' : 'flex' }}
-          >
-            <span className="text-xs text-slate-400 font-medium">写真準備中</span>
+      {showImage && (() => {
+        const imgSrc = item.image_url
+          ? (item.image_url.startsWith('http') ? item.image_url : `/uploads/${item.image_url}`)
+          : null;
+        return (
+          <div className="w-full aspect-[4/3] bg-slate-100 flex-shrink-0 overflow-hidden">
+            {imgSrc ? (
+              <img
+                src={imgSrc}
+                alt={item.name}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling.style.display = 'flex';
+                }}
+              />
+            ) : null}
+            <div
+              className="w-full h-full items-center justify-center"
+              style={{ display: imgSrc ? 'none' : 'flex' }}
+            >
+              <span className="text-xs text-slate-400 font-medium">写真準備中</span>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* テキスト・価格エリア */}
       <div className={showImage ? 'p-3 flex flex-col justify-between flex-1' : 'flex flex-col justify-between flex-1'}>

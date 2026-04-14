@@ -20,6 +20,8 @@ services:
       PORT: 3001
       DATABASE_URL: postgres://bar:bar@postgres:5432/bardb
       CLIENT_ORIGIN: http://localhost
+    volumes:
+      - uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -29,9 +31,12 @@ services:
     build: ./client
     ports:
       - "80:80"
+    volumes:
+      - uploads:/usr/share/nginx/html/uploads
     depends_on:
       - server
     restart: unless-stopped
 
 volumes:
   pg_data:
+  uploads:
