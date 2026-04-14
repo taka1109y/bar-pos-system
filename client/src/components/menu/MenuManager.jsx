@@ -42,6 +42,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     is_active:       item?.is_active ?? 1,
     image_url:       item?.image_url || '',
     tax_category:    item?.tax_category || 'standard',
+    is_staff_only:   item?.is_staff_only ?? false,
   });
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -71,6 +72,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
       is_active:       Number(form.is_active),
       image_url:       form.image_url.trim() || null,
       tax_category:    form.tax_category,
+      is_staff_only:   Boolean(form.is_staff_only),
     });
   };
 
@@ -229,6 +231,20 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
           </div>
         </div>
       )}
+      <div className="border-t border-slate-100 pt-3">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={Boolean(form.is_staff_only)}
+            onChange={(e) => set('is_staff_only', e.target.checked)}
+            className="w-4 h-4 accent-amber-600 rounded"
+          />
+          <span className="text-sm text-slate-700">従業員専用（お客様注文画面に表示しない）</span>
+        </label>
+        {form.is_staff_only && (
+          <p className="text-xs text-amber-600 mt-1 ml-6">この商品はPOS画面にのみ表示されます</p>
+        )}
+      </div>
       <div className="flex gap-2.5 pt-1">
         <button type="button" onClick={onCancel} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors">
           キャンセル
@@ -321,6 +337,11 @@ export default function MenuManager() {
                     }`}>
                       {item.tax_category === 'reduced' ? '軽減8%' : '標準10%'}
                     </span>
+                    {item.is_staff_only && (
+                      <span className="text-xs px-2.5 py-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium flex-shrink-0">
+                        従業員専用
+                      </span>
+                    )}
                     {!item.is_active && (
                       <span className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-400 flex-shrink-0">
                         無効
