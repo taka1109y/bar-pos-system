@@ -55,6 +55,8 @@ There are no automated tests. Testing is done manually with curl against `http:/
 ### Overview
 3-container Docker stack: **PostgreSQL 16** → **Node.js/Express server** (port 3001) → **Nginx** (port 80, serves React SPA + proxies `/api/` and `/socket.io/`).
 
+Docker volumes: `pg_data` (PostgreSQL data), `uploads` (uploaded menu images — shared between server and nginx containers).
+
 No ORM — raw SQL via `pg` pool. No authentication.
 
 ### Server (`server/`)
@@ -63,15 +65,16 @@ No ORM — raw SQL via `pg` pool. No authentication.
 
 **Route modules** (`server/routes/`):
 - `tables.js` — CRUD; accepts `table_type` ('table'|'counter'); DELETE blocks if open orders exist (409)
-- `menu.js` — CRUD with soft delete (`is_active=false`); always returns `::float` casts for numeric fields; supports subcategories; crash/reset endpoints for forced price drops
+- `menu.js` — CRUD with soft delete (`is_active=false`); always returns `::float` casts for numeric fields; supports subcategories; crash/reset endpoints for forced price drops. `GET /` accepts `?staff=true` to include `is_staff_only` items (default: excluded). Fields: `image_url` (filename, not URL), `tax_category` ('standard'|'reduced'), `is_staff_only`
 - `orders.js` — Order lifecycle + item add/update/delete; every item mutation runs `recalcTotal()` in a transaction; `GET /open` returns all open orders with charge fields; `POST /` accepts `guest_count`, reads charge settings from `system_settings`, writes `charge_per_person` and `charge_amount` to the order at creation time
-- `payments.js` — Closes orders (tax-inclusive 内税 calculation); applies late-night surcharge, discount, and gift certificate; resets table status to `available`
+- `payments.js` — Closes orders (tax-inclusive 内税 calculation); applies late-night surcharge, discount, and gift certificate; resets table status to `available`. Splits items by `tax_category` to calculate standard (10%) and reduced (8%) tax separately; charge/late_night amounts use standard rate; discount applied to standard first then remainder to reduced
 - `prices.js` — Returns `current_price` with `pct_change` vs `base_price`; price history
 - `reports.js` — Daily/items aggregations from closed orders; includes payment_breakdown and discount/gift_cert/late_night totals
 - `receipts.js` — `GET /api/receipts?date=YYYY-MM-DD`: paid orders with full item breakdown, charge, discount, gift_cert, and fee details
-- `system.js` — `GET/PATCH /api/system/settings`: tax_rate, late_night_rate, late_night_start, late_night_end, charge_enabled, charge_time_slots (JSON array of `{start, end, amount}` in 32h format)
+- `system.js` — `GET/PATCH /api/system/settings`: tax_rate, late_night_rate, late_night_start, late_night_end, charge_enabled, charge_time_slots (JSON array of `{start, end, amount}` in 32h format), reduced_tax_rate, default_tax_category
 - `settings.js` — `GET/PATCH /api/settings/pricing`: runtime pricing engine parameters
 - `kitchen.js` — Kitchen display: pending order items; PATCH to mark as served
+- `uploads.js` — `POST /api/uploads/menu-images`: multer file upload (images only, 5MB limit); resolves filename conflicts by appending `_1`, `_2`, etc.; stores files in `server/uploads/` (Docker: `uploads` volume mounted at `/app/uploads`)
 
 **Key services**:
 - `services/socketService.js` — Singleton wrapper around Socket.io (`setIo`/`broadcast`/`broadcastToRoom`). Routes import `{ broadcast, broadcastToRoom }` from here, not from `index.js`.
@@ -82,12 +85,12 @@ No ORM — raw SQL via `pg` pool. No authentication.
 - `tables` — id, name, table_type ('table'|'counter'), status
 - `categories` — id, name, sort_order, crash_pct
 - `subcategories` — id, category_id, name, sort_order, crash_pct
-- `menu_items` — id, category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, is_active, crash_enabled, is_crashed
+- `menu_items` — id, category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, is_active, crash_enabled, is_crashed, image_url (filename only), tax_category ('standard'|'reduced'), is_staff_only
 - `orders` — id, table_id, status, total_amount, payment_method, opened_at, closed_at, guest_count, discount_amount, tax_rate, tax_amount, late_night_rate, late_night_amount, memo, gift_cert_amount, gift_cert_no_change, charge_per_person, charge_amount
 - `order_items` — id, order_id, menu_item_id, quantity, unit_price, item_name, status
 - `pricing_events` — demand tracking, pruned after 10 min
 - `price_history` — last 60 records per item (sparkline data)
-- `system_settings` — key-value table (tax_rate, late_night_rate, late_night_start, late_night_end, charge_enabled, charge_time_slots)
+- `system_settings` — key-value table (tax_rate, late_night_rate, late_night_start, late_night_end, charge_enabled, charge_time_slots, reduced_tax_rate, default_tax_category)
 
 ### Client (`client/src/`)
 
@@ -110,9 +113,11 @@ No ORM — raw SQL via `pg` pool. No authentication.
 - キッチン ↗ — opens /kitchen in new tab
 
 **Data layer**:
-- `api.js` — Fetch wrapper, all calls go through `BASE = /api`
+- `api.js` — Fetch wrapper, all calls go through `BASE = /api`. Key additions: `getStaffMenu()` → `GET /menu?staff=true` (includes is_staff_only items); `uploadMenuImage(formData)` → `POST /api/uploads/menu-images` (multipart, returns `{ filename }`)
 - `socket.js` — Single shared Socket.io client instance (auto-reconnect)
 - `store/usePriceStore.js` — Zustand store; `initPrices()` on page load, `updatePrices()` on `prices:updated` socket event; tracks `direction` and `flash` for animations
+- `components/pos/Sparkline.jsx` — SVG sparkline chart; fetches `GET /api/prices/:id/history?limit=14` via TanStack Query (staleTime: 30s, refetchInterval: 35s); appends live price from usePriceStore as the final point; color: emerald (up) / red (down) / slate (flat); renders polyline + fill area + base_price dashed line + end dot
+- `components/pos/MenuGrid.jsx` — Customer screen (`showImage=true`): 3-column grid, `aspect-video` images with `object-contain`. Staff screen (`showImage=false`): 2-column grid. All cards show `<Sparkline>` below price (replaces the former h-1 bar)
 
 **Real-time pattern**: Components register named socket handlers in `useEffect` and pass the same reference to `socket.off()` on cleanup. Never use `socket.off(event)` without a handler reference — it removes all listeners for that event.
 
@@ -126,12 +131,16 @@ No ORM — raw SQL via `pg` pool. No authentication.
 3. Client `usePriceStore.updatePrices()` → UI re-renders with flash animation
 
 **Payment calculation** (order of operations, all prices are tax-inclusive 内税):
-1. subtotal = items subtotal + charge_amount
-2. + late_night_amount (`itemsSubtotal × late_night_rate`, applied to items only — charge excluded)
-3. − discount_amount
-4. = taxable_base = **total** (tax is already included, not added)
-5. tax_amount = `Math.round(taxable_base × tax_rate / (1 + tax_rate))` — for display only (内税参考)
-6. gift_cert_amount reduces the cash amount due (if gift_cert_no_change=true, capped at total)
+1. Split items into `standard` (tax_category='standard') and `reduced` (tax_category='reduced') groups
+2. standardItemsTotal = sum of standard items; reducedItemsTotal = sum of reduced items
+3. taxable_standard = standardItemsTotal + charge_amount + late_night_amount − discount_amount (min 0)
+4. discountRemainder = max(0, discount − standardItemsTotal − charge − late_night)
+5. taxable_reduced = max(0, reducedItemsTotal − discountRemainder)
+6. tax_amount = `Math.round(taxable_standard × tax_rate / (1 + tax_rate))` + `Math.round(taxable_reduced × reduced_tax_rate / (1 + reduced_tax_rate))` — for display only
+7. total = taxable_standard + taxable_reduced
+8. gift_cert_amount reduces the cash amount due (if gift_cert_no_change=true, capped at total)
+
+late_night_amount = `itemsSubtotal × late_night_rate` (applied to items only — charge excluded)
 
 **Table lifecycle**: `available` → (customer selects guest count on TablePage → order created immediately with charge) → `occupied` → (payment) → `available`. Status changes broadcast as `table:status_changed`.
 
@@ -147,8 +156,11 @@ No ORM — raw SQL via `pg` pool. No authentication.
 - **System settings**: Always read from `system_settings` table at payment time — never cache in application memory.
 - **`order:updated` socket payload**: Always include `{ tableId, orderId, items, total, chargeAmount, chargePerPerson, guestCount }`. Missing charge fields cause the client to fall back to stale cached values; include all fields in every broadcast.
 - **Charge creation**: `POST /api/orders` reads `charge_enabled` and `charge_time_slots` from `system_settings` at order creation time and stores the resolved `charge_per_person` and `charge_amount` on the order row. Charge is not recalculated after order creation.
-- **Tax-inclusive pricing**: All menu prices are 税込み. Do not add tax on top of `total_amount`. `tax_amount` is back-calculated for display only using `taxable_base × tax_rate / (1 + tax_rate)`.
+- **Tax-inclusive pricing**: All menu prices are 税込み. Do not add tax on top of `total_amount`. `tax_amount` is back-calculated for display only. Two rates: `tax_rate` (standard, default 10%) and `reduced_tax_rate` (reduced, default 8%), set per-item via `menu_items.tax_category`.
 - **Crash feature**: `menu_items.crash_enabled` / `is_crashed` and `categories.crash_pct` / `subcategories.crash_pct` support forced price drops. Crash/reset endpoints exist in `menu.js`.
+- **Image storage**: `menu_items.image_url` stores the **filename** (e.g., `beer.jpg`), NOT a full URL. Client constructs `/uploads/{filename}` to display images. Docker: served by Nginx directly from the `uploads` volume at `/usr/share/nginx/html/uploads/`. Local dev: served by Express static at `/uploads/`, proxied via Vite.
+- **Staff-only items**: `menu_items.is_staff_only=TRUE` items are excluded from `GET /api/menu` (customer screen). Use `GET /api/menu?staff=true` (POSPage via `api.getStaffMenu()`) to include them.
+- **uploads volume**: Persists across container rebuilds. Never use `docker compose down -v` unless intentionally deleting uploaded images.
 
 
 # melta UI - AI向け指示
