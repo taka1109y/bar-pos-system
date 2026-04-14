@@ -9,7 +9,7 @@ const ITEM_SELECT = `
     m.min_price::float, m.max_price::float,
     m.price_step_up::float, m.price_step_down::float,
     m.is_drink, m.is_active, m.crash_enabled, m.is_crashed,
-    m.image_url, m.tax_category,
+    m.image_url, m.tax_category, m.is_staff_only,
     c.name  AS category_name,  c.sort_order,
     sc.name AS subcategory_name, sc.sort_order AS subcategory_sort_order
   FROM menu_items m
@@ -155,11 +155,13 @@ router.delete('/subcategories/:id', async (req, res, next) => {
 
 // ─── メニューアイテム ─────────────────────────────────
 
-// GET /api/menu (アクティブのみ)
+// GET /api/menu (アクティブのみ。?staff=true で従業員専用商品も含む)
 router.get('/', async (req, res, next) => {
   try {
+    const includeStaff = req.query.staff === 'true';
+    const staffFilter  = includeStaff ? '' : 'AND m.is_staff_only = FALSE';
     const { rows } = await query(
-      `${ITEM_SELECT} WHERE m.is_active = TRUE ORDER BY c.sort_order, sc.sort_order NULLS LAST, m.name`
+      `${ITEM_SELECT} WHERE m.is_active = TRUE ${staffFilter} ORDER BY c.sort_order, sc.sort_order NULLS LAST, m.name`
     );
     res.json(rows);
   } catch (err) { next(err); }
@@ -180,7 +182,7 @@ router.post('/', async (req, res, next) => {
   try {
     const { category_id, subcategory_id, name, base_price, min_price, max_price,
             price_step_up, price_step_down, is_drink = true, image_url = null,
-            tax_category } = req.body;
+            tax_category, is_staff_only = false } = req.body;
     if (!category_id || !name || base_price == null) {
       return res.status(400).json({ error: 'category_id, name, base_price are required' });
     }
@@ -207,10 +209,10 @@ router.post('/', async (req, res, next) => {
     const stepDn = price_step_down ?? 25;
     const { rows } = await query(
       `INSERT INTO menu_items
-         (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, image_url, tax_category)
-       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11)
+         (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, image_url, tax_category, is_staff_only)
+       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING id`,
-      [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink, image_url || null, effectiveTaxCategory]
+      [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink, image_url || null, effectiveTaxCategory, Boolean(is_staff_only)]
     );
     const { rows: result } = await query(`${ITEM_SELECT} WHERE m.id = $1`, [rows[0].id]);
     res.status(201).json(result[0]);
@@ -315,7 +317,7 @@ router.patch('/:id', async (req, res, next) => {
 
     const { name, base_price, min_price, max_price, price_step_up, price_step_down,
             is_drink, is_active, subcategory_id, crash_enabled, is_crashed,
-            image_url, tax_category } = req.body;
+            image_url, tax_category, is_staff_only } = req.body;
     const updates = [];
     const values = [];
     let idx = 1;
@@ -339,6 +341,7 @@ router.patch('/:id', async (req, res, next) => {
       updates.push(`tax_category = $${idx++}`);
       values.push(tax_category);
     }
+    if (is_staff_only !== undefined)   { updates.push(`is_staff_only = $${idx++}`);   values.push(Boolean(is_staff_only)); }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 

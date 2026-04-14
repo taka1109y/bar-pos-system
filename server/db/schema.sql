@@ -115,6 +115,9 @@ ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS tax_category TEXT NOT NULL DEFAU
 INSERT INTO system_settings (key, value) VALUES ('reduced_tax_rate',     '0.08')     ON CONFLICT DO NOTHING;
 INSERT INTO system_settings (key, value) VALUES ('default_tax_category', 'standard') ON CONFLICT DO NOTHING;
 
+-- 従業員専用商品
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS is_staff_only BOOLEAN NOT NULL DEFAULT FALSE;
+
 CREATE INDEX IF NOT EXISTS idx_pricing_events_item_time ON pricing_events(menu_item_id, event_time);
 CREATE INDEX IF NOT EXISTS idx_price_history_item_time  ON price_history(menu_item_id, recorded_at);
 CREATE INDEX IF NOT EXISTS idx_order_items_order        ON order_items(order_id);

@@ -21,6 +21,7 @@ export const api = {
 
   // Menu
   getMenu: () => req('/menu'),
+  getStaffMenu: () => req('/menu?staff=true'),
   getAllMenu: () => req('/menu/all'),
   getCategories: () => req('/menu/categories'),
   createMenuItem: (data) => req('/menu', { method: 'POST', body: JSON.stringify(data) }),

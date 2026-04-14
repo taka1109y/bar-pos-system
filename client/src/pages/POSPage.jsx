@@ -73,8 +73,8 @@ export default function POSPage() {
   });
 
   const { data: menuItems = [] } = useQuery({
-    queryKey: ['menu'],
-    queryFn: api.getMenu,
+    queryKey: ['menu-staff'],
+    queryFn: api.getStaffMenu,
     staleTime: 60_000,
   });
 
@@ -126,7 +126,7 @@ export default function POSPage() {
 
   const handleSetView = (nextView) => {
     if (view === 'menu' || view === 'categories') {
-      queryClient.invalidateQueries({ queryKey: ['menu'] });
+      queryClient.invalidateQueries({ queryKey: ['menu-staff'] });
       queryClient.invalidateQueries({ queryKey: ['categories'] });
       queryClient.invalidateQueries({ queryKey: ['subcategories'] });
     }
