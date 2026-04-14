@@ -16,7 +16,7 @@ function StatCard({ label, value, sub, accent }) {
 }
 
 export default function ReportsPage({ onClose, inline = false }) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
   const [date, setDate] = useState(today);
 
   const { data: report, isLoading } = useQuery({

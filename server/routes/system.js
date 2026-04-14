@@ -12,6 +12,8 @@ function parseSettings(rows) {
     charge_enabled:      s.charge_enabled !== 'false',
     charge_time_slots:   (() => { try { return JSON.parse(s.charge_time_slots ?? '[]'); } catch { return []; } })(),
     register_open_cash:  parseInt(  s.register_open_cash ?? '0',  10),
+    register_open:       s.register_open === 'true',
+    register_opened_at:  s.register_opened_at ?? null,
   };
 }
 
@@ -76,6 +78,22 @@ router.patch('/settings', async (req, res, next) => {
          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
         [JSON.stringify(slots)]
       );
+    }
+
+    if (req.body.register_open !== undefined) {
+      await query(
+        `INSERT INTO system_settings (key, value) VALUES ('register_open', $1)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+        [req.body.register_open ? 'true' : 'false']
+      );
+      // オープン時はセッション開始タイムスタンプを記録する
+      if (req.body.register_open) {
+        await query(
+          `INSERT INTO system_settings (key, value) VALUES ('register_opened_at', $1)
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+          [new Date().toISOString()]
+        );
+      }
     }
 
     if (req.body.register_open_cash !== undefined) {

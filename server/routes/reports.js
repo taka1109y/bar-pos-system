@@ -8,10 +8,17 @@ function todayJST() {
   return new Date().toLocaleDateString('sv-SE', { timeZone: TZ }); // YYYY-MM-DD
 }
 
-// GET /api/reports/daily?date=YYYY-MM-DD
+// GET /api/reports/daily?date=YYYY-MM-DD[&since=ISO_TIMESTAMP]
 router.get('/daily', async (req, res, next) => {
   try {
-    const date = req.query.date || todayJST();
+    const date  = req.query.date  || todayJST();
+    // since: レジオープン時刻。指定された場合はそれ以降の会計のみ集計する
+    const since = req.query.since || null;
+
+    const baseWhere = since
+      ? `status = 'paid' AND (closed_at AT TIME ZONE $2)::date = $1 AND closed_at >= $3`
+      : `status = 'paid' AND (closed_at AT TIME ZONE $2)::date = $1`;
+    const params = since ? [date, TZ, since] : [date, TZ];
 
     const { rows: summary } = await query(
       `SELECT
@@ -37,8 +44,8 @@ router.get('/daily', async (req, res, next) => {
          COALESCE(SUM(gift_cert_amount) FILTER (WHERE gift_cert_no_change = false AND gift_cert_amount > 0), 0)::float AS gift_change_amount,
          COUNT(*) FILTER (WHERE gift_cert_no_change = false AND gift_cert_amount > 0)::int                         AS gift_change_count
        FROM orders
-       WHERE status = 'paid' AND (closed_at AT TIME ZONE $2)::date = $1`,
-      [date, TZ]
+       WHERE ${baseWhere}`,
+      params
     );
 
     const { rows: items } = await query(
@@ -48,10 +55,10 @@ router.get('/daily', async (req, res, next) => {
          SUM(oi.quantity * oi.unit_price)::float AS revenue
        FROM order_items oi
        JOIN orders o ON oi.order_id = o.id
-       WHERE o.status = 'paid' AND (o.closed_at AT TIME ZONE $2)::date = $1
+       WHERE o.${baseWhere}
        GROUP BY oi.item_name
        ORDER BY revenue DESC`,
-      [date, TZ]
+      params
     );
 
     const orderCount = parseInt(summary[0].order_count);

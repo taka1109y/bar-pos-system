@@ -13,7 +13,7 @@ function fmt(iso) {
 }
 
 export default function ReceiptsPage() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
   const [date, setDate] = useState(today);
   const [expandedId, setExpandedId] = useState(null);
 

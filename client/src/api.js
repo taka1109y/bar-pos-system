@@ -66,7 +66,7 @@ export const api = {
   getPriceHistory: (id, limit = 20) => req(`/prices/${id}/history?limit=${limit}`),
 
   // Reports
-  getDailyReport: (date) => req(`/reports/daily?date=${date}`),
+  getDailyReport: (date, since) => req(`/reports/daily?date=${date}${since ? '&since=' + encodeURIComponent(since) : ''}`),
   getReceipts: (date) => req(`/receipts?date=${date}`),
 
   // Settings
