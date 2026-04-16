@@ -61,7 +61,31 @@ router.get('/daily', async (req, res, next) => {
       params
     );
 
+    // 税率別 課税対象額（割引を標準税率分から先に適用するロジックを再現）
+    const { rows: taxRows } = await query(
+      `SELECT
+         COALESCE(SUM(GREATEST(0, std_items + chg + ln - disc)), 0)::float AS taxable_standard,
+         COALESCE(SUM(GREATEST(0, red_items - GREATEST(0, disc - std_items - chg - ln))), 0)::float AS taxable_reduced
+       FROM (
+         SELECT
+           COALESCE(o.discount_amount, 0)    AS disc,
+           COALESCE(o.charge_amount, 0)      AS chg,
+           COALESCE(o.late_night_amount, 0)  AS ln,
+           COALESCE(SUM(oi.quantity * oi.unit_price)
+             FILTER (WHERE COALESCE(m.tax_category, 'standard') <> 'reduced'), 0) AS std_items,
+           COALESCE(SUM(oi.quantity * oi.unit_price)
+             FILTER (WHERE m.tax_category = 'reduced'), 0) AS red_items
+         FROM orders o
+         JOIN order_items oi ON oi.order_id = o.id
+         JOIN menu_items  m  ON oi.menu_item_id = m.id
+         WHERE o.${baseWhere}
+         GROUP BY o.id, o.discount_amount, o.charge_amount, o.late_night_amount
+       ) AS breakdown`,
+      params
+    );
+
     const orderCount = parseInt(summary[0].order_count);
+    const totalItemCount = items.reduce((sum, row) => sum + row.quantity_sold, 0);
 
     const s = summary[0];
     const guestCount = parseInt(s.guest_count);
@@ -84,6 +108,9 @@ router.get('/daily', async (req, res, next) => {
       gift_no_change_count:  s.gift_no_change_count,
       gift_change_amount:    s.gift_change_amount,
       gift_change_count:     s.gift_change_count,
+      total_item_count:      totalItemCount,
+      taxable_standard:      taxRows[0]?.taxable_standard ?? 0,
+      taxable_reduced:       taxRows[0]?.taxable_reduced  ?? 0,
       payment_breakdown: [
         { method: 'cash',   label: '現金',       count: s.cash_count,   revenue: s.cash_revenue },
         { method: 'card',   label: 'カード',     count: s.card_count,   revenue: s.card_revenue },

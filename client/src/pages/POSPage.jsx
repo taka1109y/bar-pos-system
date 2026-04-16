@@ -124,6 +124,8 @@ export default function POSPage() {
     setSelectedTable((prev) => (prev?.id === table.id ? null : table));
   };
 
+  const REFRESH_ON_ENTER = new Set(['pos', 'reports', 'receipts', 'close']);
+
   const handleSetView = (nextView) => {
     if (view === 'menu' || view === 'categories') {
       queryClient.invalidateQueries({ queryKey: ['menu-staff'] });
@@ -132,6 +134,10 @@ export default function POSPage() {
     }
     if (view === 'tables') {
       queryClient.invalidateQueries({ queryKey: ['tables'] });
+    }
+    // 対象ビューへの遷移時に全クエリを無効化して最新データを取得
+    if (REFRESH_ON_ENTER.has(nextView)) {
+      queryClient.invalidateQueries();
     }
     setView(nextView);
     if (nextView !== 'pos') setSelectedTable(null);
