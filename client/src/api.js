@@ -69,6 +69,8 @@ export const api = {
   // Reports
   getDailyReport: (date, since) => req(`/reports/daily?date=${date}${since ? '&since=' + encodeURIComponent(since) : ''}`),
   getReceipts: (date) => req(`/receipts?date=${date}`),
+  getOrder: (orderId) => req(`/orders/${orderId}`),
+  voidAndReissue: (orderId) => req(`/receipts/${orderId}/void-and-reissue`, { method: 'POST' }),
 
   // Settings
   getPricingSettings: () => req('/settings/pricing'),

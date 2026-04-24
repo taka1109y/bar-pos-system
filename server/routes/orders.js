@@ -9,7 +9,8 @@ async function getOrderWithItems(orderId) {
     `SELECT id, table_id, status, payment_method, opened_at, closed_at,
        total_amount::float, discount_amount::float, tax_rate::float, tax_amount::float,
        late_night_rate::float, late_night_amount::float,
-       guest_count, charge_per_person::float, charge_amount::float
+       guest_count, charge_per_person::float, charge_amount::float,
+       receipt_type, original_order_id
      FROM orders WHERE id = $1`,
     [orderId]
   );
@@ -38,13 +39,16 @@ async function recalcTotal(client, orderId) {
   return total;
 }
 
-// GET /api/orders/open — 全オープン注文（table_id, total_amount, opened_at）
+// GET /api/orders/open — 通常オープン注文のみ（赤伝票は除外）
 router.get('/open', async (_req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT id, table_id, total_amount::float, opened_at, guest_count,
               charge_per_person::float, charge_amount::float
-       FROM orders WHERE status = 'open' ORDER BY table_id`
+       FROM orders
+       WHERE status = 'open'
+         AND (receipt_type = 'normal' OR receipt_type IS NULL)
+       ORDER BY table_id`
     );
     res.json(rows);
   } catch (err) {
@@ -56,7 +60,10 @@ router.get('/open', async (_req, res, next) => {
 router.get('/table/:tableId', async (req, res, next) => {
   try {
     const { rows } = await query(
-      `SELECT * FROM orders WHERE table_id = $1 AND status = 'open' ORDER BY id DESC LIMIT 1`,
+      `SELECT * FROM orders
+       WHERE table_id = $1 AND status = 'open'
+         AND (receipt_type = 'normal' OR receipt_type IS NULL)
+       ORDER BY id DESC LIMIT 1`,
       [req.params.tableId]
     );
     if (!rows[0]) return res.json(null);
@@ -80,6 +87,8 @@ router.get('/table/:tableId', async (req, res, next) => {
       guest_count: order.guest_count,
       charge_per_person: parseFloat(order.charge_per_person),
       charge_amount: parseFloat(order.charge_amount),
+      receipt_type: order.receipt_type,
+      original_order_id: order.original_order_id,
       items,
     });
   } catch (err) {
@@ -315,6 +324,17 @@ router.delete('/:id/items/:itemId', async (req, res, next) => {
     next(err);
   } finally {
     client.release();
+  }
+});
+
+// GET /api/orders/:orderId — 単一オーダー取得（赤伝票会計モーダル用）
+router.get('/:orderId', async (req, res, next) => {
+  try {
+    const order = await getOrderWithItems(req.params.orderId);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    res.json(order);
+  } catch (err) {
+    next(err);
   }
 });
 

@@ -107,10 +107,19 @@ router.post('/:orderId', async (req, res, next) => {
        memo || null, effective_gift_cert, gift_cert_no_change,
        order.id]
     );
-    await client.query(`UPDATE tables SET status = 'available' WHERE id = $1`, [order.table_id]);
+    // 同テーブルの残オープンオーダーがなければavailableに戻す（赤伝票との共存考慮）
+    const { rows: remaining } = await client.query(
+      `SELECT id FROM orders WHERE table_id = $1 AND status = 'open'`,
+      [order.table_id]
+    );
+    if (remaining.length === 0) {
+      await client.query(`UPDATE tables SET status = 'available' WHERE id = $1`, [order.table_id]);
+    }
     await client.query('COMMIT');
 
-    broadcast('table:status_changed', { tableId: order.table_id, status: 'available' });
+    if (remaining.length === 0) {
+      broadcast('table:status_changed', { tableId: order.table_id, status: 'available' });
+    }
 
     res.json({
       orderId: order.id,

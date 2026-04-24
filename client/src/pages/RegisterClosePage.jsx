@@ -9,8 +9,6 @@ import html2canvas from 'html2canvas';
 // ── DBに存在しない項目のゼロ値固定モック ─────────────────────
 const MOCK_STATIC = {
   tsubu_count: 0,
-  cancel_amount: 0, cancel_count: 0,
-  correction_amount: 0, correction_count: 0,
   unsold: 0,
   register_open_cash_count: 0,
   deposit_count: 0,
@@ -180,6 +178,10 @@ export default function RegisterClosePage() {
   const lateNightCount = report?.late_night_count ?? 0;
   const discountCount  = report?.discount_count ?? 0;
   const totalItemCount = report?.total_item_count ?? 0;
+  const cancelAmount     = report?.cancel_amount     ?? 0;
+  const cancelCount      = report?.cancel_count      ?? 0;
+  const correctionAmount = report?.correction_amount ?? 0;
+  const correctionCount  = report?.correction_count  ?? 0;
 
   const cashPay    = report?.payment_breakdown?.find(b => b.method === 'cash')   ?? { count: 0, revenue: 0 };
   const cardPay    = report?.payment_breakdown?.find(b => b.method === 'card')   ?? { count: 0, revenue: 0 };
@@ -348,8 +350,8 @@ export default function RegisterClosePage() {
                 <LRow label="サービス料金"     value={`¥${Math.floor(serviceCharge).toLocaleString()}`} sub={`${serviceCount}件`} />
                 <LRow label="深夜料金"         value={`¥${Math.floor(lateNight).toLocaleString()}`} sub={`${lateNightCount}件`} />
                 <LRow label="値割引"           value="" sub={`${discountCount}件`} />
-                <LRow label="取消（赤伝票）"    value={`¥${m.cancel_amount.toLocaleString()}`} sub={`${m.cancel_count}件`} />
-                <LRow label="訂正（黒伝票）"    value={`¥${m.correction_amount.toLocaleString()}`} sub={`${m.correction_count}件`} />
+                <LRow label="取消（赤伝票）"    value={`¥${Math.floor(cancelAmount).toLocaleString()}`}     sub={`${cancelCount}件`} />
+                <LRow label="訂正（黒伝票）"    value={`¥${Math.floor(correctionAmount).toLocaleString()}`} sub={`${correctionCount}件`} />
               </div>
               <div className="flex-1 overflow-y-auto">
                 <LRow label="入金"             value="" sub={`${m.deposit_count}件`} />
@@ -482,8 +484,8 @@ export default function RegisterClosePage() {
             <PRow label="サービス料金" value={`¥${Math.floor(serviceCharge).toLocaleString()}`} sub={`${serviceCount}件`} />
             <PRow label="深夜料金"     value={`¥${Math.floor(lateNight).toLocaleString()}`}     sub={`${lateNightCount}件`} />
             <PRow label="値割引"       sub={`${discountCount}件`} />
-            <PRow label="取消（赤伝票）" value={`¥${m.cancel_amount.toLocaleString()}`}    sub={`${m.cancel_count}件`} />
-            <PRow label="訂正（黒伝票）" value={`¥${m.correction_amount.toLocaleString()}`} sub={`${m.correction_count}件`} />
+            <PRow label="取消（赤伝票）" value={`¥${Math.floor(cancelAmount).toLocaleString()}`}     sub={`${cancelCount}件`} />
+            <PRow label="訂正（黒伝票）" value={`¥${Math.floor(correctionAmount).toLocaleString()}`} sub={`${correctionCount}件`} />
           </div>
           {/* 右列 */}
           <div style={{ width: '50%' }}>

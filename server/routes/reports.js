@@ -16,8 +16,12 @@ router.get('/daily', async (req, res, next) => {
     const since = req.query.since || null;
 
     const baseWhere = since
-      ? `status = 'paid' AND (closed_at AT TIME ZONE $2)::date = $1 AND closed_at >= $3`
-      : `status = 'paid' AND (closed_at AT TIME ZONE $2)::date = $1`;
+      ? `status = 'paid'
+         AND (receipt_type IS NULL OR receipt_type NOT IN ('void', 'black_cancelled'))
+         AND (closed_at AT TIME ZONE $2)::date = $1 AND closed_at >= $3`
+      : `status = 'paid'
+         AND (receipt_type IS NULL OR receipt_type NOT IN ('void', 'black_cancelled'))
+         AND (closed_at AT TIME ZONE $2)::date = $1`;
     const params = since ? [date, TZ, since] : [date, TZ];
 
     const { rows: summary } = await query(
@@ -87,6 +91,30 @@ router.get('/daily', async (req, res, next) => {
     const orderCount = parseInt(summary[0].order_count);
     const totalItemCount = items.reduce((sum, row) => sum + row.quantity_sold, 0);
 
+    const voidWhere = since
+      ? `status = 'paid' AND receipt_type = 'void'
+         AND (closed_at AT TIME ZONE $2)::date = $1 AND closed_at >= $3`
+      : `status = 'paid' AND receipt_type = 'void'
+         AND (closed_at AT TIME ZONE $2)::date = $1`;
+    const { rows: cancelRows } = await query(
+      `SELECT COUNT(*)::int AS cancel_count,
+              COALESCE(SUM(total_amount), 0)::float AS cancel_amount
+       FROM orders WHERE ${voidWhere}`,
+      params
+    );
+
+    const redPaidWhere = since
+      ? `status = 'paid' AND receipt_type = 'red'
+         AND (closed_at AT TIME ZONE $2)::date = $1 AND closed_at >= $3`
+      : `status = 'paid' AND receipt_type = 'red'
+         AND (closed_at AT TIME ZONE $2)::date = $1`;
+    const { rows: correctionRows } = await query(
+      `SELECT COUNT(*)::int AS correction_count,
+              COALESCE(SUM(total_amount), 0)::float AS correction_amount
+       FROM orders WHERE ${redPaidWhere}`,
+      params
+    );
+
     const s = summary[0];
     const guestCount = parseInt(s.guest_count);
     res.json({
@@ -111,6 +139,10 @@ router.get('/daily', async (req, res, next) => {
       total_item_count:      totalItemCount,
       taxable_standard:      taxRows[0]?.taxable_standard ?? 0,
       taxable_reduced:       taxRows[0]?.taxable_reduced  ?? 0,
+      cancel_count:          cancelRows[0].cancel_count,
+      cancel_amount:         cancelRows[0].cancel_amount,
+      correction_count:      correctionRows[0].correction_count,
+      correction_amount:     correctionRows[0].correction_amount,
       payment_breakdown: [
         { method: 'cash',   label: '現金',       count: s.cash_count,   revenue: s.cash_revenue },
         { method: 'card',   label: 'カード',     count: s.card_count,   revenue: s.card_revenue },
@@ -138,6 +170,7 @@ router.get('/items', async (req, res, next) => {
        FROM order_items oi
        JOIN orders o ON oi.order_id = o.id
        WHERE o.status = 'paid'
+         AND (o.receipt_type IS NULL OR o.receipt_type NOT IN ('void', 'black_cancelled'))
          AND (o.closed_at AT TIME ZONE $3)::date BETWEEN $1 AND $2
        GROUP BY oi.item_name
        ORDER BY revenue DESC`,

@@ -122,3 +122,10 @@ CREATE INDEX IF NOT EXISTS idx_pricing_events_item_time ON pricing_events(menu_i
 CREATE INDEX IF NOT EXISTS idx_price_history_item_time  ON price_history(menu_item_id, recorded_at);
 CREATE INDEX IF NOT EXISTS idx_order_items_order        ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_orders_table_status      ON orders(table_id, status);
+
+-- 赤伝票・黒伝票対応
+-- receipt_type: 'normal' | 'black_cancelled' | 'void' | 'red'
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS receipt_type      TEXT    NOT NULL DEFAULT 'normal';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS original_order_id INTEGER REFERENCES orders(id);
+CREATE INDEX IF NOT EXISTS idx_orders_receipt_type      ON orders(receipt_type);
+CREATE INDEX IF NOT EXISTS idx_orders_original_order_id ON orders(original_order_id);
