@@ -171,9 +171,17 @@ function HourSelect({ value, onChange }) {
   );
 }
 
+const TABS = [
+  { id: 'tax',    label: '消費税' },
+  { id: 'late',   label: '深夜料金' },
+  { id: 'charge', label: 'チャージ' },
+  { id: 'crash',  label: '暴落' },
+];
+
 export default function SystemSettingsPage() {
   const queryClient = useQueryClient();
 
+  const [activeTab,         setActiveTab]         = useState('tax');
   const [taxInput,          setTaxInput]          = useState('');
   const [reducedTaxInput,   setReducedTaxInput]   = useState('');
   const [defaultTaxCategory, setDefaultTaxCategory] = useState('standard');
@@ -304,17 +312,32 @@ export default function SystemSettingsPage() {
   const lnPct  = parseFloat(lnRate)   || 0;
 
   return (
-    <div className="px-8 py-12 max-w-7xl mx-auto space-y-6">
-      <div className="mb-2">
+    <div className="px-8 py-12 max-w-7xl mx-auto">
+      <div className="mb-6">
         <h1 className="text-3xl font-bold text-slate-900">システム管理</h1>
-        <p className="text-base text-body leading-relaxed mt-2">消費税・深夜料金・チャージの設定</p>
+      </div>
+      {/* タブ */}
+      <div className="flex gap-4 border-b border-slate-200 mb-6">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activeTab === tab.id
+                ? 'text-primary-500 border-primary-500'
+                : 'text-slate-500 border-transparent hover:text-slate-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
       {isLoading ? (
         <p className="text-sm text-slate-400">読み込み中...</p>
       ) : (
         <>
           {/* ── 消費税設定 ── */}
-          <Section title="消費税設定" desc="会計時に適用される消費税率。商品ごとに標準・軽減を選択できます。">
+          {activeTab === 'tax' && <Section title="消費税設定" desc="会計時に適用される消費税率。商品ごとに標準・軽減を選択できます。">
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -357,10 +380,10 @@ export default function SystemSettingsPage() {
                 </div>
               )}
             </div>
-          </Section>
+          </Section>}
 
           {/* ── 深夜料金設定 ── */}
-          <Section
+          {activeTab === 'late' && <Section
             title="深夜料金設定"
             desc="指定時間帯の会計に加算される料金。開始・終了時刻は32時間制で入力（例: 翌3時 = 27）。"
           >
@@ -417,10 +440,10 @@ export default function SystemSettingsPage() {
                 </div>
               </div>
             </div>
-          </Section>
+          </Section>}
 
           {/* ── チャージ設定 ── */}
-          <Section
+          {activeTab === 'charge' && <Section
             title="チャージ設定"
             desc="入店時に人数×料金を自動で注文に追加します。時間帯ごとに料金を設定できます。"
           >
@@ -514,10 +537,10 @@ export default function SystemSettingsPage() {
                 </div>
               )}
             </div>
-          </Section>
+          </Section>}
 
           {/* ── 株価暴落 ── */}
-          <Section title="株価暴落" desc="選択したカテゴリ・サブカテゴリ内の暴落許可商品を一括で暴落価格に変更します。">
+          {activeTab === 'crash' && <Section title="株価暴落" desc="選択したカテゴリ・サブカテゴリ内の暴落許可商品を一括で暴落価格に変更します。">
             <div className="flex gap-3">
               <button
                 onClick={() => setCrashModalOpen(true)}
@@ -545,7 +568,7 @@ export default function SystemSettingsPage() {
                 isPending={crashMutation.isPending}
               />
             )}
-          </Section>
+          </Section>}
         </>
       )}
     </div>

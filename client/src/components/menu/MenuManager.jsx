@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 
@@ -347,6 +347,7 @@ export default function MenuManager() {
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
+  const [search, setSearch] = useState('');
 
   const { data: items         = [] } = useQuery({ queryKey: ['menu-all'],      queryFn: api.getAllMenu });
   const { data: categories    = [] } = useQuery({ queryKey: ['categories'],    queryFn: api.getCategories });
@@ -363,24 +364,57 @@ export default function MenuManager() {
     return acc;
   }, {});
 
+  const displayGrouped = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return grouped;
+    const result = {};
+    Object.values(grouped).forEach((cat) => {
+      const matched = cat.items.filter((item) => item.name.toLowerCase().includes(q));
+      if (matched.length > 0) result[cat.id] = { ...cat, items: matched };
+    });
+    return result;
+  }, [grouped, search]);
+
   return (
     <div className="px-8 py-12 max-w-7xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900">商品管理</h1>
         <p className="text-base text-body leading-relaxed mt-2">メニュー商品の追加・編集・削除</p>
       </div>
-      <div className="flex items-center justify-end mb-6">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="relative flex-1 max-w-xs">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            type="search"
+            placeholder="商品名で検索..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors"
+          />
+        </div>
+        {search.trim() && (
+          <span className="text-xs text-slate-400 flex-shrink-0">
+            {Object.values(displayGrouped).reduce((n, c) => n + c.items.length, 0)} 件
+          </span>
+        )}
         <button
           onClick={() => setAddOpen(true)}
-          className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-semibold bg-primary-500 text-white rounded-lg hover:bg-primary-700 cursor-pointer"
+          className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-semibold bg-primary-500 text-white rounded-lg hover:bg-primary-700 cursor-pointer flex-shrink-0"
         >
           + 商品を追加
         </button>
       </div>
 
       {/* カテゴリ別商品一覧 */}
+      {search.trim() && Object.values(displayGrouped).length === 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+          <p className="text-slate-400 text-sm">「{search}」に一致する商品がありません</p>
+        </div>
+      )}
       <div className="space-y-10">
-        {Object.values(grouped).map((cat) => (
+        {Object.values(displayGrouped).map((cat) => (
           <div key={cat.id}>
             <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-200">
               <h3 className="text-sm font-bold text-slate-700 tracking-wide">{cat.name}</h3>
