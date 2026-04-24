@@ -21,7 +21,7 @@ const MOCK_STATIC = {
 // ── 青テーマのスタイル定数 ──────────────────────────────────
 const BLUE_HEADER = 'bg-primary-500 text-white';
 const BLUE_BTN    = 'bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white font-bold rounded transition-colors';
-const INPUT_CLS   = 'w-full text-right text-xs tabular-nums border border-sky-400 rounded bg-white px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-sky-500';
+const INPUT_CLS   = 'w-full text-right text-xs tabular-nums border border-slate-300 rounded bg-white px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500/50';
 
 // ── PDF出力用行（インラインスタイル・html2canvas用） ────────────
 function PRow({ label, value, sub, indent, dot }) {
@@ -30,7 +30,7 @@ function PRow({ label, value, sub, indent, dot }) {
       padding:'4px 8px', borderBottom:'1px solid #f1f5f9', minHeight:'26px',
       background: indent ? '#f8fafc' : 'transparent' }}>
       <span style={{ color:'#475569', fontSize:'11px' }}>
-        {dot && <span style={{ color:'#38bdf8', marginRight:'4px', fontSize:'9px' }}>●</span>}
+        {dot && <span style={{ color:'#2b70ef', marginRight:'4px', fontSize:'9px' }}>●</span>}
         {label}
       </span>
       <div style={{ textAlign:'right' }}>
@@ -48,7 +48,7 @@ function LRow({ label, value, sub, dot }) {
   return (
     <div className="flex items-start justify-between px-2 py-1.5 border-b border-slate-100 last:border-0 min-h-[32px]">
       <div className="flex items-center gap-1">
-        {dot && <span className="text-sky-500 text-sm leading-none">●</span>}
+        {dot && <span className="text-primary-500 text-sm leading-none">●</span>}
         <span className="text-[11px] text-slate-600">{label}</span>
       </div>
       <div className="text-right">

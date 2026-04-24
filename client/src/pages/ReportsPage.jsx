@@ -31,7 +31,13 @@ export default function ReportsPage({ onClose, inline = false }) {
   const maxBreakdown = Math.max(...breakdown.map(b => b.revenue), 1);
 
   const content = (
-    <div className={inline ? 'p-8 max-w-3xl mx-auto space-y-6' : 'flex-1 overflow-y-auto space-y-6'}>
+    <div className={inline ? 'p-8 max-w-3xl mx-auto space-y-6' : 'flex-1 overflow-y-auto px-8 py-12 space-y-6'}>
+      {!inline && (
+        <div className="mb-2">
+          <h1 className="text-3xl font-bold text-slate-900">売上管理</h1>
+          <p className="text-base text-body leading-relaxed mt-2">日次の売上データを集計・確認できます</p>
+        </div>
+      )}
       {/* 日付選択 */}
       <div className="flex items-center gap-3">
         <label className={lbl}>集計日</label>
@@ -110,7 +116,7 @@ export default function ReportsPage({ onClose, inline = false }) {
                 {topItems.map((item, i) => (
                   <div key={item.name} className="flex items-center gap-3">
                     <span className={`w-6 text-center text-xs font-bold flex-shrink-0 ${
-                      i === 0 ? 'text-amber-500' : i === 1 ? 'text-slate-400' : i === 2 ? 'text-amber-700' : 'text-slate-300'
+                      i === 0 ? 'text-slate-900' : i === 1 ? 'text-slate-400' : i === 2 ? 'text-slate-500' : 'text-slate-300'
                     }`}>
                       {i + 1}
                     </span>

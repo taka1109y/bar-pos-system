@@ -304,7 +304,11 @@ export default function SystemSettingsPage() {
   const lnPct  = parseFloat(lnRate)   || 0;
 
   return (
-    <div className="p-8 max-w-2xl mx-auto space-y-6">
+    <div className="px-8 py-12 max-w-7xl mx-auto space-y-6">
+      <div className="mb-2">
+        <h1 className="text-3xl font-bold text-slate-900">システム管理</h1>
+        <p className="text-base text-body leading-relaxed mt-2">消費税・深夜料金・チャージの設定</p>
+      </div>
       {isLoading ? (
         <p className="text-sm text-slate-400">読み込み中...</p>
       ) : (

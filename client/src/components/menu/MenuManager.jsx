@@ -364,7 +364,11 @@ export default function MenuManager() {
   }, {});
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="px-8 py-12 max-w-7xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-slate-900">商品管理</h1>
+        <p className="text-base text-body leading-relaxed mt-2">メニュー商品の追加・編集・削除</p>
+      </div>
       <div className="flex items-center justify-end mb-6">
         <button
           onClick={() => setAddOpen(true)}
@@ -423,7 +427,7 @@ export default function MenuManager() {
                       {item.tax_category === 'reduced' ? '軽減8%' : '標準10%'}
                     </span>
                     {item.is_staff_only && (
-                      <span className="text-xs px-2.5 py-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium flex-shrink-0">
+                      <span className="text-xs px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 font-medium flex-shrink-0">
                         従業員専用
                       </span>
                     )}

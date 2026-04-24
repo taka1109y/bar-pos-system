@@ -90,12 +90,10 @@ export default function PricingSettings() {
   };
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
-      <div className="mb-6">
-        <h2 className="text-base font-bold text-slate-900">価格エンジン設定</h2>
-        <p className="text-xs text-slate-400 mt-1">
-          ダイナミックプライシングのパラメータをリアルタイムで変更できます。
-        </p>
+    <div className="px-8 py-12 max-w-7xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-slate-900">価格エンジン設定</h1>
+        <p className="text-base text-body leading-relaxed mt-2">ダイナミックプライシングのパラメータをリアルタイムで変更できます</p>
       </div>
 
       <div className="space-y-4">
@@ -111,7 +109,7 @@ export default function PricingSettings() {
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-slate-800">{field.label}</span>
                     {isChanged && (
-                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-medium">
+                      <span className="text-[10px] px-1.5 py-0.5 bg-primary-50 text-primary-600 rounded font-medium">
                         変更済
                       </span>
                     )}

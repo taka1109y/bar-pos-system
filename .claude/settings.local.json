@@ -63,7 +63,8 @@
       "Bash(sips --cropToHeightWidth 384 512 --cropOffset 384 512 /Users/takaadm/Desktop/bar-pos-system/docs/img/close1.png --out /tmp/close_br.png)",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('register_open:', d['register_open']\\)\")",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('reduced_tax_rate:', d.get\\('reduced_tax_rate'\\), '| default_tax_category:', d.get\\('default_tax_category'\\)\\)\")",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('tax_category:', d.get\\('tax_category'\\)\\)\")"
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('tax_category:', d.get\\('tax_category'\\)\\)\")",
+      "Bash(npx vite *)"
     ]
   }
 }

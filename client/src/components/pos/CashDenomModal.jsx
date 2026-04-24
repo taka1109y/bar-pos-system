@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
-const BLUE_HEADER = 'bg-sky-400 text-white';
-const BLUE_BTN    = 'bg-sky-400 hover:bg-sky-500 active:bg-sky-600 text-white font-bold rounded transition-colors';
+const BLUE_HEADER = 'bg-primary-500 text-white';
+const BLUE_BTN    = 'bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white font-bold rounded transition-colors';
 
 export const DENOMS = [
   { label: '1万円', value: 10000 },
@@ -71,10 +71,10 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
                 return (
                   <div
                     key={d.value}
-                    className={`flex items-center gap-2 px-4 py-1 border-b border-slate-100 last:border-0 cursor-pointer ${isFocused ? 'bg-sky-50' : 'hover:bg-slate-50'}`}
+                    className={`flex items-center gap-2 px-4 py-1 border-b border-slate-100 last:border-0 cursor-pointer ${isFocused ? 'bg-primary-50' : 'hover:bg-slate-50'}`}
                     onClick={() => setFocusedDenom(d.value)}
                   >
-                    <span className={`w-14 text-[12px] flex-shrink-0 ${isFocused ? 'text-sky-600 font-bold' : 'text-slate-700'}`}>
+                    <span className={`w-14 text-[12px] flex-shrink-0 ${isFocused ? 'text-primary-600 font-bold' : 'text-slate-700'}`}>
                       {d.label}
                     </span>
                     <div className="flex-1">
@@ -85,7 +85,7 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
                         onFocus={() => setFocusedDenom(d.value)}
                         onChange={(e) => onChange(d.value, e.target.value.replace(/\D/g, ''))}
                         placeholder="0"
-                        className={`w-full text-right text-[12px] tabular-nums border rounded bg-white px-1.5 py-0.5 focus:outline-none ${isFocused ? 'border-sky-400 ring-1 ring-sky-400' : 'border-slate-200'}`}
+                        className={`w-full text-right text-[12px] tabular-nums border rounded bg-white px-1.5 py-0.5 focus:outline-none ${isFocused ? 'border-primary-400 ring-1 ring-primary-400' : 'border-slate-200'}`}
                       />
                     </div>
                     <span className="w-24 text-right text-[12px] tabular-nums text-slate-700 flex-shrink-0">
@@ -97,9 +97,9 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
             </div>
 
             {/* 合計 */}
-            <div className="flex items-center px-4 py-2 border-t-2 border-sky-400 bg-sky-50 flex-shrink-0">
+            <div className="flex items-center px-4 py-2 border-t-2 border-primary-400 bg-primary-50 flex-shrink-0">
               <span className="flex-1 text-[12px] font-bold text-slate-700">合計</span>
-              <span className="text-[15px] font-black text-sky-600 tabular-nums">
+              <span className="text-[15px] font-black text-primary-600 tabular-nums">
                 ¥{total.toLocaleString()}
               </span>
             </div>
@@ -114,7 +114,7 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
                   <span className="text-[10px] text-slate-400">
                     {DENOMS.find(d => d.value === focusedDenom)?.label}
                   </span>
-                  <span className="text-[16px] font-bold text-sky-600 tabular-nums text-right leading-tight">
+                  <span className="text-[16px] font-bold text-primary-600 tabular-nums text-right leading-tight">
                     {denomCounts[focusedDenom] || '0'} 枚
                   </span>
                 </>
@@ -138,7 +138,7 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
                         ? 'bg-slate-100 text-slate-300 cursor-default'
                         : isSpecial
                           ? 'bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-600'
-                          : 'bg-white border border-slate-200 hover:bg-sky-50 hover:border-sky-300 active:bg-sky-100 text-slate-800'
+                          : 'bg-white border border-slate-200 hover:bg-primary-50 hover:border-primary-300 active:bg-primary-100 text-slate-800'
                       }`}
                   >
                     {key}

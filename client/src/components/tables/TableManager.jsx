@@ -169,7 +169,11 @@ export default function TableManager() {
   );
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
+    <div className="px-8 py-12 max-w-7xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-slate-900">テーブル管理</h1>
+        <p className="text-base text-body leading-relaxed mt-2">テーブル・カウンターの追加・編集・削除</p>
+      </div>
       <div className="flex items-center justify-end mb-6">
         <button
           onClick={() => { setAddOpen(true); setError(''); }}

@@ -129,7 +129,11 @@ export default function ReceiptsPage() {
   const totalGiftCert = effectiveReceipts.reduce((s, r) => s + (r.gift_cert_amount ?? 0), 0);
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="px-8 py-12 max-w-7xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-slate-900">伝票情報</h1>
+        <p className="text-base text-body leading-relaxed mt-2">会計済み伝票を日付別に確認できます</p>
+      </div>
       <div className="mb-6 space-y-3">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
