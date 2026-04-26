@@ -72,11 +72,13 @@ CREATE TABLE IF NOT EXISTS order_items (
     quantity     INTEGER NOT NULL DEFAULT 1,
     unit_price   NUMERIC(10,2) NOT NULL,
     item_name    TEXT NOT NULL,
-    status       TEXT NOT NULL DEFAULT 'pending'
+    status       TEXT NOT NULL DEFAULT 'pending',
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- 既存DBへの追加カラムマイグレーション
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 CREATE TABLE IF NOT EXISTS pricing_events (
     id           SERIAL PRIMARY KEY,

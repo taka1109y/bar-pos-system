@@ -179,26 +179,12 @@ router.post('/:id/items', async (req, res, next) => {
 
     await client.query('BEGIN');
 
-    // 同一商品・同一単価の行があれば数量を積む。価格が変わっていたら新しい行を追加する。
-    const { rows: existingItems } = await client.query(
-      `SELECT * FROM order_items
-       WHERE order_id = $1 AND menu_item_id = $2 AND unit_price::float = $3`,
-      [order.id, menu_item_id, currentPrice]
+    // 注文アクションごとに必ず新しい行を追加する（マージしない）
+    await client.query(
+      `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, item_name)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [order.id, menu_item_id, quantity, currentPrice, menuItem.name]
     );
-
-    if (existingItems[0]) {
-      await client.query(
-        'UPDATE order_items SET quantity = quantity + $1 WHERE id = $2',
-        [quantity, existingItems[0].id]
-      );
-    } else {
-      // 価格が異なる場合（値上がり・値下がり後）は別行として記録
-      await client.query(
-        `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, item_name)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [order.id, menu_item_id, quantity, currentPrice, menuItem.name]
-      );
-    }
 
     await recalcTotal(client, order.id);
 
@@ -227,6 +213,7 @@ router.post('/:id/items', async (req, res, next) => {
       chargePerPerson: updated.charge_per_person,
       guestCount: updated.guest_count,
     });
+    broadcast('kitchen:new_item', { orderId: order.id, tableId: order.table_id });
 
     res.json(updated);
   } catch (err) {

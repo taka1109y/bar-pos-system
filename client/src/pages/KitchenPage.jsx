@@ -3,12 +3,35 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import socket from '../socket';
 
-function elapsed(openedAt) {
-  const diff = Math.floor((Date.now() - new Date(openedAt).getTime()) / 1000);
+function elapsed(orderedAt) {
+  const diff = Math.floor((Date.now() - new Date(orderedAt).getTime()) / 1000);
   if (diff < 60) return `${diff}秒`;
   const m = Math.floor(diff / 60);
   const s = diff % 60;
   return `${m}分${s}秒`;
+}
+
+let _audioCtx = null;
+function getAudioCtx() {
+  if (!_audioCtx) _audioCtx = new AudioContext();
+  return _audioCtx;
+}
+
+function playNotification() {
+  try {
+    const ctx = getAudioCtx();
+    ctx.resume().then(() => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    });
+  } catch (_) {}
 }
 
 function CancelConfirmModal({ item, onConfirm, onClose }) {
@@ -56,13 +79,16 @@ export default function KitchenPage() {
   }, [queryClient]);
 
   useEffect(() => {
+    const handleNewItem = () => { refetch(); playNotification(); };
     socket.on('order:updated',         refetch);
     socket.on('table:status_changed',  refetch);
     socket.on('kitchen:item_served',   refetch);
+    socket.on('kitchen:new_item',      handleNewItem);
     return () => {
       socket.off('order:updated',        refetch);
       socket.off('table:status_changed', refetch);
       socket.off('kitchen:item_served',  refetch);
+      socket.off('kitchen:new_item',     handleNewItem);
     };
   }, [refetch]);
 
@@ -139,7 +165,7 @@ export default function KitchenPage() {
             {/* 行リスト */}
             <div className="divide-y divide-slate-100">
               {rows.map((row) => {
-                const diffSec = Math.floor((now - new Date(row.openedAt).getTime()) / 1000);
+                const diffSec = Math.floor((now - new Date(row.orderedAt).getTime()) / 1000);
                 const isOld = diffSec > 600;
                 const isServePending  = serveMutation.isPending  && serveMutation.variables  === row.itemId;
                 const isCancelPending = cancelMutation.isPending && cancelMutation.variables?.itemId === row.itemId;
@@ -154,10 +180,10 @@ export default function KitchenPage() {
                     {/* 受注時刻 */}
                     <div>
                       <p className="text-sm text-slate-700 font-mono font-semibold">
-                        {new Date(row.openedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        {new Date(row.orderedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                       </p>
                       <p className={`text-[11px] mt-0.5 ${isOld ? 'text-red-600 font-bold' : 'text-slate-400'}`}>
-                        {elapsed(row.openedAt)}経過
+                        {elapsed(row.orderedAt)}経過
                       </p>
                     </div>
 

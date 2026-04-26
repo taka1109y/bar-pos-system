@@ -13,14 +13,14 @@ router.get('/orders', async (req, res, next) => {
         oi.item_name,
         oi.quantity,
         oi.status      AS item_status,
+        oi.created_at  AS ordered_at,
         o.table_id,
-        o.opened_at,
         t.name         AS table_name
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
       JOIN tables t ON t.id = o.table_id
       WHERE o.status = 'open' AND oi.status = 'pending'
-      ORDER BY o.opened_at ASC, oi.id ASC
+      ORDER BY oi.created_at ASC, oi.id ASC
     `);
 
     res.json(rows.map((r) => ({
@@ -31,7 +31,7 @@ router.get('/orders', async (req, res, next) => {
       itemName:  r.item_name,
       quantity:  r.quantity,
       status:    r.item_status,
-      openedAt:  r.opened_at,
+      orderedAt: r.ordered_at,
     })));
   } catch (err) {
     next(err);
