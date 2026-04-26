@@ -2,74 +2,70 @@ import { useQuery } from '@tanstack/react-query';
 import usePriceStore from '../../store/usePriceStore';
 import { api } from '../../api';
 
-const W   = 100; // viewBox 幅（SVG 内部座標）
-const H   = 22;  // viewBox 高さ
-const PAD = 3;   // 上下パディング
+const W = 160;
+const H = 36;
 
-export default function Sparkline({ itemId, basePrice, isUp, isDown }) {
+export default function Sparkline({ itemId, basePrice, isUp, isDown, darkBg = false }) {
   const liveData  = usePriceStore((s) => s.prices[itemId]);
   const livePrice = liveData?.current_price ?? basePrice;
 
   const { data: history = [] } = useQuery({
-    queryKey: ['price-history', itemId],
-    queryFn:  () => api.getPriceHistory(itemId, 14),
-    staleTime: 30_000,
+    queryKey:        ['price-history', itemId],
+    queryFn:         () => api.getPriceHistory(itemId, 24),
+    staleTime:       30_000,
     refetchInterval: 35_000,
   });
 
-  // 履歴（時系列順）＋リアルタイム現在価格を末尾に追加
   const prices = [...history.map((h) => h.price), livePrice];
+  if (prices.length < 2) return null;
+
+  const color  = isUp ? '#00e5a0' : isDown ? '#ff4466' : '#3a3a50';
   const N      = prices.length;
-  const color  = isUp ? '#10b981' : isDown ? '#ef4444' : '#94a3b8';
-
-  const min   = Math.min(...prices);
-  const max   = Math.max(...prices);
-  const range = max - min;
-
-  const toX = (i) => (i / Math.max(N - 1, 1)) * W;
-  const toY = (p) =>
-    range > 0
-      ? PAD + (1 - (p - min) / range) * (H - PAD * 2)
-      : H / 2;
-
-  const baseY  = Math.max(PAD, Math.min(H - PAD, toY(basePrice)));
+  const min    = Math.min(...prices);
+  const max    = Math.max(...prices);
+  const range  = max - min || 1;
+  const toX    = (i) => (i / (N - 1)) * W;
+  const toY    = (p) => H - ((p - min) / range) * (H - 4) - 2;
+  const pts    = prices.map((p, i) => `${toX(i)},${toY(p)}`);
   const lastX  = toX(N - 1);
   const lastY  = toY(prices[N - 1]);
+  const area   = `${toX(0)},${H} ${pts.join(' ')} ${lastX},${H}`;
+  const gradId = `sg-${color.replace('#', '')}`;
 
-  const polyPoints = prices.map((p, i) => `${toX(i)},${toY(p)}`).join(' ');
-
-  // 面塗りパス（折れ線の下を閉じる）
-  const fillD =
-    `M ${toX(0)},${toY(prices[0])} ` +
-    prices.map((p, i) => `L ${toX(i)},${toY(p)}`).join(' ') +
-    ` L ${lastX},${H} L ${toX(0)},${H} Z`;
-
-  return (
+  const svg = (
     <svg
+      width={W}
+      height={H}
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="none"
-      className="w-full h-7 mt-1.5"
+      style={{ display: 'block', width: '100%', height: H }}
     >
-      {/* 基準価格の破線 */}
-      <line
-        x1="0" y1={baseY} x2={W} y2={baseY}
-        stroke="#cbd5e1"
-        strokeWidth="0.6"
-        strokeDasharray="2,2"
-      />
-      {/* 面塗り */}
-      <path d={fillD} fill={color} fillOpacity="0.12" />
-      {/* 折れ線 */}
+      <defs>
+        <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%"   stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0"   />
+        </linearGradient>
+      </defs>
+      <polygon points={area} fill={`url(#${gradId})`} />
       <polyline
-        points={polyPoints}
+        points={pts.join(' ')}
         fill="none"
         stroke={color}
         strokeWidth="1.5"
-        strokeLinecap="round"
         strokeLinejoin="round"
+        strokeLinecap="round"
       />
-      {/* 最新価格点（●） */}
-      <circle cx={lastX} cy={lastY} r="2.5" fill={color} />
+      <circle cx={lastX} cy={lastY} r="3" fill={color} stroke={darkBg ? '#1e1e28' : '#fff'} strokeWidth="1.5" />
     </svg>
   );
+
+  if (darkBg) {
+    return (
+      <div style={{ width: '80%', margin: '6px auto 0', borderRadius: 6, overflow: 'hidden', background: 'rgba(0,0,0,0.3)', padding: '4px 4px 2px' }}>
+        {svg}
+      </div>
+    );
+  }
+
+  return <div style={{ width: '80%', margin: '6px auto 0' }}>{svg}</div>;
 }

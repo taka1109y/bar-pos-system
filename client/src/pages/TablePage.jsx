@@ -1,15 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import socket from '../socket';
 import usePriceStore from '../store/usePriceStore';
 import TickerBar from '../components/layout/TickerBar';
-import MenuGrid from '../components/pos/MenuGrid';
+import MenuGrid, { CategorySidebar } from '../components/pos/MenuGrid';
 
-// ───────────────────────────────────────────
-// 時刻フック
-// ───────────────────────────────────────────
 function useClock() {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
@@ -23,94 +20,120 @@ function useClock() {
 // 人数選択 初期画面
 // ───────────────────────────────────────────
 function WelcomeScreen({ tableName, onSelectGuests }) {
-  const now = useClock();
+  const now     = useClock();
   const timeStr = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
   return (
-    <div className="flex flex-col h-screen bg-slate-900 overflow-hidden select-none">
-      {/* トップバー */}
+    <div className="flex flex-col h-screen overflow-hidden select-none" style={{ background: '#0b0b0f' }}>
       <div className="flex items-start justify-between px-8 pt-8 pb-0 flex-shrink-0">
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">TABLE</p>
-          <p className="text-3xl font-black text-white leading-none">{tableName}</p>
+          <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 13, letterSpacing: '3px', color: '#3a3a50', marginBottom: 4 }}>
+            TABLE
+          </p>
+          <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, color: '#f0f0f5', lineHeight: 1 }}>
+            {tableName}
+          </p>
         </div>
-        <div className="text-right">
-          <p className="text-4xl font-black text-slate-200 tabular-nums leading-none">{timeStr}</p>
-        </div>
+        <p className="tabular-nums" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 50, fontWeight: 700, color: '#f0f0f5', lineHeight: 1 }}>
+          {timeStr}
+        </p>
       </div>
 
-      {/* 中央コンテンツ */}
       <div className="flex-1 flex flex-col items-center justify-center px-8 gap-10">
         <div className="text-center">
-          <p className="text-slate-400 text-base font-medium mb-2">いらっしゃいませ</p>
-          <p className="text-white text-3xl font-black leading-snug">
+          <p style={{ color: '#7a7a90', fontSize: 18, fontWeight: 500, marginBottom: 10 }}>いらっしゃいませ</p>
+          <p style={{ fontFamily: "'Noto Sans JP', sans-serif", color: '#f0f0f5', fontSize: 36, fontWeight: 900, lineHeight: 1.4 }}>
             何名様でいらっしゃいますか？
           </p>
         </div>
 
-        {/* 人数ボタングリッド */}
-        <div className="grid grid-cols-5 gap-3 w-full max-w-lg">
+        <div className="grid grid-cols-5 gap-4 w-full max-w-xl">
           {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
             <button
               key={n}
               onClick={() => onSelectGuests(n)}
-              className="aspect-square flex flex-col items-center justify-center bg-slate-800 hover:bg-amber-500 active:scale-95 border border-slate-700 hover:border-amber-400 rounded-2xl transition-all duration-150 group"
+              className="aspect-square flex flex-col items-center justify-center active:scale-95"
+              style={{ background: '#1e1e28', border: '1px solid #252532', borderRadius: 18, cursor: 'pointer', transition: 'all 0.15s' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background  = '#e52233';
+                e.currentTarget.style.borderColor = '#e52233';
+                e.currentTarget.style.boxShadow   = '0 0 20px rgba(229,34,51,0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background  = '#1e1e28';
+                e.currentTarget.style.borderColor = '#252532';
+                e.currentTarget.style.boxShadow   = 'none';
+              }}
             >
-              <span className="text-2xl font-black text-white group-hover:text-slate-900 leading-none">
+              <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 38, fontWeight: 700, color: '#f0f0f5', lineHeight: 1 }}>
                 {n}
               </span>
-              <span className="text-[10px] font-semibold text-slate-500 group-hover:text-slate-800 mt-0.5">
-                名
-              </span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#7a7a90', marginTop: 3 }}>名</span>
             </button>
           ))}
         </div>
 
-        <p className="text-slate-600 text-sm">タップして人数をお選びください</p>
+        <p style={{ color: '#3a3a50', fontSize: 16 }}>タップして人数をお選びください</p>
       </div>
     </div>
   );
 }
 
 // ───────────────────────────────────────────
-// 注文確認ボトムシート
+// 注文確認モーダル（中央表示）
 // ───────────────────────────────────────────
 function ConfirmModal({ item, livePrice, onConfirm, onCancel }) {
-  const price = livePrice?.current_price ?? item.current_price;
+  const price     = livePrice?.current_price ?? item.current_price;
   const pctChange = livePrice?.pct_change ?? 0;
-  const isUp = pctChange > 0;
+  const isUp      = pctChange > 0;
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/60 z-40 fade-in" onClick={onCancel} />
-      <div className="fixed bottom-0 left-0 right-0 z-50 slide-up">
-        <div className="bg-slate-800 rounded-t-3xl px-6 pt-5 pb-12 max-w-lg mx-auto border-t border-slate-700/60">
-          <div className="w-10 h-1 bg-slate-600 rounded-full mx-auto mb-6" />
-          <div className="mb-8">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
-              注文しますか？
-            </p>
-            <h3 className="text-2xl font-black text-white mb-4">{item.name}</h3>
-            <div className="flex items-baseline gap-3">
-              <span className="text-4xl font-black text-amber-400">
-                ¥{price.toLocaleString()}
+      <div
+        className="fixed inset-0 z-40 fade-in"
+        style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)' }}
+        onClick={onCancel}
+      />
+      <div className="fixed z-50 modal-slide-up" style={{ top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 360 }}>
+        <div style={{ background: '#14141a', border: '1px solid #e52233', borderRadius: 20, boxShadow: '0 0 48px rgba(229,34,51,0.35)', padding: '32px 28px 28px' }}>
+          <p className="text-center mb-6" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: '3px', color: '#f0f0f5' }}>
+            注文を確認
+          </p>
+          <h3 className="text-center mb-2" style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 19, fontWeight: 700, color: '#ffc531' }}>
+            {item.name}
+          </h3>
+          <div className="flex items-baseline justify-center gap-3 mb-8">
+            <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 40, fontWeight: 700, color: '#f0f0f5' }}>
+              ¥{price.toLocaleString()}
+            </span>
+            {item.is_drink && pctChange !== 0 && (
+              <span style={{ fontSize: 16, fontWeight: 700, color: isUp ? '#00e5a0' : '#ff4466' }}>
+                {isUp ? '▲' : '▼'}{Math.abs(pctChange).toFixed(1)}%
               </span>
-              {item.is_drink && pctChange !== 0 && (
-                <span className={`text-sm font-bold ${isUp ? 'text-green-400' : 'text-red-400'}`}>
-                  {isUp ? '▲' : '▼'}{Math.abs(pctChange).toFixed(1)}%
-                </span>
-              )}
-            </div>
+            )}
           </div>
           <button
             onClick={() => onConfirm(1)}
-            className="w-full py-4 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 active:scale-[0.98] text-slate-900 font-black text-lg rounded-2xl transition-all shadow-xl shadow-amber-500/25 mb-3"
+            className="w-full active:scale-[0.98]"
+            style={{
+              background: 'linear-gradient(90deg,#e52233,#9a1020)', border: 'none', borderRadius: 12,
+              padding: '16px 0', color: '#fff', fontFamily: "'Noto Sans JP', sans-serif",
+              fontSize: 18, fontWeight: 700, cursor: 'pointer', marginBottom: 12,
+              boxShadow: '0 0 24px rgba(229,34,51,0.3)', transition: 'all 0.12s',
+            }}
           >
             注文する
           </button>
           <button
             onClick={onCancel}
-            className="w-full py-3 text-slate-400 hover:text-slate-300 text-sm font-medium transition-colors"
+            className="w-full"
+            style={{
+              background: 'transparent', border: 'none', padding: '12px 0',
+              color: '#7a7a90', fontSize: 15, cursor: 'pointer',
+              fontFamily: "'Noto Sans JP', sans-serif", transition: 'color 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = '#f0f0f5'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = '#7a7a90'; }}
           >
             キャンセル
           </button>
@@ -121,47 +144,164 @@ function ConfirmModal({ item, livePrice, onConfirm, onCancel }) {
 }
 
 // ───────────────────────────────────────────
+// 注文送信トースト
+// ───────────────────────────────────────────
+function OrderToast({ toast }) {
+  if (!toast) return null;
+  return (
+    <div className="sent-pop fixed z-50 pointer-events-none" style={{ top: 88, left: '50%', whiteSpace: 'nowrap' }}>
+      <div style={{
+        background: '#00e5a0', color: '#001a10', borderRadius: 50,
+        padding: '12px 32px', fontFamily: "'Noto Sans JP', sans-serif",
+        fontSize: 16, fontWeight: 700, boxShadow: '0 0 32px rgba(0,229,160,0.3)',
+      }}>
+        ✓ 「{toast.name}」を注文しました ¥{toast.price.toLocaleString()}
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────
+// トップバー
+// ───────────────────────────────────────────
+function TopBar({ tableName, tableId, guestCount, timeStr }) {
+  return (
+    <div
+      className="flex items-center justify-between flex-shrink-0 px-5"
+      style={{ height: 68, background: 'linear-gradient(90deg,#0b0b0f,#18181f 50%,#0b0b0f)', borderBottom: '1px solid #252532', position: 'relative' }}
+    >
+      <div className="absolute top-0 left-0 right-0" style={{ height: 2, background: 'linear-gradient(90deg,transparent,#e52233,transparent)' }} />
+      <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center flex-shrink-0" style={{ width: 38, height: 38, background: '#e52233', borderRadius: 8 }}>
+          <span style={{ color: '#fff', fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>F</span>
+        </div>
+        <div>
+          <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#f0f0f5', letterSpacing: '2px', lineHeight: 1 }}>SPORTS BAR</p>
+          <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 11, color: '#3a3a50', letterSpacing: '2px' }}>DYNAMIC PRICING</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-4">
+        <div className="flex flex-col items-center justify-center px-3 py-1.5" style={{ background: '#1e1e28', borderRadius: 8, minWidth: 56 }}>
+          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 10, color: '#3a3a50', letterSpacing: '1px' }}>TABLE</span>
+          <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 24, fontWeight: 700, color: '#ffc531', lineHeight: 1 }}>{tableId}</span>
+        </div>
+        <span className="tabular-nums" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 26, fontWeight: 700, color: '#f0f0f5' }}>
+          {timeStr}
+        </span>
+        <div style={{ fontSize: 15, color: '#7a7a90', fontFamily: "'Noto Sans JP', sans-serif" }}>{guestCount}名様</div>
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────
+// 注文履歴パネル（右側）
+// ───────────────────────────────────────────
+function OrderHistoryPanel({ order, chargeAmt, total, itemCount }) {
+  const items = order?.items ?? [];
+  return (
+    <div className="flex flex-col flex-shrink-0" style={{ width: 250, background: '#14141a', borderLeft: '1px solid #252532' }}>
+      <div className="flex items-center justify-between flex-shrink-0 px-4 py-3" style={{ background: '#1e1e28', borderBottom: '1px solid #252532' }}>
+        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: '#f0f0f5', letterSpacing: '2px' }}>注文履歴</p>
+        {itemCount > 0 && (
+          <span className="flex items-center justify-center" style={{ background: '#e52233', color: '#fff', borderRadius: 50, minWidth: 24, height: 24, fontSize: 13, fontWeight: 700, fontFamily: "'Barlow Condensed', sans-serif", padding: '0 6px' }}>
+            {itemCount}
+          </span>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto scrollbar-dark">
+        {chargeAmt > 0 && (
+          <div className="px-4 py-3" style={{ background: 'rgba(255,197,49,0.07)', borderBottom: '1px solid #252532' }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 14, fontWeight: 700, color: '#ffc531' }}>チャージ</p>
+                <p style={{ fontSize: 12, color: '#7a7a90', fontFamily: "'Noto Sans JP', sans-serif" }}>
+                  {order.guest_count}名 × ¥{Math.floor(order.charge_per_person).toLocaleString()}
+                </p>
+              </div>
+              <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 17, fontWeight: 700, color: '#ffc531' }}>
+                ¥{Math.floor(chargeAmt).toLocaleString()}
+              </span>
+            </div>
+          </div>
+        )}
+        {items.length === 0 && chargeAmt === 0 ? (
+          <div className="flex flex-col items-center justify-center h-32 gap-2">
+            <span style={{ fontSize: 30 }}>🍺</span>
+            <p style={{ fontSize: 14, color: '#3a3a50', fontFamily: "'Noto Sans JP', sans-serif" }}>まだ注文がありません</p>
+          </div>
+        ) : (
+          items.map((item, idx) => (
+            <div key={item.id} className="px-4 py-3" style={{ borderBottom: '1px solid #252532', background: idx === 0 ? 'rgba(0,229,160,0.04)' : 'transparent' }}>
+              <div className="flex items-start justify-between gap-2">
+                <p className="leading-snug flex-1 line-clamp-2" style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 14, fontWeight: 600, color: '#f0f0f5' }}>
+                  {item.item_name}
+                </p>
+                <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700, color: '#ffc531', flexShrink: 0 }}>
+                  ¥{(item.quantity * item.unit_price).toLocaleString()}
+                </span>
+              </div>
+              <p style={{ fontSize: 13, color: '#7a7a90', fontFamily: "'Barlow Condensed', sans-serif", marginTop: 2 }}>× {item.quantity}</p>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="flex-shrink-0 px-4 py-4" style={{ borderTop: '1px solid #252532', background: 'linear-gradient(180deg,#14141a,#150a0c)' }}>
+        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 12, color: '#3a3a50', letterSpacing: '2px', marginBottom: 3 }}>合計金額</p>
+        <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 34, fontWeight: 700, color: total > 0 ? '#ffc531' : '#3a3a50' }}>
+          ¥{total.toLocaleString()}
+        </p>
+        <p style={{ fontSize: 11, color: '#3a3a50', fontFamily: "'Noto Sans JP', sans-serif", marginTop: 3 }}>※ 税込表示</p>
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────
 // メインページ
 // ───────────────────────────────────────────
 export default function TablePage() {
-  const { tableId } = useParams();
-  const tableIdNum = Number(tableId);
-  const queryClient = useQueryClient();
+  const { tableId }  = useParams();
+  const tableIdNum   = Number(tableId);
+  const queryClient  = useQueryClient();
   const { initPrices, updatePrices, prices } = usePriceStore();
-  const [confirmItem, setConfirmItem] = useState(null);
-  const [guestCount, setGuestCount] = useState(null); // null = 初期画面
 
+  const [confirmItem,       setConfirmItem]       = useState(null);
+  const [guestCount,        setGuestCount]        = useState(null);
+  const [toast,             setToast]             = useState(null);
+  const [activeCategory,    setActiveCategory]    = useState(null);
+  const [activeSubcategory, setActiveSubcategory] = useState(null);
+  const toastTimerRef = useRef(null);
+
+  const now     = useClock();
+  const timeStr = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
   const orderKey = ['order', tableIdNum];
 
-  const { data: tables = [] } = useQuery({ queryKey: ['tables'], queryFn: api.getTables });
-  const table = tables.find((t) => t.id === tableIdNum);
-
-  const { data: menuItems = [] } = useQuery({ queryKey: ['menu'], queryFn: api.getMenu, staleTime: 60_000 });
-  const { data: categories = [] } = useQuery({ queryKey: ['categories'], queryFn: api.getCategories, staleTime: 60_000 });
+  const { data: tables = [] }        = useQuery({ queryKey: ['tables'],        queryFn: api.getTables });
+  const { data: menuItems = [] }     = useQuery({ queryKey: ['menu'],          queryFn: api.getMenu,          staleTime: 60_000 });
+  const { data: categories = [] }    = useQuery({ queryKey: ['categories'],    queryFn: api.getCategories,    staleTime: 60_000 });
   const { data: subcategories = [] } = useQuery({ queryKey: ['subcategories'], queryFn: api.getSubcategories, staleTime: 60_000 });
-  const { data: order } = useQuery({ queryKey: orderKey, queryFn: () => api.getOrderByTable(tableIdNum), enabled: !!tableIdNum });
+  const { data: order }              = useQuery({ queryKey: orderKey,          queryFn: () => api.getOrderByTable(tableIdNum), enabled: !!tableIdNum });
 
-  // 既存注文がある場合は初期画面をスキップ（注文のguest_countを復元）
+  const table     = tables.find((t) => t.id === tableIdNum);
+  const tableName = table?.name ?? `テーブル ${tableId}`;
+
   useEffect(() => {
-    if (order != null && guestCount === null) {
-      setGuestCount(order.guest_count ?? 1);
-    }
+    if (order != null && guestCount === null) setGuestCount(order.guest_count ?? 1);
   }, [order]);
 
-  // 会計完了後に初期画面へ戻す
   const resetToWelcome = useCallback(() => {
     setGuestCount(null);
     setConfirmItem(null);
     queryClient.removeQueries({ queryKey: orderKey });
   }, [tableIdNum]);
 
-  useEffect(() => {
-    api.getPrices().then(initPrices).catch(console.error);
-  }, []);
+  useEffect(() => { api.getPrices().then(initPrices).catch(console.error); }, []);
 
   useEffect(() => {
     socket.emit('client:subscribe_table', { tableId: tableIdNum });
-
     const handlePricesUpdated = ({ items }) => updatePrices(items);
     const handlePricesSync    = ({ items }) => initPrices(items);
     const handleReconnect     = () => api.getPrices().then(initPrices).catch(console.error);
@@ -169,29 +309,22 @@ export default function TablePage() {
       if (data.tableId === tableIdNum) {
         queryClient.setQueryData(orderKey, (old) => ({
           ...(old ?? {}),
-          id: data.orderId,
-          table_id: tableIdNum,
-          items: data.items,
-          total_amount: data.total,
-          charge_amount: data.chargeAmount ?? old?.charge_amount,
+          id: data.orderId, table_id: tableIdNum, items: data.items,
+          total_amount:      data.total,
+          charge_amount:     data.chargeAmount    ?? old?.charge_amount,
           charge_per_person: data.chargePerPerson ?? old?.charge_per_person,
-          guest_count: data.guestCount ?? old?.guest_count,
+          guest_count:       data.guestCount      ?? old?.guest_count,
         }));
       }
     };
-    // 会計完了 → available になったら初期画面へ
     const handleTableStatus = (data) => {
-      if (data.tableId === tableIdNum && data.status === 'available') {
-        resetToWelcome();
-      }
+      if (data.tableId === tableIdNum && data.status === 'available') resetToWelcome();
     };
-
     socket.on('prices:updated',       handlePricesUpdated);
     socket.on('prices:sync',          handlePricesSync);
     socket.on('connect',              handleReconnect);
     socket.on('order:updated',        handleOrderUpdated);
     socket.on('table:status_changed', handleTableStatus);
-
     return () => {
       socket.emit('client:unsubscribe_table', { tableId: tableIdNum });
       socket.off('prices:updated',       handlePricesUpdated);
@@ -202,23 +335,26 @@ export default function TablePage() {
     };
   }, [tableIdNum, resetToWelcome]);
 
+  const showToast = (name, price) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ name, price });
+    toastTimerRef.current = setTimeout(() => setToast(null), 2000);
+  };
+
   const openOrderMutation = useMutation({
     mutationFn: (count) => api.createOrder(tableIdNum, count ?? guestCount ?? 1),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
+    onSuccess:  () => queryClient.invalidateQueries({ queryKey: orderKey }),
     onError: (err) => {
-      // 409: 注文がすでに存在する（ページ更新直後に稀に起こる競合）→ 既存注文を再フェッチ
       if (err.message?.includes('already has an open order')) {
         queryClient.invalidateQueries({ queryKey: orderKey });
       } else {
-        // その他のエラーは初期画面に戻す
         setGuestCount(null);
       }
     },
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menu_item_id, quantity }) =>
-      api.addOrderItem(orderId, { menu_item_id, quantity }),
+    mutationFn: ({ orderId, menu_item_id, quantity }) => api.addOrderItem(orderId, { menu_item_id, quantity }),
     onMutate: async ({ menu_item_id, quantity, price, name }) => {
       await queryClient.cancelQueries({ queryKey: orderKey });
       const previous = queryClient.getQueryData(orderKey);
@@ -232,155 +368,67 @@ export default function TablePage() {
       });
       return { previous };
     },
-    onError: (_err, _vars, context) => {
-      queryClient.setQueryData(orderKey, context.previous);
-    },
+    onError:   (_err, _vars, context) => { queryClient.setQueryData(orderKey, context.previous); },
+    onSuccess: (_data, vars) => { showToast(vars.name, vars.price); },
   });
 
-  const handleSelectGuests = (count) => {
-    setGuestCount(count);
-    openOrderMutation.mutate(count);
-  };
-
-  const handleTapItem = (menuItem) => setConfirmItem(menuItem);
+  const handleSelectGuests = (count) => { setGuestCount(count); openOrderMutation.mutate(count); };
+  const handleTapItem      = (menuItem) => setConfirmItem(menuItem);
 
   const handleConfirmAdd = async (qty) => {
-    const item = confirmItem;
+    const item       = confirmItem;
     setConfirmItem(null);
-    const livePrice = prices[item.id];
-    const price = livePrice?.current_price ?? item.current_price;
+    const livePrice  = prices[item.id];
+    const price      = livePrice?.current_price ?? item.current_price;
     let currentOrder = order;
     if (!currentOrder) {
       try {
         currentOrder = await openOrderMutation.mutateAsync(guestCount ?? 1);
       } catch {
-        // 409など: orderKeyを再フェッチして既存注文を取得
         await queryClient.invalidateQueries({ queryKey: orderKey });
         currentOrder = queryClient.getQueryData(orderKey);
-        if (!currentOrder) return; // 取得できなければ中止
+        if (!currentOrder) return;
       }
     }
     addItemMutation.mutate({ orderId: currentOrder.id, menu_item_id: item.id, quantity: qty, price, name: item.name });
   };
 
-  const chargeAmt = parseFloat(order?.charge_amount) || 0;
+  const chargeAmt  = parseFloat(order?.charge_amount) || 0;
   const itemsTotal = order?.items?.reduce((s, i) => s + i.quantity * i.unit_price, 0) ?? 0;
   const total      = itemsTotal + chargeAmt;
   const itemCount  = order?.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
-  const tableName = table?.name ?? `テーブル ${tableId}`;
+  const resolvedActiveCategory = activeCategory ?? categories[0]?.id;
 
-  // 人数未選択 → 初期画面
   if (guestCount === null) {
     return <WelcomeScreen tableName={tableName} onSelectGuests={handleSelectGuests} />;
   }
 
   return (
-    <div className="flex flex-col h-screen bg-slate-900 overflow-hidden">
+    <div className="flex flex-col h-screen overflow-hidden" style={{ background: '#0b0b0f' }}>
+      <TopBar tableName={tableName} tableId={tableId} guestCount={order?.guest_count ?? guestCount} timeStr={timeStr} />
       <TickerBar />
-
-      {/* ─── 横置き2ペインレイアウト ─── */}
       <div className="flex flex-1 overflow-hidden">
-
-        {/* ─── 左ペイン: メニュー ─── */}
-        <div className="flex-1 flex flex-col overflow-hidden border-r border-slate-700">
-          {/* ヘッダー */}
-          <header className="flex items-center justify-between px-6 py-4 bg-slate-900 border-b border-slate-800 flex-shrink-0">
-            <div>
-              <h1 className="font-black text-white text-xl leading-tight">
-                {tableName}
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">ご自由にご注文ください</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">{order?.guest_count ?? guestCount}名様</span>
-            </div>
-          </header>
-
-          {/* メニュースクロールエリア */}
-          <div className="flex-1 overflow-y-auto px-6 py-5">
-            <MenuGrid
-              menuItems={menuItems}
-              categories={categories}
-              subcategories={subcategories}
-              onAddItem={handleTapItem}
-              showImage={true}
-            />
-          </div>
+        <CategorySidebar
+          categories={categories}
+          subcategories={subcategories}
+          activeCategory={resolvedActiveCategory}
+          setActiveCategory={setActiveCategory}
+          activeSubcategory={activeSubcategory}
+          setActiveSubcategory={setActiveSubcategory}
+        />
+        <div className="flex-1 overflow-y-auto scrollbar-dark px-4 py-4">
+          <MenuGrid
+            menuItems={menuItems}
+            categories={categories}
+            subcategories={subcategories}
+            onAddItem={handleTapItem}
+            showImage={true}
+            activeCategory={resolvedActiveCategory}
+            activeSubcategory={activeSubcategory}
+          />
         </div>
-
-        {/* ─── 右ペイン: 注文サマリー ─── */}
-        <div className="w-80 flex flex-col bg-slate-950 flex-shrink-0">
-          {/* ペインヘッダー */}
-          <div className="px-5 py-4 border-b border-slate-800 flex-shrink-0">
-            <p className="text-xs font-bold text-amber-400 uppercase tracking-widest">注文内容</p>
-          </div>
-
-          {/* 注文アイテムリスト */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            {/* チャージ行 */}
-            {chargeAmt > 0 && (
-              <div className="bg-amber-900/30 rounded-xl px-4 py-3 border border-amber-700/30">
-                <p className="text-sm font-semibold text-amber-300 mb-1">チャージ</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-400">
-                    {order.guest_count}名 × ¥{Math.floor(order.charge_per_person).toLocaleString()}
-                  </span>
-                  <span className="text-sm font-black text-amber-400">
-                    ¥{Math.floor(chargeAmt).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            )}
-            {!order?.items?.length && chargeAmt === 0 ? (
-              <div className="flex flex-col items-center justify-center h-32 text-slate-600 text-sm gap-2">
-                <span className="text-2xl">🍺</span>
-                <p>まだ注文がありません</p>
-              </div>
-            ) : order?.items?.length > 0 ? (
-              order.items.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-slate-800 rounded-xl px-4 py-3 border border-slate-700/50"
-                >
-                  <p className="text-sm font-semibold text-slate-100 mb-2">{item.item_name}</p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-slate-700 hover:bg-slate-600 rounded-lg flex items-center justify-center text-slate-400 font-bold text-sm cursor-default">
-                        {item.quantity}
-                      </div>
-                    </div>
-                    <span className="text-sm font-black text-amber-400">
-                      ¥{(item.quantity * item.unit_price).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              ))
-            ) : null}
-          </div>
-
-          {/* フッター合計 */}
-          <div className="flex-shrink-0 border-t border-slate-800">
-            {total > 0 ? (
-              <div className="bg-amber-500 px-5 py-4">
-                {itemCount > 0 && (
-                  <p className="text-xs text-amber-800 font-semibold">
-                    合計 <span className="font-black">{itemCount}点</span>
-                  </p>
-                )}
-                <p className="text-2xl font-black text-slate-900 mt-0.5">
-                  ¥{total.toLocaleString()}
-                </p>
-              </div>
-            ) : (
-              <div className="px-5 py-4 bg-slate-900">
-                <p className="text-xs text-slate-600 font-medium">メニューから選んでください</p>
-              </div>
-            )}
-          </div>
-        </div>
+        <OrderHistoryPanel order={order} chargeAmt={chargeAmt} total={total} itemCount={itemCount} />
       </div>
-
-      {/* 注文確認モーダル */}
       {confirmItem && (
         <ConfirmModal
           item={confirmItem}
@@ -389,6 +437,7 @@ export default function TablePage() {
           onCancel={() => setConfirmItem(null)}
         />
       )}
+      <OrderToast toast={toast} />
     </div>
   );
 }
