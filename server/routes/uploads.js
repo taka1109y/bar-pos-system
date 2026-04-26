@@ -33,11 +33,14 @@ const storage = multer.diskStorage({
   },
 });
 
+const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (file.mimetype.startsWith('image/') && ALLOWED_EXTENSIONS.has(ext)) {
       cb(null, true);
     } else {
       cb(new Error('画像ファイル（JPEG・PNG・GIF・WebP等）のみアップロードできます'));

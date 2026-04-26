@@ -85,6 +85,20 @@ export const api = {
   getKitchenOrders: () => req('/kitchen/orders'),
   serveKitchenItem: (itemId) => req(`/kitchen/items/${itemId}/serve`, { method: 'PATCH' }),
 
+  // ログ検索
+  getLogs: ({ from, to, receipt_type = 'all', payment_method = 'all', limit = 50, offset = 0 } = {}) => {
+    const p = new URLSearchParams({ limit, offset });
+    if (from)                                  p.set('from', from);
+    if (to)                                    p.set('to', to);
+    if (receipt_type   && receipt_type   !== 'all') p.set('receipt_type',   receipt_type);
+    if (payment_method && payment_method !== 'all') p.set('payment_method', payment_method);
+    return req(`/logs?${p}`);
+  },
+
+  // メンテナンス
+  archiveOldData: (beforeDays = 90) =>
+    req('/maintenance/archive', { method: 'POST', body: JSON.stringify({ before_days: beforeDays }) }),
+
   // 画像アップロード（FormData を受け取り multipart/form-data で送信）
   uploadMenuImage: (formData) =>
     fetch('/api/uploads/menu-images', { method: 'POST', body: formData })

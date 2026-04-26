@@ -2,6 +2,175 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 
+const RECEIPT_LABELS = { normal: '通常', red: '赤伝票', void: '取消', black_cancelled: '黒取消' };
+const PAYMENT_LABELS = { cash: '現金', card: 'カード', emoney: '電子マネー' };
+const LOG_LIMIT = 50;
+
+function fmtDateTime(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function LogTab() {
+  const today        = new Date().toISOString().slice(0, 10);
+  const defaultFrom  = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+
+  const [from,          setFrom]          = useState(defaultFrom);
+  const [to,            setTo]            = useState(today);
+  const [receiptType,   setReceiptType]   = useState('all');
+  const [paymentMethod, setPaymentMethod] = useState('all');
+  const [page,          setPage]          = useState(0);
+
+  const [queryParams, setQueryParams] = useState({
+    from: defaultFrom, to: today,
+    receipt_type: 'all', payment_method: 'all',
+    limit: LOG_LIMIT, offset: 0,
+  });
+
+  const { data, isFetching } = useQuery({
+    queryKey: ['logs', queryParams],
+    queryFn:  () => api.getLogs(queryParams),
+    staleTime: 30_000,
+  });
+
+  const handleSearch = () => {
+    setPage(0);
+    setQueryParams({ from, to, receipt_type: receiptType, payment_method: paymentMethod, limit: LOG_LIMIT, offset: 0 });
+  };
+
+  const handlePage = (newPage) => {
+    setPage(newPage);
+    setQueryParams((prev) => ({ ...prev, offset: newPage * LOG_LIMIT }));
+  };
+
+  const orders     = data?.orders ?? [];
+  const total      = data?.total  ?? 0;
+  const totalPages = Math.ceil(total / LOG_LIMIT);
+
+  const filterSel = 'h-9 px-3 text-sm border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/50';
+
+  return (
+    <div className="space-y-4">
+      {/* 検索フィルター */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="leading-normal">
+            <p className="text-xs font-semibold text-slate-500 mb-1">開始日</p>
+            <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)}
+              className={filterSel}
+            />
+          </div>
+          <div className="leading-normal">
+            <p className="text-xs font-semibold text-slate-500 mb-1">終了日</p>
+            <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)}
+              className={filterSel}
+            />
+          </div>
+          <div className="leading-normal">
+            <p className="text-xs font-semibold text-slate-500 mb-1">伝票種別</p>
+            <select value={receiptType} onChange={(e) => setReceiptType(e.target.value)} className={filterSel}>
+              <option value="all">全て</option>
+              <option value="normal">通常</option>
+              <option value="red">赤伝票</option>
+              <option value="void">取消</option>
+              <option value="black_cancelled">黒取消</option>
+            </select>
+          </div>
+          <div className="leading-normal">
+            <p className="text-xs font-semibold text-slate-500 mb-1">支払方法</p>
+            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={filterSel}>
+              <option value="all">全て</option>
+              <option value="cash">現金</option>
+              <option value="card">カード</option>
+              <option value="emoney">電子マネー</option>
+            </select>
+          </div>
+          <button
+            onClick={handleSearch}
+            disabled={isFetching}
+            className="inline-flex items-center justify-center h-9 px-4 text-sm font-semibold bg-primary-500 hover:bg-primary-700 text-white rounded-lg cursor-pointer disabled:opacity-50 transition-colors"
+          >
+            検索
+          </button>
+        </div>
+      </div>
+
+      {/* 結果テーブル */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+          <p className="text-sm font-semibold text-slate-700">
+            {isFetching ? '読み込み中...' : `${total.toLocaleString()} 件`}
+          </p>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <button
+                onClick={() => handlePage(page - 1)} disabled={page === 0}
+                className="w-8 h-8 inline-flex items-center justify-center border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50 text-base"
+              >‹</button>
+              <span>{page + 1} / {totalPages}</span>
+              <button
+                onClick={() => handlePage(page + 1)} disabled={page + 1 >= totalPages}
+                className="w-8 h-8 inline-flex items-center justify-center border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50 text-base"
+              >›</button>
+            </div>
+          )}
+        </div>
+        {orders.length === 0 && !isFetching ? (
+          <p className="text-base text-slate-500 text-center py-16">該当データがありません</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200 bg-gray-50">
+                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ID</th>
+                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">会計日時</th>
+                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">テーブル</th>
+                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">支払</th>
+                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">種別</th>
+                  <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">合計</th>
+                  <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">割引</th>
+                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">備考</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((o) => {
+                  const isVoid = o.receipt_type === 'void' || o.receipt_type === 'black_cancelled';
+                  return (
+                    <tr key={o.id} className="border-b border-slate-100 last:border-0 hover:bg-gray-50 transition-colors">
+                      <td className="py-3 px-4 text-sm text-slate-400">#{o.id}</td>
+                      <td className="py-3 px-4 text-sm text-slate-900 whitespace-nowrap">{fmtDateTime(o.closed_at)}</td>
+                      <td className="py-3 px-4 text-sm text-slate-900">{o.table_name ?? '-'}</td>
+                      <td className="py-3 px-4 text-sm text-slate-700">{PAYMENT_LABELS[o.payment_method] ?? o.payment_method}</td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          o.receipt_type === 'red'             ? 'bg-red-100 text-red-700' :
+                          o.receipt_type === 'void'            ? 'bg-amber-100 text-amber-700' :
+                          o.receipt_type === 'black_cancelled' ? 'bg-gray-200 text-gray-600' :
+                          'bg-slate-100 text-slate-700'
+                        }`}>
+                          {RECEIPT_LABELS[o.receipt_type] ?? o.receipt_type}
+                        </span>
+                      </td>
+                      <td className={`py-3 px-4 text-sm text-right font-medium tabular-nums ${isVoid ? 'text-red-600' : 'text-slate-900'}`}>
+                        ¥{o.total_amount.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-right text-slate-500 tabular-nums">
+                        {o.discount_amount > 0 ? `¥${o.discount_amount.toLocaleString()}` : '-'}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-slate-500 max-w-[10rem] truncate">{o.memo ?? '-'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const inp =
   'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
 
@@ -172,10 +341,12 @@ function HourSelect({ value, onChange }) {
 }
 
 const TABS = [
-  { id: 'tax',    label: '消費税' },
-  { id: 'late',   label: '深夜料金' },
-  { id: 'charge', label: 'チャージ' },
-  { id: 'crash',  label: '暴落' },
+  { id: 'tax',         label: '消費税' },
+  { id: 'late',        label: '深夜料金' },
+  { id: 'charge',      label: 'チャージ' },
+  { id: 'crash',       label: '暴落' },
+  { id: 'log',         label: 'ログ' },
+  { id: 'maintenance', label: 'メンテナンス' },
 ];
 
 export default function SystemSettingsPage() {
@@ -193,6 +364,10 @@ export default function SystemSettingsPage() {
   const [chargeEnabled,     setChargeEnabled]     = useState(true);
   const [chargeSlots,       setChargeSlots]       = useState([]);
   const [savedCharge,       setSavedCharge]       = useState(false);
+  const [archiveConfirm,    setArchiveConfirm]    = useState(false);
+  const [archiveResult,     setArchiveResult]     = useState(null);
+  const [archiveError,      setArchiveError]      = useState(null);
+  const [archivePending,    setArchivePending]    = useState(false);
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['system-settings'],
@@ -534,6 +709,71 @@ export default function SystemSettingsPage() {
               {savedCharge && (
                 <div className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-medium">
                   ✓ 保存しました
+                </div>
+              )}
+            </div>
+          </Section>}
+
+          {/* ── ログ ── */}
+          {activeTab === 'log' && <LogTab />}
+
+          {/* ── メンテナンス ── */}
+          {activeTab === 'maintenance' && <Section title="データアーカイブ" desc="90日以前の会計済みデータを削除してDB容量を削減します。実行前に伝票一覧PDFを出力し、NASへ保存してください。">
+            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg mb-6">
+              <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+              <div className="text-sm">
+                <p className="font-semibold mb-1">実行前に必ず確認してください</p>
+                <p>伝票情報ページから伝票一覧PDFを出力し、NASへ保存してから実行してください。削除したデータは復元できません。</p>
+              </div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-5">
+              <p className="text-sm text-slate-600 mb-1">削除対象：<span className="font-semibold text-slate-900">90日以前</span>の会計済みデータ（注文・明細）</p>
+              <p className="text-xs text-slate-400 mb-4">メニュー・テーブル設定は削除されません</p>
+              {archiveResult && (
+                <div className="flex items-start gap-3 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg mb-4 text-sm">
+                  アーカイブ完了：注文 {archiveResult.deleted_orders} 件・明細 {archiveResult.deleted_items} 件を削除しました
+                </div>
+              )}
+              {archiveError && (
+                <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg mb-4 text-sm">
+                  エラー: {archiveError}
+                </div>
+              )}
+              {!archiveConfirm ? (
+                <button
+                  onClick={() => { setArchiveConfirm(true); setArchiveResult(null); setArchiveError(null); }}
+                  className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-lg cursor-pointer transition-colors"
+                >
+                  アーカイブ実行
+                </button>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-slate-600">PDF保存済みですか？削除後は復元できません。</span>
+                  <button
+                    onClick={() => setArchiveConfirm(false)}
+                    className="inline-flex items-center justify-center h-9 px-3 text-sm bg-white text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    disabled={archivePending}
+                    onClick={async () => {
+                      setArchivePending(true);
+                      setArchiveError(null);
+                      try {
+                        const result = await api.archiveOldData(90);
+                        setArchiveResult(result);
+                        setArchiveConfirm(false);
+                      } catch (e) {
+                        setArchiveError(e.message);
+                      } finally {
+                        setArchivePending(false);
+                      }
+                    }}
+                    className="inline-flex items-center justify-center h-9 px-4 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-lg cursor-pointer disabled:opacity-50"
+                  >
+                    {archivePending ? '実行中...' : '削除を確定'}
+                  </button>
                 </div>
               )}
             </div>

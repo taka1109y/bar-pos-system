@@ -5,6 +5,7 @@ import { api } from '../api';
 import CashDenomModal from '../components/pos/CashDenomModal';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import { exportReceiptsPdf } from '../utils/receiptsPdfExport';
 
 // ── DBに存在しない項目のゼロ値固定モック ─────────────────────
 const MOCK_STATIC = {
@@ -144,6 +145,11 @@ export default function RegisterClosePage() {
     queryKey: ['report-daily', today, settings?.register_opened_at],
     queryFn: () => api.getDailyReport(today, settings?.register_opened_at ?? null),
     enabled: !!settings,
+  });
+
+  const { data: todayReceipts = [] } = useQuery({
+    queryKey: ['receipts', today],
+    queryFn: () => api.getReceipts(today),
   });
 
   // レジオープン時現金（手動入力・DB保持）
@@ -288,6 +294,9 @@ export default function RegisterClosePage() {
       }
 
       pdf.save(`${today}_\u65e5\u8a08\u30ec\u30dd\u30fc\u30c8.pdf`);
+
+      // \u4f1d\u7968\u4e00\u89a7PDF\uff082\u679a\u76ee\uff09
+      await exportReceiptsPdf(todayReceipts, today);
     } catch (err) {
       console.error('PDF\u51fa\u529b\u5931\u6557:', err);
     } finally {
@@ -433,7 +442,7 @@ export default function RegisterClosePage() {
                 <line x1="12" y1="18" x2="12" y2="12"/>
                 <line x1="9" y1="15" x2="15" y2="15"/>
               </svg>
-              日計レポート　PDF出力
+              日計レポート + 伝票一覧　PDF出力
             </>
           )}
         </button>

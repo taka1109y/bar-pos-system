@@ -42,7 +42,9 @@ app.use('/api/prices',   require('./routes/prices'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/kitchen',  require('./routes/kitchen'));
 app.use('/api/receipts', require('./routes/receipts'));
-app.use('/api/system',  require('./routes/system'));
+app.use('/api/system',       require('./routes/system'));
+app.use('/api/maintenance',  require('./routes/maintenance'));
+app.use('/api/logs',         require('./routes/logs'));
 
 // Socket.io接続処理
 io.on('connection', (socket) => {

@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../db/database');
-
-const TZ = process.env.TZ_REPORT || 'Asia/Tokyo';
+const { TZ } = require('../utils/time');
+const { clampInt } = require('../utils/validate');
 
 // GET /api/prices
 router.get('/', async (req, res, next) => {
@@ -42,7 +42,7 @@ router.get('/', async (req, res, next) => {
 // GET /api/prices/:id/history?limit=30
 router.get('/:id/history', async (req, res, next) => {
   try {
-    const limit = parseInt(req.query.limit) || 30;
+    const limit = clampInt(req.query.limit, 1, 1000, 30);
     const { rows } = await query(
       `SELECT price::float, recorded_at
        FROM price_history

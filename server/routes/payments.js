@@ -3,22 +3,9 @@ const router = express.Router();
 const { pool, query } = require('../db/database');
 const { broadcast } = require('../services/socketService');
 
+const { checkLateNight } = require('../utils/time');
+
 const VALID_METHODS = ['cash', 'card', 'emoney'];
-const TZ = process.env.TZ_REPORT || 'Asia/Tokyo';
-
-function checkLateNight(startH, endH) {
-  const now = new Date();
-  const jst = new Date(now.toLocaleString('en-US', { timeZone: TZ }));
-  const h   = jst.getHours();
-
-  if (startH < 24 && endH > 24) {
-    return h >= startH || h < (endH - 24);
-  } else if (startH >= 24) {
-    return h >= (startH - 24) && h < (endH - 24);
-  } else {
-    return h >= startH && h < endH;
-  }
-}
 
 // POST /api/payments/:orderId
 router.post('/:orderId', async (req, res, next) => {
@@ -32,6 +19,12 @@ router.post('/:orderId', async (req, res, next) => {
 
   if (!VALID_METHODS.includes(payment_method)) {
     return res.status(400).json({ error: 'Invalid payment_method. Use cash, card, or emoney.' });
+  }
+  if (parseFloat(discount_amount) < 0) {
+    return res.status(400).json({ error: 'discount_amount must be >= 0' });
+  }
+  if (parseFloat(gift_cert_amount) < 0) {
+    return res.status(400).json({ error: 'gift_cert_amount must be >= 0' });
   }
 
   const client = await pool.connect();

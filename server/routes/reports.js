@@ -1,12 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../db/database');
-
-const TZ = process.env.TZ_REPORT || 'Asia/Tokyo';
-
-function todayJST() {
-  return new Date().toLocaleDateString('sv-SE', { timeZone: TZ }); // YYYY-MM-DD
-}
+const { TZ, todayJST } = require('../utils/time');
+const { assertDateFormat } = require('../utils/validate');
 
 // GET /api/reports/daily?date=YYYY-MM-DD[&since=ISO_TIMESTAMP]
 router.get('/daily', async (req, res, next) => {
@@ -14,6 +10,8 @@ router.get('/daily', async (req, res, next) => {
     const date  = req.query.date  || todayJST();
     // since: レジオープン時刻。指定された場合はそれ以降の会計のみ集計する
     const since = req.query.since || null;
+
+    try { assertDateFormat(date, 'date'); } catch (e) { return res.status(e.status).json({ error: e.error }); }
 
     const baseWhere = since
       ? `status = 'paid'
@@ -161,6 +159,11 @@ router.get('/items', async (req, res, next) => {
     const today = todayJST();
     const start = req.query.start || today;
     const end = req.query.end || today;
+
+    try {
+      assertDateFormat(start, 'start');
+      assertDateFormat(end, 'end');
+    } catch (e) { return res.status(e.status).json({ error: e.error }); }
 
     const { rows: items } = await query(
       `SELECT

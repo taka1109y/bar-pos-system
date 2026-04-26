@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import PaymentModal from '../components/pos/PaymentModal';
+import { exportReceiptsPdf } from '../utils/receiptsPdfExport';
 
 const inp = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
 const lbl = 'block text-xs font-semibold text-slate-500 mb-1.5';
@@ -107,7 +108,20 @@ export default function ReceiptsPage() {
   const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
   const [date, setDate] = useState(today);
   const [expandedId, setExpandedId] = useState(null);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
   const queryClient = useQueryClient();
+
+  const handlePdfExport = async () => {
+    if (pdfGenerating) return;
+    setPdfGenerating(true);
+    try {
+      await exportReceiptsPdf(receipts, date);
+    } catch (err) {
+      console.error('PDF出力失敗:', err);
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
 
   const { data: receipts = [], isLoading } = useQuery({
     queryKey: ['receipts', date],
@@ -146,10 +160,19 @@ export default function ReceiptsPage() {
               style={{ width: 'auto' }}
             />
           </div>
-          {effectiveReceipts.length > 0 && (
-            <span className="ml-auto text-sm text-slate-500">
-              <span className="font-bold text-slate-800">{effectiveReceipts.length}</span> 件
-            </span>
+          {receipts.length > 0 && (
+            <>
+              <span className="ml-auto text-sm text-slate-500">
+                <span className="font-bold text-slate-800">{effectiveReceipts.length}</span> 件
+              </span>
+              <button
+                onClick={handlePdfExport}
+                disabled={pdfGenerating}
+                className="inline-flex items-center justify-center gap-1.5 h-8 px-3 text-sm font-medium bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-gray-50 cursor-pointer disabled:opacity-50"
+              >
+                {pdfGenerating ? '生成中...' : 'PDF出力'}
+              </button>
+            </>
           )}
         </div>
 

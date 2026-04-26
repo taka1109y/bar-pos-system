@@ -1,12 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool, query } = require('../db/database');
-
-const TZ = process.env.TZ_REPORT || 'Asia/Tokyo';
-
-function todayJST() {
-  return new Date().toLocaleDateString('sv-SE', { timeZone: TZ });
-}
+const { TZ, todayJST } = require('../utils/time');
 
 // GET /api/receipts?date=YYYY-MM-DD
 router.get('/', async (req, res, next) => {

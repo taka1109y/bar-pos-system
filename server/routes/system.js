@@ -80,6 +80,7 @@ router.patch('/settings', async (req, res, next) => {
     if (req.body.charge_time_slots !== undefined) {
       const slots = req.body.charge_time_slots;
       if (!Array.isArray(slots)) return res.status(400).json({ error: 'charge_time_slots must be array' });
+      if (slots.length > 50) return res.status(400).json({ error: 'charge_time_slots must have 50 or fewer entries' });
       for (const s of slots) {
         if (typeof s.start !== 'number' || typeof s.end !== 'number' || typeof s.amount !== 'number') {
           return res.status(400).json({ error: 'Each slot must have start, end, amount (numbers)' });
@@ -100,7 +101,6 @@ router.patch('/settings', async (req, res, next) => {
          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
         [req.body.register_open ? 'true' : 'false']
       );
-      // オープン時はセッション開始タイムスタンプを記録する
       if (req.body.register_open) {
         await query(
           `INSERT INTO system_settings (key, value) VALUES ('register_opened_at', $1)

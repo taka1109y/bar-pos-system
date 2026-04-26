@@ -3,6 +3,7 @@ const router = express.Router();
 const { pool, query } = require('../db/database');
 const { broadcastToRoom, broadcast } = require('../services/socketService');
 const { triggerTick } = require('../services/pricingEngine');
+const { nowInTZ } = require('../utils/time');
 
 async function getOrderWithItems(orderId) {
   const { rows: orderRows } = await query(
@@ -96,12 +97,8 @@ router.get('/table/:tableId', async (req, res, next) => {
   }
 });
 
-const TZ_ORDERS = process.env.TZ_REPORT || 'Asia/Tokyo';
-
 function resolveCharge(slots, guestCount) {
-  const now = new Date();
-  const jst = new Date(now.toLocaleString('en-US', { timeZone: TZ_ORDERS }));
-  const h   = jst.getHours();
+  const h = nowInTZ().getHours();
   const slot = slots.find((s) => {
     const { start, end } = s;
     if (start < 24 && end > 24) return h >= start || h < (end - 24);
@@ -233,7 +230,7 @@ router.post('/:id/items', async (req, res, next) => {
 
     res.json(updated);
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client.query('ROLLBACK').catch((rbErr) => { console.error('[orders] ROLLBACK failed:', rbErr); });
     next(err);
   } finally {
     client.release();
@@ -284,7 +281,7 @@ router.patch('/:id/items/:itemId', async (req, res, next) => {
 
     res.json(updated);
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client.query('ROLLBACK').catch((rbErr) => { console.error('[orders] ROLLBACK failed:', rbErr); });
     next(err);
   } finally {
     client.release();
@@ -320,7 +317,7 @@ router.delete('/:id/items/:itemId', async (req, res, next) => {
 
     res.json(updated);
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client.query('ROLLBACK').catch((rbErr) => { console.error('[orders] ROLLBACK failed:', rbErr); });
     next(err);
   } finally {
     client.release();

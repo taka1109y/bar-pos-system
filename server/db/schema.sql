@@ -129,3 +129,5 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS receipt_type      TEXT    NOT NULL D
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS original_order_id INTEGER REFERENCES orders(id);
 CREATE INDEX IF NOT EXISTS idx_orders_receipt_type      ON orders(receipt_type);
 CREATE INDEX IF NOT EXISTS idx_orders_original_order_id ON orders(original_order_id);
+
+DROP TABLE IF EXISTS register_sessions;
