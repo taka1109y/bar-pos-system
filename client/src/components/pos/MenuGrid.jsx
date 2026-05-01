@@ -30,8 +30,7 @@ export function CategorySidebar({
   activeCategory, setActiveCategory,
   activeSubcategory, setActiveSubcategory,
 }) {
-  const activeCat     = activeCategory || categories[0]?.id;
-  const subcatsForCat = subcategories.filter((s) => s.category_id === activeCat);
+  const activeCat = activeCategory || categories[0]?.id;
 
   const handleSelectCategory = (catId) => {
     setActiveCategory(catId);
@@ -57,69 +56,21 @@ export function CategorySidebar({
           <button
             key={cat.id}
             onClick={() => handleSelectCategory(cat.id)}
-            className="flex flex-col items-center text-center"
+            className="flex items-center justify-center text-center"
             style={{
-              margin: '3px 8px', padding: '12px 8px', borderRadius: 12,
+              margin: '3px 8px', padding: '14px 8px', borderRadius: 12,
               background: isActive ? style.gradient : 'transparent',
               boxShadow: isActive ? `0 0 18px ${style.glow}` : 'none',
               border: 'none', cursor: 'pointer', transition: 'all 0.15s',
             }}
           >
-            <span style={{ fontSize: 30, lineHeight: 1, filter: isActive ? 'drop-shadow(0 0 6px rgba(255,255,255,0.4))' : 'none' }}>
-              {style.emoji}
-            </span>
-            <span style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 14, fontWeight: 700, color: isActive ? '#fff' : '#7a7a90', marginTop: 6 }}>
+            <span style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 14, fontWeight: 700, color: isActive ? '#fff' : '#7a7a90' }}>
               {cat.name}
             </span>
           </button>
         );
       })}
 
-      {subcatsForCat.length > 0 && (
-        <>
-          <div
-            className="px-3 pt-5 pb-1 flex-shrink-0"
-            style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 11, letterSpacing: '2px', color: '#3a3a50' }}
-          >
-            TYPE
-          </div>
-          <button
-            onClick={() => setActiveSubcategory(null)}
-            style={{
-              margin: '2px 8px', padding: '9px 12px', borderRadius: 8,
-              background: activeSubcategory === null ? 'rgba(229,34,51,0.15)' : 'transparent',
-              border: activeSubcategory === null ? '1px solid rgba(229,34,51,0.4)' : '1px solid transparent',
-              cursor: 'pointer', transition: 'all 0.13s', textAlign: 'left',
-            }}
-          >
-            <span style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 14, fontWeight: 600, color: activeSubcategory === null ? '#f0f0f5' : '#7a7a90' }}>
-              すべて
-            </span>
-          </button>
-          {subcatsForCat.map((sub) => {
-            const subStyle = getSubcategoryStyle(sub.name);
-            const isActive = activeSubcategory === sub.id;
-            return (
-              <button
-                key={sub.id}
-                onClick={() => setActiveSubcategory(sub.id)}
-                className="flex items-center gap-2"
-                style={{
-                  margin: '2px 8px', padding: '9px 12px', borderRadius: 8,
-                  background: isActive ? 'rgba(229,34,51,0.12)' : 'transparent',
-                  border: isActive ? '1px solid rgba(229,34,51,0.35)' : '1px solid transparent',
-                  cursor: 'pointer', transition: 'all 0.13s', textAlign: 'left',
-                }}
-              >
-                <span style={{ fontSize: 20 }}>{subStyle.emoji}</span>
-                <span style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 14, fontWeight: 600, color: isActive ? '#f0f0f5' : '#7a7a90' }}>
-                  {sub.name}
-                </span>
-              </button>
-            );
-          })}
-        </>
-      )}
     </div>
   );
 }
@@ -164,16 +115,12 @@ function CustomerMenuItem({ item, onAdd, categories, subcategories }) {
             backgroundSize: '12px 12px',
           }}
         />
-        {imgSrc ? (
+        {imgSrc && (
           <img
             src={imgSrc} alt={item.name}
             className="absolute inset-0 w-full h-full object-cover"
             onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
-        ) : (
-          <span style={{ fontSize: 40, lineHeight: 1, filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.3))', position: 'relative' }}>
-            {style.emoji}
-          </span>
         )}
       </div>
 

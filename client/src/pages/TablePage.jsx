@@ -398,6 +398,7 @@ export default function TablePage() {
   const total      = itemsTotal + chargeAmt;
   const itemCount  = order?.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
   const resolvedActiveCategory = activeCategory ?? categories[0]?.id;
+  const subcatsForActiveCat    = subcategories.filter((s) => s.category_id === resolvedActiveCategory);
 
   if (guestCount === null) {
     return <WelcomeScreen tableName={tableName} onSelectGuests={handleSelectGuests} />;
@@ -416,16 +417,54 @@ export default function TablePage() {
           activeSubcategory={activeSubcategory}
           setActiveSubcategory={setActiveSubcategory}
         />
-        <div className="flex-1 overflow-y-auto scrollbar-dark px-4 py-4">
-          <MenuGrid
-            menuItems={menuItems}
-            categories={categories}
-            subcategories={subcategories}
-            onAddItem={handleTapItem}
-            showImage={true}
-            activeCategory={resolvedActiveCategory}
-            activeSubcategory={activeSubcategory}
-          />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {subcatsForActiveCat.length > 0 && (
+            <div
+              className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-none flex-shrink-0"
+              style={{ background: '#111118', borderBottom: '1px solid #252532' }}
+            >
+              <button
+                onClick={() => setActiveSubcategory(null)}
+                style={{
+                  padding: '7px 16px', borderRadius: 20, whiteSpace: 'nowrap',
+                  background: activeSubcategory === null ? 'rgba(229,34,51,0.15)' : 'rgba(255,255,255,0.04)',
+                  border: activeSubcategory === null ? '1px solid rgba(229,34,51,0.5)' : '1px solid #252532',
+                  color: activeSubcategory === null ? '#f0f0f5' : '#7a7a90',
+                  fontFamily: "'Noto Sans JP', sans-serif", fontSize: 14, fontWeight: 600,
+                  cursor: 'pointer', transition: 'all 0.13s',
+                }}
+              >
+                すべて
+              </button>
+              {subcatsForActiveCat.map((sub) => (
+                <button
+                  key={sub.id}
+                  onClick={() => setActiveSubcategory(sub.id)}
+                  style={{
+                    padding: '7px 16px', borderRadius: 20, whiteSpace: 'nowrap',
+                    background: activeSubcategory === sub.id ? 'rgba(229,34,51,0.15)' : 'rgba(255,255,255,0.04)',
+                    border: activeSubcategory === sub.id ? '1px solid rgba(229,34,51,0.5)' : '1px solid #252532',
+                    color: activeSubcategory === sub.id ? '#f0f0f5' : '#7a7a90',
+                    fontFamily: "'Noto Sans JP', sans-serif", fontSize: 14, fontWeight: 600,
+                    cursor: 'pointer', transition: 'all 0.13s',
+                  }}
+                >
+                  {sub.name}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex-1 overflow-y-auto scrollbar-dark px-4 py-4">
+            <MenuGrid
+              menuItems={menuItems}
+              categories={categories}
+              subcategories={subcategories}
+              onAddItem={handleTapItem}
+              showImage={true}
+              activeCategory={resolvedActiveCategory}
+              activeSubcategory={activeSubcategory}
+            />
+          </div>
         </div>
         <OrderHistoryPanel order={order} chargeAmt={chargeAmt} total={total} itemCount={itemCount} />
       </div>
