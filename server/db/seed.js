@@ -146,4 +146,16 @@ async function seedSubcategories() {
   console.log('Subcategories seeded successfully.');
 }
 
-module.exports = { seed, seedSubcategories };
+async function ensureImmediateTable() {
+  const { rows } = await query(
+    `SELECT id FROM tables WHERE table_type = 'immediate' LIMIT 1`
+  );
+  if (!rows[0]) {
+    await query(
+      `INSERT INTO tables (name, table_type, status) VALUES ('即会計', 'immediate', 'available')`
+    );
+    console.log('Immediate checkout table created.');
+  }
+}
+
+module.exports = { seed, seedSubcategories, ensureImmediateTable };

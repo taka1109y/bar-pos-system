@@ -13,6 +13,7 @@ import TableManager from '../components/tables/TableManager';
 import ReceiptsPage from './ReceiptsPage';
 import SystemSettingsPage from './SystemSettingsPage';
 import RegisterClosePage from './RegisterClosePage';
+import ImmediateCheckoutPanel from '../components/pos/ImmediateCheckoutPanel';
 
 const NAV_GROUPS = [
   {
@@ -21,6 +22,10 @@ const NAV_GROUPS = [
       {
         id: 'pos', label: 'レジ画面', desc: 'テーブル選択・注文',
         icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
+      },
+      {
+        id: 'immediate', label: '即会計', desc: 'チャージなし・即時会計',
+        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>,
       },
       {
         id: 'close', label: 'レジクローズ', desc: '日次清算・集計',
@@ -99,8 +104,8 @@ export default function POSPage() {
   });
 
   const { data: categories = [] } = useQuery({
-    queryKey: ['categories'],
-    queryFn: api.getCategories,
+    queryKey: ['categories-staff'],
+    queryFn: api.getStaffCategories,
     staleTime: 60_000,
   });
 
@@ -149,7 +154,7 @@ export default function POSPage() {
   const handleSetView = (nextView) => {
     if (view === 'menu' || view === 'categories') {
       queryClient.invalidateQueries({ queryKey: ['menu-staff'] });
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      queryClient.invalidateQueries({ queryKey: ['categories-staff'] });
       queryClient.invalidateQueries({ queryKey: ['subcategories'] });
     }
     if (view === 'tables') {
@@ -333,6 +338,15 @@ export default function POSPage() {
           </div>
         )}
 
+        {view === 'immediate'  && (
+          <div className="flex flex-1 overflow-hidden">
+            <ImmediateCheckoutPanel
+              menuItems={menuItems}
+              categories={categories}
+              subcategories={subcategories}
+            />
+          </div>
+        )}
         {view === 'tables'     && <div className="flex-1 overflow-y-auto"><TableManager /></div>}
         {view === 'menu'       && <div className="flex-1 overflow-y-auto"><MenuManager /></div>}
         {view === 'categories' && <div className="flex-1 overflow-y-auto"><CategoryManager /></div>}

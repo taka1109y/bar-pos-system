@@ -350,7 +350,7 @@ export default function MenuManager() {
   const [search, setSearch] = useState('');
 
   const { data: items         = [] } = useQuery({ queryKey: ['menu-all'],      queryFn: api.getAllMenu });
-  const { data: categories    = [] } = useQuery({ queryKey: ['categories'],    queryFn: api.getCategories });
+  const { data: categories    = [] } = useQuery({ queryKey: ['categories-staff'], queryFn: api.getStaffCategories });
   const { data: subcategories = [] } = useQuery({ queryKey: ['subcategories'], queryFn: api.getSubcategories });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['menu-all'] });

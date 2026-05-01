@@ -57,7 +57,7 @@ function Numpad({ value, onChange, onConfirm, exactAmount }) {
 }
 
 // ── 割引登録サブモーダル ──────────────────────────────────
-function DiscountModal({ subtotal, discountType, discountInput, onTypeChange, onInputChange, discountAmount, onApply, onClose }) {
+export function DiscountModal({ subtotal, discountType, discountInput, onTypeChange, onInputChange, discountAmount, onApply, onClose }) {
   const tempNum = parseFloat(discountInput) || 0;
   const preview = discountType === 'amount'
     ? Math.min(tempNum, subtotal)
@@ -217,6 +217,100 @@ function GiftCertModal({ finalTotal, giftCertTotal, onAddCert, onClear, giftCert
   );
 }
 
+// ── 会計結果モーダル ──────────────────────────────────────
+export function PaymentResultModal({ result, onClose }) {
+  const methodLabel = { cash: '現金', card: 'カード', emoney: '電子マネー' };
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+        <div className="bg-emerald-500 px-6 py-5 text-center">
+          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-2">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+              <path d="M20 6L9 17l-5-5"/>
+            </svg>
+          </div>
+          <p className="text-white font-bold text-lg">会計完了</p>
+          <p className="text-emerald-100 text-sm mt-0.5">{result.tableName}</p>
+        </div>
+
+        <div className="px-6 py-4 space-y-3">
+          <div className="flex justify-between text-sm">
+            <span className="text-slate-500">滞在時間</span>
+            <span className="font-semibold text-slate-900">{result.elapsedTime}</span>
+          </div>
+
+          <div className="border-t border-slate-100" />
+
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">商品合計</span>
+              <span className="text-slate-900">¥{result.itemsSubtotal.toLocaleString()}</span>
+            </div>
+            {result.chargeAmount > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">チャージ</span>
+                <span className="text-slate-900">¥{result.chargeAmount.toLocaleString()}</span>
+              </div>
+            )}
+            {result.lateNightAmount > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-amber-600">深夜料金</span>
+                <span className="text-amber-600">+¥{result.lateNightAmount.toLocaleString()}</span>
+              </div>
+            )}
+            {result.discountAmount > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-red-500">割引</span>
+                <span className="text-red-500">−¥{result.discountAmount.toLocaleString()}</span>
+              </div>
+            )}
+            {result.giftCertAmount > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-emerald-600">金券</span>
+                <span className="text-emerald-600">−¥{result.giftCertAmount.toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-slate-100" />
+
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-semibold text-slate-700">お支払い金額</span>
+            <span className="text-2xl font-black text-slate-900">¥{result.finalTotal.toLocaleString()}</span>
+          </div>
+
+          <div className="flex justify-between text-sm">
+            <span className="text-slate-500">支払方法</span>
+            <span className="font-semibold text-slate-900">{methodLabel[result.paymentMethod] ?? result.paymentMethod}</span>
+          </div>
+
+          {result.paymentMethod === 'cash' && (
+            <>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">お預かり金額</span>
+                <span className="font-semibold text-slate-900">¥{result.received.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">お釣り</span>
+                <span className="font-bold text-slate-900">¥{result.change.toLocaleString()}</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="px-6 pb-5">
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-colors"
+          >
+            閉じる
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── メインコンポーネント ─────────────────────────────────────
 export default function PaymentModal({ order, table, onClose, onPaid }) {
   const queryClient = useQueryClient();
@@ -239,6 +333,8 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
   const [showGiftCertModal,    setShowGiftCertModal]    = useState(false);
   const [tempGiftCertTotal,    setTempGiftCertTotal]    = useState(0);
   const [tempGiftCertNoChange, setTempGiftCertNoChange] = useState(false);
+  // 会計結果
+  const [payResult, setPayResult] = useState(null);
 
   // システム設定
   const { data: sysSettings } = useQuery({
@@ -306,8 +402,19 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
     ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tables'] });
-      queryClient.invalidateQueries({ queryKey: ['order', table.id] });
-      onPaid();
+      setPayResult({
+        tableName:       table.name,
+        elapsedTime,
+        itemsSubtotal,
+        chargeAmount,
+        lateNightAmount,
+        discountAmount,
+        giftCertAmount:  effectiveGiftCert,
+        finalTotal,
+        paymentMethod,
+        received,
+        change,
+      });
     },
   });
 
@@ -351,6 +458,8 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
   };
 
   return (
+    <>
+    {payResult && <PaymentResultModal result={payResult} onClose={onPaid} />}
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3">
       <div className="relative bg-slate-100 rounded-xl w-full max-w-5xl shadow-2xl border border-slate-200 flex flex-col h-[88vh] overflow-hidden">
 
@@ -517,31 +626,6 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                 />
               </div>
 
-              {/* お預かり / 金券 / 残高 / おつり */}
-              <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">お預かり（現金）</span>
-                  <span className="font-semibold text-slate-900">¥{received.toLocaleString()}</span>
-                </div>
-                {effectiveGiftCert > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">
-                      金券適用{giftCertNoChange ? '（釣り無し）' : ''}
-                    </span>
-                    <span className="font-semibold text-emerald-700">¥{effectiveGiftCert.toLocaleString()}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">残高</span>
-                  <span className={`font-semibold ${balance > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                    ¥{balance.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm border-t border-slate-100 pt-2">
-                  <span className="text-slate-500">おつり</span>
-                  <span className="font-bold text-slate-900">¥{change.toLocaleString()}</span>
-                </div>
-              </div>
 
             </div>
 
@@ -637,19 +721,33 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                 </div>
               )}
 
-              {/* 受取金額ディスプレイ */}
-              <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 text-right flex-shrink-0">
-                <p className="text-[10px] text-slate-400 mb-0.5">
-                  {isCash ? 'お預かり（現金）' : PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label ?? 'その他'}
-                </p>
-                <p className="text-xl font-black text-slate-900 tracking-wider">
-                  ¥{receivedInput ? parseInt(receivedInput, 10).toLocaleString() : '0'}
-                </p>
-                {isCash && remainingAfterGift > 0 && effectiveGiftCert > 0 && (
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    金券後残額 ¥{remainingAfterGift.toLocaleString()}
+              {/* 受取金額ディスプレイ + 残高・おつり */}
+              <div className="bg-white border border-slate-200 rounded-xl flex-shrink-0 overflow-hidden">
+                <div className="px-4 py-3 text-right">
+                  <p className="text-[10px] text-slate-400 mb-0.5">
+                    {isCash ? 'お預かり（現金）' : PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label ?? 'その他'}
                   </p>
-                )}
+                  <p className="text-xl font-black text-slate-900 tracking-wider">
+                    ¥{receivedInput ? parseInt(receivedInput, 10).toLocaleString() : '0'}
+                  </p>
+                  {isCash && remainingAfterGift > 0 && effectiveGiftCert > 0 && (
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      金券後残額 ¥{remainingAfterGift.toLocaleString()}
+                    </p>
+                  )}
+                </div>
+                <div className="border-t border-slate-100 px-4 py-2.5 space-y-1.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">残高</span>
+                    <span className={`font-semibold ${balance > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                      ¥{balance.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">おつり</span>
+                    <span className="font-bold text-slate-900">¥{change.toLocaleString()}</span>
+                  </div>
+                </div>
               </div>
 
               {/* テンキー */}
@@ -680,5 +778,6 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
         </div>
       </div>
     </div>
+    </>
   );
 }

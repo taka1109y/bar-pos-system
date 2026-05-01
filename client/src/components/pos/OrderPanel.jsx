@@ -31,11 +31,49 @@ function ConfirmModal({ title, description, confirmLabel, confirmClass, onConfir
   );
 }
 
+// ── 人数変更モーダル ──────────────────────────────────────
+function GuestCountModal({ currentCount, onSelect, onClose, isPending }) {
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in">
+      <div className="bg-white rounded-xl p-5 w-72 shadow-xl border border-slate-200">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold text-slate-900">人数を変更</h3>
+          <button onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div className="grid grid-cols-5 gap-2">
+          {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+            <button
+              key={n}
+              onClick={() => onSelect(n)}
+              disabled={isPending}
+              className={`aspect-square flex flex-col items-center justify-center rounded-xl border transition-all active:scale-95 disabled:opacity-50 ${
+                n === currentCount
+                  ? 'bg-primary-50 border-primary-300 text-primary-700'
+                  : 'bg-slate-50 border-slate-200 hover:bg-primary-50 hover:border-primary-300'
+              }`}
+            >
+              <span className="text-lg font-black text-slate-900">{n}</span>
+              <span className="text-[10px] text-slate-400">名</span>
+            </button>
+          ))}
+        </div>
+        {isPending && <p className="text-xs text-slate-400 text-center mt-3">更新中...</p>}
+      </div>
+    </div>
+  );
+}
+
 // ── メインコンポーネント ──────────────────────────────────
 export default function OrderPanel({ table, menuItems, categories, subcategories = [], onClose }) {
   const queryClient = useQueryClient();
-  const [showPayment,   setShowPayment]   = useState(false);
-  const [pendingAction, setPendingAction] = useState(null);
+  const [showPayment,    setShowPayment]    = useState(false);
+  const [pendingAction,  setPendingAction]  = useState(null);
+  const [showGuestModal, setShowGuestModal] = useState(false);
 
   const orderKey = ['order', table.id];
 
@@ -68,7 +106,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   }, [table.id]);
 
   const openOrderMutation = useMutation({
-    mutationFn: () => api.createOrder(table.id),
+    mutationFn: (guestCount) => api.createOrder(table.id, guestCount ?? 1),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
@@ -84,6 +122,18 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
+  const updateGuestCountMutation = useMutation({
+    mutationFn: (guestCount) => api.updateGuestCount(order.id, guestCount),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: orderKey });
+      setShowGuestModal(false);
+    },
+  });
+
+  const handleSelectGuests = (count) => {
+    openOrderMutation.mutate(count);
+  };
+
   // ── 確認付きアクション ────────────────────────────────
   const handleAddItem = (menuItem) => {
     setPendingAction({
@@ -91,12 +141,8 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
       confirmClass: 'bg-primary-500 hover:bg-primary-700',
       title:        `「${menuItem.name}」を追加しますか？`,
       description:  `${table.name} の注文に追加します。`,
-      onConfirm: async () => {
-        let currentOrder = order;
-        if (!currentOrder) {
-          currentOrder = await openOrderMutation.mutateAsync();
-        }
-        addItemMutation.mutate({ orderId: currentOrder.id, menu_item_id: menuItem.id });
+      onConfirm: () => {
+        addItemMutation.mutate({ orderId: order.id, menu_item_id: menuItem.id });
       },
     });
   };
@@ -135,6 +181,54 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   const chargeAmt = parseFloat(order?.charge_amount) || 0;
   const total = (order?.items?.reduce((s, i) => s + i.quantity * i.unit_price, 0) ?? 0) + chargeAmt;
 
+  // 注文なし（ローディング完了後）は人数選択画面を表示
+  if (!isLoading && !order) {
+    return (
+      <div className="flex flex-col h-full bg-white">
+        {/* ヘッダー */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50 flex-shrink-0">
+          <div>
+            <h2 className="font-bold text-slate-900">{table.name}</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* 人数選択 */}
+        <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6">
+          <div className="text-center">
+            <p className="text-base font-bold text-slate-900 mb-1">何名様ですか？</p>
+            <p className="text-xs text-slate-400">人数に応じたチャージが設定されます</p>
+          </div>
+
+          <div className="grid grid-cols-5 gap-2 w-full">
+            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                onClick={() => handleSelectGuests(n)}
+                disabled={openOrderMutation.isPending}
+                className="aspect-square flex flex-col items-center justify-center rounded-xl bg-slate-50 border border-slate-200 hover:bg-primary-50 hover:border-primary-300 hover:text-primary-700 transition-all active:scale-95 disabled:opacity-50"
+              >
+                <span className="text-xl font-black text-slate-900">{n}</span>
+                <span className="text-[10px] text-slate-400 mt-0.5">名</span>
+              </button>
+            ))}
+          </div>
+
+          {openOrderMutation.isPending && (
+            <p className="text-xs text-slate-400">オーダーを作成中...</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full bg-white">
       {/* ヘッダー */}
@@ -142,15 +236,43 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
         <div>
           <h2 className="font-bold text-slate-900">{table.name}</h2>
         </div>
-        <button
-          onClick={onClose}
-          className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
+        <div className="flex items-center gap-2">
+          {order && (
+            <button
+              onClick={() => setShowGuestModal(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 transition-colors text-xs font-medium text-slate-600"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              {order.guest_count}名
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
       </div>
+
+      {/* 人数変更モーダル */}
+      {showGuestModal && (
+        <GuestCountModal
+          currentCount={order.guest_count}
+          onSelect={(n) => updateGuestCountMutation.mutate(n)}
+          onClose={() => setShowGuestModal(false)}
+          isPending={updateGuestCountMutation.isPending}
+        />
+      )}
 
       {/* スクロールエリア */}
       <div className="flex-1 overflow-y-auto p-5 space-y-6">
@@ -246,22 +368,12 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
           <span className="text-2xl font-black text-slate-900">¥{total.toLocaleString()}</span>
         </div>
 
-        {order ? (
-          <button
-            onClick={() => setShowPayment(true)}
-            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black rounded-xl transition-colors shadow-sm text-base"
-          >
-            会計する
-          </button>
-        ) : !isLoading ? (
-          <button
-            onClick={() => openOrderMutation.mutate()}
-            disabled={openOrderMutation.isPending}
-            className="w-full py-3.5 bg-primary-500 hover:bg-primary-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors shadow-sm"
-          >
-            {openOrderMutation.isPending ? '開始中...' : '注文を開始する'}
-          </button>
-        ) : null}
+        <button
+          onClick={() => setShowPayment(true)}
+          className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black rounded-xl transition-colors shadow-sm text-base"
+        >
+          会計する
+        </button>
       </div>
 
       {pendingAction && (

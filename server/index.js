@@ -86,12 +86,13 @@ const PORT = process.env.PORT || 3001;
 
 async function main() {
   const { initDb } = require('./db/database');
-  const { seed, seedSubcategories } = require('./db/seed');
+  const { seed, seedSubcategories, ensureImmediateTable } = require('./db/seed');
   const { startPricingEngine } = require('./services/pricingEngine');
 
   await initDb();
   await seed();
   await seedSubcategories();
+  await ensureImmediateTable();
   startPricingEngine();
 
   server.listen(PORT, () => {

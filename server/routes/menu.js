@@ -22,8 +22,11 @@ const ITEM_SELECT = `
 // GET /api/menu/categories
 router.get('/categories', async (req, res, next) => {
   try {
+    const includeStaff = req.query.staff === 'true';
+    const staffFilter  = includeStaff ? '' : 'WHERE is_staff_only = FALSE';
     const { rows } = await query(
-      'SELECT id, name, sort_order, crash_pct::float FROM categories ORDER BY sort_order'
+      `SELECT id, name, sort_order, crash_pct::float, is_staff_only
+       FROM categories ${staffFilter} ORDER BY sort_order`
     );
     res.json(rows);
   } catch (err) { next(err); }
@@ -32,11 +35,11 @@ router.get('/categories', async (req, res, next) => {
 // POST /api/menu/categories
 router.post('/categories', async (req, res, next) => {
   try {
-    const { name, sort_order = 0 } = req.body;
+    const { name, sort_order = 0, is_staff_only = false } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
     const { rows } = await query(
-      'INSERT INTO categories (name, sort_order) VALUES ($1, $2) RETURNING id, name, sort_order, crash_pct::float',
-      [name, sort_order]
+      'INSERT INTO categories (name, sort_order, is_staff_only) VALUES ($1, $2, $3) RETURNING id, name, sort_order, crash_pct::float, is_staff_only',
+      [name, sort_order, Boolean(is_staff_only)]
     );
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
@@ -48,18 +51,19 @@ router.patch('/categories/:id', async (req, res, next) => {
     const { rows: existing } = await query('SELECT id FROM categories WHERE id = $1', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ error: 'Category not found' });
 
-    const { name, sort_order, crash_pct } = req.body;
+    const { name, sort_order, crash_pct, is_staff_only } = req.body;
     const updates = [];
     const values = [];
     let idx = 1;
-    if (name !== undefined)       { updates.push(`name = $${idx++}`);       values.push(name); }
-    if (sort_order !== undefined) { updates.push(`sort_order = $${idx++}`); values.push(sort_order); }
-    if (crash_pct !== undefined)  { updates.push(`crash_pct = $${idx++}`);  values.push(crash_pct); }
+    if (name !== undefined)          { updates.push(`name = $${idx++}`);          values.push(name); }
+    if (sort_order !== undefined)    { updates.push(`sort_order = $${idx++}`);    values.push(sort_order); }
+    if (crash_pct !== undefined)     { updates.push(`crash_pct = $${idx++}`);     values.push(crash_pct); }
+    if (is_staff_only !== undefined) { updates.push(`is_staff_only = $${idx++}`); values.push(Boolean(is_staff_only)); }
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
     values.push(req.params.id);
     const { rows } = await query(
-      `UPDATE categories SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, name, sort_order, crash_pct::float`,
+      `UPDATE categories SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, name, sort_order, crash_pct::float, is_staff_only`,
       values
     );
     res.json(rows[0]);

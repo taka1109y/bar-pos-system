@@ -15,6 +15,7 @@ async function req(path, options = {}) {
 export const api = {
   // Tables
   getTables: () => req('/tables'),
+  getImmediateTable: () => req('/tables/immediate'),
   createTable: (data) => req('/tables', { method: 'POST', body: JSON.stringify(data) }),
   updateTable: (id, data) => req(`/tables/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteTable: (id) => req(`/tables/${id}`, { method: 'DELETE' }),
@@ -23,7 +24,8 @@ export const api = {
   getMenu: () => req('/menu'),
   getStaffMenu: () => req('/menu?staff=true'),
   getAllMenu: () => req('/menu/all'),
-  getCategories: () => req('/menu/categories'),
+  getCategories:      () => req('/menu/categories'),
+  getStaffCategories: () => req('/menu/categories?staff=true'),
   createMenuItem: (data) => req('/menu', { method: 'POST', body: JSON.stringify(data) }),
   updateMenuItem: (id, data) => req(`/menu/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteMenuItem: (id) => req(`/menu/${id}`, { method: 'DELETE' }),
@@ -44,6 +46,7 @@ export const api = {
   addOrderItem: (orderId, data) => req(`/orders/${orderId}/items`, { method: 'POST', body: JSON.stringify(data) }),
   updateOrderItem: (orderId, itemId, data) => req(`/orders/${orderId}/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteOrderItem: (orderId, itemId) => req(`/orders/${orderId}/items/${itemId}`, { method: 'DELETE' }),
+  updateGuestCount: (orderId, guestCount) => req(`/orders/${orderId}/guest-count`, { method: 'PATCH', body: JSON.stringify({ guest_count: guestCount }) }),
 
   // Payments
   pay: (orderId, paymentMethod = 'cash', discountAmount = 0, memo = null, giftCertAmount = 0, giftCertNoChange = false) =>

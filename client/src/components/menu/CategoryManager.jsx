@@ -111,12 +111,12 @@ export default function CategoryManager() {
   const [catForm,    setCatForm]    = useState({});
   const [subcatForm, setSubcatForm] = useState({});
 
-  const { data: categories   = [] } = useQuery({ queryKey: ['categories'],    queryFn: api.getCategories });
+  const { data: categories   = [] } = useQuery({ queryKey: ['categories-staff'], queryFn: api.getStaffCategories });
   const { data: subcategories = [] } = useQuery({ queryKey: ['subcategories'], queryFn: api.getSubcategories });
   const { data: menuItems    = [] } = useQuery({ queryKey: ['menu-all'],      queryFn: api.getAllMenu });
 
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ['categories'] });
+    qc.invalidateQueries({ queryKey: ['categories-staff'] });
     qc.invalidateQueries({ queryKey: ['subcategories'] });
     qc.invalidateQueries({ queryKey: ['menu-all'] });
     qc.invalidateQueries({ queryKey: ['menu'] });
@@ -203,7 +203,7 @@ export default function CategoryManager() {
                 </button>
                 <span className="text-xs text-slate-400">順序: {cat.sort_order}</span>
                 <button
-                  onClick={() => { setEditingCat(cat); setCatForm({ name: cat.name, sort_order: cat.sort_order, crash_pct: cat.crash_pct ?? 0 }); }}
+                  onClick={() => { setEditingCat(cat); setCatForm({ name: cat.name, sort_order: cat.sort_order, crash_pct: cat.crash_pct ?? 0, is_staff_only: cat.is_staff_only ?? false }); }}
                   className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer"
                   title="編集"
                 >
@@ -212,6 +212,11 @@ export default function CategoryManager() {
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                   </svg>
                 </button>
+                {cat.is_staff_only && (
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded border border-amber-200 flex-shrink-0">
+                    スタッフ専用
+                  </span>
+                )}
                 <button
                   onClick={() => { if (confirm(`「${cat.name}」を削除しますか？\n※商品が存在する場合は削除できません`)) deleteCatMutation.mutate(cat.id); }}
                   className="w-7 h-7 flex items-center justify-center border border-red-200 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer"
@@ -267,6 +272,20 @@ export default function CategoryManager() {
       {addOpen && (
         <ModalShell title="カテゴリを追加" onClose={() => { setAddOpen(false); setCatForm({}); }}>
           <FormFields form={catForm} setForm={setCatForm} fields={catFields} />
+          <div className="border-t border-slate-100 pt-4 mt-1">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={Boolean(catForm.is_staff_only)}
+                onChange={(e) => setCatForm((f) => ({ ...f, is_staff_only: e.target.checked }))}
+                className="w-4 h-4 rounded accent-amber-600"
+              />
+              <span className="text-sm text-slate-700">スタッフ専用（お客様画面に表示しない）</span>
+            </label>
+            {catForm.is_staff_only && (
+              <p className="text-xs text-amber-600 mt-1 ml-6">POS画面にのみ表示されます</p>
+            )}
+          </div>
           {formButtons(
             () => { setAddOpen(false); setCatForm({}); },
             () => { if (catForm.name) createCatMutation.mutate({ sort_order: categories.length + 1, ...catForm }); },
@@ -279,6 +298,20 @@ export default function CategoryManager() {
       {editingCat && (
         <ModalShell title={`「${editingCat.name}」を編集`} onClose={() => setEditingCat(null)}>
           <FormFields form={catForm} setForm={setCatForm} fields={catFields} />
+          <div className="border-t border-slate-100 pt-4 mt-1">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={Boolean(catForm.is_staff_only)}
+                onChange={(e) => setCatForm((f) => ({ ...f, is_staff_only: e.target.checked }))}
+                className="w-4 h-4 rounded accent-amber-600"
+              />
+              <span className="text-sm text-slate-700">スタッフ専用（お客様画面に表示しない）</span>
+            </label>
+            {catForm.is_staff_only && (
+              <p className="text-xs text-amber-600 mt-1 ml-6">POS画面にのみ表示されます</p>
+            )}
+          </div>
           {formButtons(
             () => setEditingCat(null),
             () => { if (catForm.name) updateCatMutation.mutate({ id: editingCat.id, data: catForm }); },

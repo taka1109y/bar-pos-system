@@ -8,8 +8,19 @@ const VALID_TYPES = ['table', 'counter'];
 // GET /api/tables
 router.get('/', async (req, res, next) => {
   try {
-    const { rows } = await query('SELECT * FROM tables ORDER BY id');
+    const { rows } = await query(`SELECT * FROM tables WHERE table_type != 'immediate' ORDER BY id`);
     res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/tables/immediate — 即会計専用テーブルを返す（/:id の前に配置）
+router.get('/immediate', async (_req, res, next) => {
+  try {
+    const { rows } = await query(`SELECT * FROM tables WHERE table_type = 'immediate' LIMIT 1`);
+    if (!rows[0]) return res.status(404).json({ error: 'Immediate table not found' });
+    res.json(rows[0]);
   } catch (err) {
     next(err);
   }

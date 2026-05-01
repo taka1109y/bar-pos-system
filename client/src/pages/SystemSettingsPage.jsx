@@ -374,7 +374,7 @@ export default function SystemSettingsPage() {
     queryFn: api.getSystemSettings,
   });
 
-  const { data: categories    = [] } = useQuery({ queryKey: ['categories'],    queryFn: api.getCategories });
+  const { data: categories    = [] } = useQuery({ queryKey: ['categories-staff'], queryFn: api.getStaffCategories });
   const { data: subcategories = [] } = useQuery({ queryKey: ['subcategories'], queryFn: api.getSubcategories });
   const { data: menuItems     = [] } = useQuery({ queryKey: ['menu-all'],      queryFn: api.getAllMenu });
 

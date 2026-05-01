@@ -123,6 +123,12 @@ router.post('/', async (req, res, next) => {
       return res.status(409).json({ error: 'Table already has an open order', orderId: existing[0].id });
     }
 
+    // 即会計テーブルかどうか確認（即会計はチャージ不要）
+    const { rows: tableRows } = await query(
+      `SELECT table_type FROM tables WHERE id = $1`, [table_id]
+    );
+    const isImmediate = tableRows[0]?.table_type === 'immediate';
+
     // チャージ設定を読み取り
     const { rows: csRows } = await query(
       `SELECT key, value FROM system_settings WHERE key IN ('charge_enabled', 'charge_time_slots')`
@@ -131,7 +137,7 @@ router.post('/', async (req, res, next) => {
     const chargeEnabled = cs.charge_enabled !== 'false';
     const slots = (() => { try { return JSON.parse(cs.charge_time_slots ?? '[]'); } catch { return []; } })();
     const guestCountNum = Math.max(1, parseInt(guest_count) || 1);
-    const { charge_per_person, charge_amount } = chargeEnabled
+    const { charge_per_person, charge_amount } = (!isImmediate && chargeEnabled)
       ? resolveCharge(slots, guestCountNum)
       : { charge_per_person: 0, charge_amount: 0 };
 
@@ -308,6 +314,52 @@ router.delete('/:id/items/:itemId', async (req, res, next) => {
     next(err);
   } finally {
     client.release();
+  }
+});
+
+// PATCH /api/orders/:id/guest-count — 人数変更・チャージ再計算
+router.patch('/:id/guest-count', async (req, res, next) => {
+  try {
+    const { guest_count } = req.body;
+    const guestCountNum = Math.max(1, parseInt(guest_count) || 1);
+
+    const { rows: orderRows } = await query(
+      `SELECT * FROM orders WHERE id = $1 AND status = 'open'`,
+      [req.params.id]
+    );
+    const order = orderRows[0];
+    if (!order) return res.status(404).json({ error: 'Order not found or already closed' });
+
+    const { rows: csRows } = await query(
+      `SELECT key, value FROM system_settings WHERE key IN ('charge_enabled', 'charge_time_slots')`
+    );
+    const cs = csRows.reduce((acc, r) => { acc[r.key] = r.value; return acc; }, {});
+    const chargeEnabled = cs.charge_enabled !== 'false';
+    const slots = (() => { try { return JSON.parse(cs.charge_time_slots ?? '[]'); } catch { return []; } })();
+
+    const { charge_per_person, charge_amount } = chargeEnabled
+      ? resolveCharge(slots, guestCountNum)
+      : { charge_per_person: 0, charge_amount: 0 };
+
+    await query(
+      `UPDATE orders SET guest_count = $1, charge_per_person = $2, charge_amount = $3 WHERE id = $4`,
+      [guestCountNum, charge_per_person, charge_amount, order.id]
+    );
+
+    const updated = await getOrderWithItems(order.id);
+    broadcastToRoom(`table:${order.table_id}`, 'order:updated', {
+      tableId: order.table_id,
+      orderId: order.id,
+      items: updated.items,
+      total: updated.total_amount,
+      chargeAmount: updated.charge_amount,
+      chargePerPerson: updated.charge_per_person,
+      guestCount: updated.guest_count,
+    });
+
+    res.json(updated);
+  } catch (err) {
+    next(err);
   }
 });
 
