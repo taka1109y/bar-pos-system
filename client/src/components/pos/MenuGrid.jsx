@@ -181,16 +181,13 @@ function StaffMenuItem({ item, onAdd }) {
       }`}
     >
       <span className="text-sm font-semibold text-slate-700 leading-snug mb-3 line-clamp-2">{item.name}</span>
-      <div>
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-base font-black text-primary-600">¥{price.toLocaleString()}</span>
-          {item.is_drink && (
-            <span className={`text-xs font-bold ${isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
-              {isUp ? '▲' : isDown ? '▼' : '—'}{pctChange !== 0 ? `${Math.abs(pctChange).toFixed(1)}%` : ''}
-            </span>
-          )}
-        </div>
-        <Sparkline itemId={item.id} basePrice={item.base_price} isUp={isUp} isDown={isDown} />
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-base font-black text-primary-600">¥{price.toLocaleString()}</span>
+        {item.is_drink && (
+          <span className={`text-xs font-bold ${isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
+            {isUp ? '▲' : isDown ? '▼' : '—'}{pctChange !== 0 ? `${Math.abs(pctChange).toFixed(1)}%` : ''}
+          </span>
+        )}
       </div>
     </button>
   );

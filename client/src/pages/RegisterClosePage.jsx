@@ -152,6 +152,11 @@ export default function RegisterClosePage() {
     queryFn: () => api.getReceipts(today),
   });
 
+  const { data: openOrders = [] } = useQuery({
+    queryKey: ['orders-open'],
+    queryFn: api.getOpenOrders,
+  });
+
   // レジオープン時現金（手動入力・DB保持）
   const [openCashInput, setOpenCashInput] = useState('');
   const openCashInitialized = useRef(false);
@@ -241,6 +246,20 @@ export default function RegisterClosePage() {
 
   // レジクローズ確認ダイアログ
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [closeError,       setCloseError]       = useState(null);
+
+  const handleCloseAttempt = () => {
+    if (openOrders.length > 0) {
+      setCloseError(`未会計のテーブルが ${openOrders.length} 件あります。会計を完了してからレジクローズしてください。`);
+      return;
+    }
+    if (!pdfTimestamp) {
+      setCloseError('レポートを未出力です。レポートを出力してからレジクローズを実施してください。');
+      return;
+    }
+    setCloseError(null);
+    setShowCloseConfirm(true);
+  };
 
   const handleCloseConfirm = async () => {
     try {
@@ -294,6 +313,7 @@ export default function RegisterClosePage() {
       }
 
       pdf.save(`${today}_\u65e5\u8a08\u30ec\u30dd\u30fc\u30c8.pdf`);
+      setCloseError(null);
 
       // \u4f1d\u7968\u4e00\u89a7PDF\uff082\u679a\u76ee\uff09
       await exportReceiptsPdf(todayReceipts, today);
@@ -408,8 +428,13 @@ export default function RegisterClosePage() {
 
             {/* 確定ボタン */}
             <div className="p-3">
+              {closeError && (
+                <div className="mb-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-[12px] text-red-700 leading-snug">
+                  {closeError}
+                </div>
+              )}
               <button
-                onClick={() => setShowCloseConfirm(true)}
+                onClick={handleCloseAttempt}
                 className={`w-full py-2.5 text-[13px] font-black rounded-lg ${BLUE_BTN}`}
               >
                 確定
