@@ -29,22 +29,33 @@ router.post('/:orderId', async (req, res, next) => {
 
   const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+
+    // FOR UPDATE で行ロックを取得してから status 確認（二重会計防止）
     const { rows: orderRows } = await client.query(
-      `SELECT * FROM orders WHERE id = $1 AND status = 'open'`,
+      `SELECT id, table_id, status, total_amount::float,
+              charge_amount::float, charge_per_person::float,
+              guest_count, receipt_type
+       FROM orders WHERE id = $1 AND status = 'open' FOR UPDATE`,
       [req.params.orderId]
     );
     const order = orderRows[0];
-    if (!order) return res.status(404).json({ error: 'Open order not found' });
+    if (!order) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Open order not found' });
+    }
 
     const { rows: items } = await client.query(
-      `SELECT oi.*, m.name as menu_name, COALESCE(m.tax_category, 'standard') as tax_category
+      `SELECT oi.id, oi.order_id, oi.menu_item_id, oi.quantity,
+              oi.unit_price::float, oi.item_name,
+              COALESCE(m.tax_category, 'standard') AS tax_category
        FROM order_items oi JOIN menu_items m ON oi.menu_item_id = m.id
        WHERE oi.order_id = $1`,
       [order.id]
     );
 
-    const itemsSubtotal = items.reduce((sum, i) => sum + i.quantity * parseFloat(i.unit_price), 0);
-    const chargeAmount  = parseFloat(order.charge_amount) || 0;
+    const itemsSubtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
+    const chargeAmount  = order.charge_amount || 0;
     const subtotal = itemsSubtotal + chargeAmount;
     const discount = Math.max(0, Math.min(parseFloat(discount_amount) || 0, subtotal));
 
@@ -65,10 +76,10 @@ router.post('/:orderId', async (req, res, next) => {
     // 商品別税率で内税額を計算
     const standardItemsTotal = items
       .filter(i => i.tax_category !== 'reduced')
-      .reduce((sum, i) => sum + i.quantity * parseFloat(i.unit_price), 0);
+      .reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
     const reducedItemsTotal = items
       .filter(i => i.tax_category === 'reduced')
-      .reduce((sum, i) => sum + i.quantity * parseFloat(i.unit_price), 0);
+      .reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
 
     // チャージ・深夜料金は標準税率扱い。割引は標準税率分から先に引く。
     const taxable_standard_raw = standardItemsTotal + chargeAmount + late_night_amount - discount;
@@ -85,8 +96,6 @@ router.post('/:orderId', async (req, res, next) => {
     const effective_gift_cert = gift_cert_no_change
       ? Math.min(raw_gift_cert, total)
       : raw_gift_cert;
-
-    await client.query('BEGIN');
     await client.query(
       `UPDATE orders
        SET status = 'paid', closed_at = NOW(),

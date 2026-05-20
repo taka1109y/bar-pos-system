@@ -4,6 +4,14 @@ const { query } = require('../db/database');
 const { TZ, todayJST } = require('../utils/time');
 const { assertDateFormat } = require('../utils/validate');
 
+// レシピ原価CTE（reports内で3回使用するため共通定数化）
+const RECIPE_COST_CTE = `recipe_cost AS (
+    SELECT r.menu_item_id,
+      COALESCE(SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0)), 0) AS cost_per_unit
+    FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id
+    GROUP BY r.menu_item_id
+  )`;
+
 // GET /api/reports/daily?date=YYYY-MM-DD[&since=ISO_TIMESTAMP]
 router.get('/daily', async (req, res, next) => {
   try {
@@ -51,12 +59,7 @@ router.get('/daily', async (req, res, next) => {
     );
 
     const { rows: items } = await query(
-      `WITH recipe_cost AS (
-         SELECT r.menu_item_id,
-           COALESCE(SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0)), 0) AS cost_per_unit
-         FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id
-         GROUP BY r.menu_item_id
-       )
+      `WITH ${RECIPE_COST_CTE}
        SELECT
          oi.item_name AS name,
          SUM(oi.quantity)::int AS quantity_sold,
@@ -213,12 +216,7 @@ router.get('/cost-analysis', async (req, res, next) => {
     } catch (e) { return res.status(e.status).json({ error: e.error }); }
 
     const { rows: items } = await query(
-      `WITH recipe_cost AS (
-         SELECT r.menu_item_id,
-           COALESCE(SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0)), 0) AS cost_per_unit
-         FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id
-         GROUP BY r.menu_item_id
-       )
+      `WITH ${RECIPE_COST_CTE}
        SELECT
          m.id AS menu_item_id,
          oi.item_name AS name,
@@ -269,12 +267,7 @@ router.get('/profit-summary', async (req, res, next) => {
     } catch (e) { return res.status(e.status).json({ error: e.error }); }
 
     const { rows } = await query(
-      `WITH recipe_cost AS (
-         SELECT r.menu_item_id,
-           COALESCE(SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0)), 0) AS cost_per_unit
-         FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id
-         GROUP BY r.menu_item_id
-       ),
+      `WITH ${RECIPE_COST_CTE},
        daily_revenue AS (
          SELECT
            (o.closed_at AT TIME ZONE $3)::date AS date,

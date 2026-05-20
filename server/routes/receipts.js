@@ -67,30 +67,42 @@ router.get('/', async (req, res, next) => {
 router.post('/:orderId/void-and-reissue', async (req, res, next) => {
   const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+
+    // FOR UPDATE で行ロックを取得してから状態確認（二重取消し防止）
     const { rows: orderRows } = await client.query(
-      `SELECT * FROM orders WHERE id = $1`,
+      `SELECT id, table_id, status, receipt_type, closed_at,
+              total_amount, payment_method, guest_count, discount_amount,
+              tax_rate, tax_amount, late_night_rate, late_night_amount,
+              memo, gift_cert_amount, gift_cert_no_change,
+              charge_per_person, charge_amount
+       FROM orders WHERE id = $1 FOR UPDATE`,
       [req.params.orderId]
     );
     const order = orderRows[0];
     if (!order) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Order not found' });
     }
     if (order.status !== 'paid' || !['normal', 'red'].includes(order.receipt_type)) {
+      await client.query('ROLLBACK');
       return res.status(422).json({ error: '会計済み伝票のみ取消し可能です' });
     }
 
     // 当日の伝票のみ操作可能
     const closedDate = new Date(order.closed_at).toLocaleDateString('sv-SE', { timeZone: TZ });
     if (closedDate !== todayJST()) {
+      await client.query('ROLLBACK');
       return res.status(422).json({ error: '当日の伝票のみ赤伝票を発行できます' });
     }
 
-    // 二重取消し防止
+    // 二重取消し防止（FOR UPDATE により競合するリクエストはここで直列化される）
     const { rows: existingVoid } = await client.query(
       `SELECT id FROM orders WHERE original_order_id = $1 AND receipt_type = 'void'`,
       [order.id]
     );
     if (existingVoid.length > 0) {
+      await client.query('ROLLBACK');
       return res.status(409).json({ error: 'この伝票はすでに取消し済みです' });
     }
 
@@ -100,8 +112,6 @@ router.post('/:orderId/void-and-reissue', async (req, res, next) => {
        FROM order_items WHERE order_id = $1`,
       [order.id]
     );
-
-    await client.query('BEGIN');
 
     // 1. 元オーダーを黒伝票取消しに変更
     await client.query(

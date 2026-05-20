@@ -2,6 +2,13 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../db/database');
 
+const upsertSetting = (key, value) =>
+  query(
+    `INSERT INTO system_settings (key, value) VALUES ($1, $2)
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+    [key, String(value)]
+  );
+
 function parseSettings(rows) {
   const s = rows.reduce((acc, r) => { acc[r.key] = r.value; return acc; }, {});
   return {
@@ -39,22 +46,14 @@ router.patch('/settings', async (req, res, next) => {
       if (req.body[key] === undefined) continue;
       const n = parseFloat(req.body[key]);
       if (isNaN(n) || n < 0 || n > 1) return res.status(400).json({ error: `${key} must be 0–1` });
-      await query(
-        `INSERT INTO system_settings (key, value) VALUES ($1, $2)
-         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-        [key, String(n)]
-      );
+      await upsertSetting(key, n);
     }
 
     for (const key of hourKeys) {
       if (req.body[key] === undefined) continue;
       const n = parseInt(req.body[key], 10);
       if (isNaN(n) || n < 0 || n > 32) return res.status(400).json({ error: `${key} must be 0–32` });
-      await query(
-        `INSERT INTO system_settings (key, value) VALUES ($1, $2)
-         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-        [key, String(n)]
-      );
+      await upsertSetting(key, n);
     }
 
     if (req.body.default_tax_category !== undefined) {
@@ -62,19 +61,11 @@ router.patch('/settings', async (req, res, next) => {
       if (!['standard', 'reduced'].includes(cat)) {
         return res.status(400).json({ error: 'default_tax_category must be standard or reduced' });
       }
-      await query(
-        `INSERT INTO system_settings (key, value) VALUES ('default_tax_category', $1)
-         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-        [cat]
-      );
+      await upsertSetting('default_tax_category', cat);
     }
 
     if (req.body.charge_enabled !== undefined) {
-      await query(
-        `INSERT INTO system_settings (key, value) VALUES ('charge_enabled', $1)
-         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-        [req.body.charge_enabled ? 'true' : 'false']
-      );
+      await upsertSetting('charge_enabled', req.body.charge_enabled ? 'true' : 'false');
     }
 
     if (req.body.charge_time_slots !== undefined) {
@@ -88,36 +79,20 @@ router.patch('/settings', async (req, res, next) => {
         if (s.start >= s.end) return res.status(400).json({ error: 'slot start must be < end' });
         if (s.amount < 0)     return res.status(400).json({ error: 'slot amount must be >= 0' });
       }
-      await query(
-        `INSERT INTO system_settings (key, value) VALUES ('charge_time_slots', $1)
-         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-        [JSON.stringify(slots)]
-      );
+      await upsertSetting('charge_time_slots', JSON.stringify(slots));
     }
 
     if (req.body.register_open !== undefined) {
-      await query(
-        `INSERT INTO system_settings (key, value) VALUES ('register_open', $1)
-         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-        [req.body.register_open ? 'true' : 'false']
-      );
+      await upsertSetting('register_open', req.body.register_open ? 'true' : 'false');
       if (req.body.register_open) {
-        await query(
-          `INSERT INTO system_settings (key, value) VALUES ('register_opened_at', $1)
-           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-          [new Date().toISOString()]
-        );
+        await upsertSetting('register_opened_at', new Date().toISOString());
       }
     }
 
     if (req.body.register_open_cash !== undefined) {
       const n = parseInt(req.body.register_open_cash, 10);
       if (isNaN(n) || n < 0) return res.status(400).json({ error: 'register_open_cash must be >= 0' });
-      await query(
-        `INSERT INTO system_settings (key, value) VALUES ('register_open_cash', $1)
-         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-        [String(n)]
-      );
+      await upsertSetting('register_open_cash', n);
     }
 
     const { rows } = await query('SELECT key, value FROM system_settings');

@@ -6,6 +6,7 @@ import CashDenomModal from '../components/pos/CashDenomModal';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { exportReceiptsPdf } from '../utils/receiptsPdfExport';
+import { TZ } from '../utils/tz';
 
 // ── DBに存在しない項目のゼロ値固定モック ─────────────────────
 const MOCK_STATIC = {
@@ -132,7 +133,7 @@ function CloseConfirmDialog({ onConfirm, onCancel }) {
 
 // ── メインコンポーネント ─────────────────────────────────────
 export default function RegisterClosePage() {
-  const today       = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
+  const today       = new Date().toLocaleDateString('sv-SE', { timeZone: TZ });
   const navigate    = useNavigate();
   const queryClient = useQueryClient();
 
@@ -274,7 +275,7 @@ export default function RegisterClosePage() {
   const handlePdfExport = async () => {
     if (pdfGenerating || !reportPdfRef.current) return;
     setPdfGenerating(true);
-    const ts = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+    const ts = new Date().toLocaleString('ja-JP', { timeZone: TZ });
     setPdfTimestamp(ts);
     try {
       // React の再レンダリング（タイムスタンプ反映）を待つ

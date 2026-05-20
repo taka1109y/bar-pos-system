@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
+import { TZ } from '../utils/tz';
 
 const inp = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
 const lbl = 'block text-xs font-semibold text-slate-500 mb-1.5';
@@ -16,7 +17,7 @@ function StatCard({ label, value, sub, accent }) {
 }
 
 export default function ReportsPage({ onClose, inline = false }) {
-  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: TZ });
   const [date, setDate] = useState(today);
 
   const { data: report, isLoading } = useQuery({

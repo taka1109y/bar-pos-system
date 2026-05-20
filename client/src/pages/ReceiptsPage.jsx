@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import PaymentModal from '../components/pos/PaymentModal';
 import { exportReceiptsPdf } from '../utils/receiptsPdfExport';
+import { TZ } from '../utils/tz';
 
 const inp = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
 const lbl = 'block text-xs font-semibold text-slate-500 mb-1.5';
@@ -105,7 +106,7 @@ function RedReceiptPayButton({ receipt, onPaid }) {
 }
 
 export default function ReceiptsPage() {
-  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: TZ });
   const [date, setDate] = useState(today);
   const [expandedId, setExpandedId] = useState(null);
   const [pdfGenerating, setPdfGenerating] = useState(false);

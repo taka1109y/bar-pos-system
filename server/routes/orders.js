@@ -61,7 +61,13 @@ router.get('/open', async (_req, res, next) => {
 router.get('/table/:tableId', async (req, res, next) => {
   try {
     const { rows } = await query(
-      `SELECT * FROM orders
+      `SELECT id, table_id, status, payment_method, opened_at, closed_at,
+              total_amount::float, discount_amount::float,
+              tax_rate::float, tax_amount::float,
+              late_night_rate::float, late_night_amount::float,
+              guest_count, charge_per_person::float, charge_amount::float,
+              receipt_type, original_order_id
+       FROM orders
        WHERE table_id = $1 AND status = 'open'
          AND (receipt_type = 'normal' OR receipt_type IS NULL)
        ORDER BY id DESC LIMIT 1`,
@@ -78,24 +84,22 @@ router.get('/table/:tableId', async (req, res, next) => {
       [order.id]
     );
 
-    res.json({
-      id: order.id, table_id: order.table_id, status: order.status,
-      payment_method: order.payment_method, opened_at: order.opened_at, closed_at: order.closed_at,
-      total_amount: parseFloat(order.total_amount),
-      discount_amount: parseFloat(order.discount_amount),
-      tax_rate: parseFloat(order.tax_rate), tax_amount: parseFloat(order.tax_amount),
-      late_night_rate: parseFloat(order.late_night_rate), late_night_amount: parseFloat(order.late_night_amount),
-      guest_count: order.guest_count,
-      charge_per_person: parseFloat(order.charge_per_person),
-      charge_amount: parseFloat(order.charge_amount),
-      receipt_type: order.receipt_type,
-      original_order_id: order.original_order_id,
-      items,
-    });
+    res.json({ ...order, items });
   } catch (err) {
     next(err);
   }
 });
+
+async function loadChargeSettings() {
+  const { rows } = await query(
+    `SELECT key, value FROM system_settings WHERE key IN ('charge_enabled', 'charge_time_slots')`
+  );
+  const s = rows.reduce((acc, r) => { acc[r.key] = r.value; return acc; }, {});
+  return {
+    chargeEnabled: s.charge_enabled !== 'false',
+    slots: (() => { try { return JSON.parse(s.charge_time_slots ?? '[]'); } catch { return []; } })(),
+  };
+}
 
 function resolveCharge(slots, guestCount) {
   const h = nowInTZ().getHours();
@@ -130,12 +134,7 @@ router.post('/', async (req, res, next) => {
     const isImmediate = tableRows[0]?.table_type === 'immediate';
 
     // チャージ設定を読み取り
-    const { rows: csRows } = await query(
-      `SELECT key, value FROM system_settings WHERE key IN ('charge_enabled', 'charge_time_slots')`
-    );
-    const cs = csRows.reduce((acc, r) => { acc[r.key] = r.value; return acc; }, {});
-    const chargeEnabled = cs.charge_enabled !== 'false';
-    const slots = (() => { try { return JSON.parse(cs.charge_time_slots ?? '[]'); } catch { return []; } })();
+    const { chargeEnabled, slots } = await loadChargeSettings();
     const guestCountNum = Math.max(1, parseInt(guest_count) || 1);
     const { charge_per_person, charge_amount } = (!isImmediate && chargeEnabled)
       ? resolveCharge(slots, guestCountNum)
@@ -330,12 +329,7 @@ router.patch('/:id/guest-count', async (req, res, next) => {
     const order = orderRows[0];
     if (!order) return res.status(404).json({ error: 'Order not found or already closed' });
 
-    const { rows: csRows } = await query(
-      `SELECT key, value FROM system_settings WHERE key IN ('charge_enabled', 'charge_time_slots')`
-    );
-    const cs = csRows.reduce((acc, r) => { acc[r.key] = r.value; return acc; }, {});
-    const chargeEnabled = cs.charge_enabled !== 'false';
-    const slots = (() => { try { return JSON.parse(cs.charge_time_slots ?? '[]'); } catch { return []; } })();
+    const { chargeEnabled, slots } = await loadChargeSettings();
 
     const { charge_per_person, charge_amount } = chargeEnabled
       ? resolveCharge(slots, guestCountNum)
