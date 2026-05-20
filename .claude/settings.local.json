@@ -67,7 +67,20 @@
       "Bash(npx vite *)",
       "Bash(node -e \"require\\('./server/routes/maintenance'\\)\")",
       "Bash(node -e \"require\\('./server/utils/time'\\)\")",
-      "Bash(node -e \"require\\('./server/utils/validate'\\)\")"
+      "Bash(node -e \"require\\('./server/utils/validate'\\)\")",
+      "Bash(rtk ls *)",
+      "Bash(rtk grep *)",
+      "Bash(rtk npm *)",
+      "Bash(rtk curl *)",
+      "Bash(rtk read *)",
+      "Bash(rtk find *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'Created: id={d[\\\\\"id\\\\\"]}, name={d[\\\\\"name\\\\\"]}'\\)\")",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f'  [{d[\\\\\"id\\\\\"]}] {d[\\\\\"name\\\\\"]} {d[\\\\\"purchase_quantity\\\\\"]}{d[\\\\\"quantity_unit\\\\\"]}/{d[\\\\\"purchase_unit\\\\\"]} ¥{d[\\\\\"cost_per_purchase_unit\\\\\"]}'\\) for d in data]\")",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'Saved: menu_item_id={d[\\\\\"menu_item_id\\\\\"]}, total_cost={d[\\\\\"total_cost\\\\\"]}'\\)\")",
+      "Bash(rtk git *)",
+      "Bash(rtk wc *)",
+      "Bash(rtk docker *)"
     ]
   }
 }
