@@ -232,6 +232,19 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
           <input className={inp} type="number" value={form.max_price} onChange={(e) => set('max_price', e.target.value)} placeholder="自動" min={0} />
         </div>
       </div>
+      {item && item.cost_price > 0 && (
+        <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
+          <p className="text-xs font-semibold text-amber-700 mb-1">原価（レシピから自動計算）</p>
+          <p className="text-base font-bold text-amber-700">¥{Math.round(item.cost_price).toLocaleString()}</p>
+          {item.base_price > 0 && (
+            <p className="text-xs text-amber-600 mt-0.5">
+              原価率 {Math.round(item.cost_price / item.base_price * 100)}%
+              ／粗利 ¥{Math.round(item.base_price - item.cost_price).toLocaleString()}
+            </p>
+          )}
+          <p className="text-xs text-amber-500 mt-1">レシピ管理で材料を設定すると更新されます</p>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={lbl}>種別</label>
@@ -443,6 +456,11 @@ export default function MenuManager() {
                       <span className="text-sm font-semibold text-slate-900 block truncate">{item.name}</span>
                       <span className="text-xs text-slate-400 mt-1 block">
                         ¥{item.base_price.toLocaleString()}
+                        {item.cost_price > 0 && (
+                          <span className="ml-2 text-amber-500">
+                            原価¥{item.cost_price.toLocaleString()} ({Math.round(item.cost_price / item.base_price * 100)}%)
+                          </span>
+                        )}
                         {item.subcategory_name && (
                           <span className="ml-2 text-primary-400">{item.subcategory_name}</span>
                         )}

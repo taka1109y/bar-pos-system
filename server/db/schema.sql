@@ -136,3 +136,58 @@ CREATE INDEX IF NOT EXISTS idx_orders_receipt_type      ON orders(receipt_type);
 CREATE INDEX IF NOT EXISTS idx_orders_original_order_id ON orders(original_order_id);
 
 DROP TABLE IF EXISTS register_sessions;
+
+-- 原価管理（cost_priceはレシピから自動計算）
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS cost_price NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS recipe_notes TEXT;
+
+-- 既存在庫テーブル削除（材料ベースに移行）
+DROP TABLE IF EXISTS inventory_logs;
+DROP TABLE IF EXISTS inventory;
+
+-- 材料マスター（ウイスキー角、炭酸水など）
+CREATE TABLE IF NOT EXISTS ingredients (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    purchase_unit TEXT NOT NULL DEFAULT '本',
+    purchase_quantity NUMERIC(10,3) NOT NULL DEFAULT 1,
+    quantity_unit TEXT NOT NULL DEFAULT 'ml',
+    cost_per_purchase_unit NUMERIC(10,2) NOT NULL DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- レシピ（商品と材料の対応）
+CREATE TABLE IF NOT EXISTS recipes (
+    id SERIAL PRIMARY KEY,
+    menu_item_id INTEGER NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
+    ingredient_id INTEGER NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+    usage_quantity NUMERIC(10,3) NOT NULL,
+    UNIQUE(menu_item_id, ingredient_id)
+);
+
+-- 材料在庫
+CREATE TABLE IF NOT EXISTS ingredient_stock (
+    id SERIAL PRIMARY KEY,
+    ingredient_id INTEGER NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+    quantity_current NUMERIC(10,3) NOT NULL DEFAULT 0,
+    last_updated TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(ingredient_id)
+);
+
+-- 材料在庫異動ログ
+CREATE TABLE IF NOT EXISTS ingredient_stock_logs (
+    id SERIAL PRIMARY KEY,
+    ingredient_id INTEGER NOT NULL REFERENCES ingredients(id),
+    quantity_before NUMERIC(10,3),
+    quantity_after NUMERIC(10,3),
+    quantity_change NUMERIC(10,3) NOT NULL,
+    reason TEXT NOT NULL,
+    related_order_id INTEGER REFERENCES orders(id),
+    note TEXT,
+    log_date TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ingredient_stock_logs_ingredient ON ingredient_stock_logs(ingredient_id);
+CREATE INDEX IF NOT EXISTS idx_ingredient_stock_logs_log_date ON ingredient_stock_logs(log_date);
+CREATE INDEX IF NOT EXISTS idx_recipes_menu_item ON recipes(menu_item_id);

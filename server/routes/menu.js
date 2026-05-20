@@ -8,6 +8,12 @@ const ITEM_SELECT = `
     m.base_price::float, m.current_price::float,
     m.min_price::float, m.max_price::float,
     m.price_step_up::float, m.price_step_down::float,
+    COALESCE((
+      SELECT SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0))
+      FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id
+      WHERE r.menu_item_id = m.id
+    ), 0)::float AS cost_price,
+    m.recipe_notes,
     m.is_drink, m.is_active, m.crash_enabled, m.is_crashed,
     m.image_url, m.tax_category, m.is_staff_only,
     c.name  AS category_name,  c.sort_order,

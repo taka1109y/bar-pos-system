@@ -120,9 +120,16 @@ export default function ReportsPage({ onClose, inline = false }) {
                     }`}>
                       {i + 1}
                     </span>
-                    <span className="flex-1 text-sm text-slate-800 font-medium truncate">
-                      {item.name}
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-slate-800 font-medium truncate block">
+                        {item.name}
+                      </span>
+                      {item.cost_per_unit > 0 && (
+                        <span className="text-xs text-amber-500">
+                          原価率 {item.cost_rate}% ／ 粗利 ¥{Math.floor(item.gross_profit).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
                     <span className="text-xs text-slate-400 flex-shrink-0">
                       {item.quantity_sold}杯
                     </span>

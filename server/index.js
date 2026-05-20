@@ -45,6 +45,9 @@ app.use('/api/receipts', require('./routes/receipts'));
 app.use('/api/system',       require('./routes/system'));
 app.use('/api/maintenance',  require('./routes/maintenance'));
 app.use('/api/logs',         require('./routes/logs'));
+app.use('/api/inventory',    require('./routes/inventory'));
+app.use('/api/ingredients',  require('./routes/ingredients'));
+app.use('/api/recipes',      require('./routes/recipes'));
 
 // Socket.io接続処理
 io.on('connection', (socket) => {

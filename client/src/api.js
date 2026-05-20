@@ -71,6 +71,8 @@ export const api = {
 
   // Reports
   getDailyReport: (date, since) => req(`/reports/daily?date=${date}${since ? '&since=' + encodeURIComponent(since) : ''}`),
+  getCostAnalysis: (start, end) => req(`/reports/cost-analysis?start=${start}&end=${end}`),
+  getProfitSummary: (start, end) => req(`/reports/profit-summary?start=${start}&end=${end}`),
   getReceipts: (date) => req(`/receipts?date=${date}`),
   getOrder: (orderId) => req(`/orders/${orderId}`),
   voidAndReissue: (orderId) => req(`/receipts/${orderId}/void-and-reissue`, { method: 'POST' }),
@@ -101,6 +103,32 @@ export const api = {
   // メンテナンス
   archiveOldData: (beforeDays = 90) =>
     req('/maintenance/archive', { method: 'POST', body: JSON.stringify({ before_days: beforeDays }) }),
+
+  // 材料マスター
+  getIngredients: () => req('/ingredients'),
+  createIngredient: (data) => req('/ingredients', { method: 'POST', body: JSON.stringify(data) }),
+  updateIngredient: (id, data) => req(`/ingredients/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteIngredient: (id) => req(`/ingredients/${id}`, { method: 'DELETE' }),
+
+  // レシピ
+  getRecipes: () => req('/recipes'),
+  getRecipeByMenu: (menuItemId) => req(`/recipes/menu/${menuItemId}`),
+  saveRecipe: (menuItemId, data) => req(`/recipes/menu/${menuItemId}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  // 材料在庫管理
+  getInventory: () => req('/inventory'),
+  initInventory: (ingredientId, data) => req(`/inventory/${ingredientId}/init`, { method: 'POST', body: JSON.stringify(data) }),
+  adjustInventory: (adjustments) => req('/inventory/adjust', { method: 'POST', body: JSON.stringify({ adjustments }) }),
+  addPurchase: (data) => req('/inventory/purchase', { method: 'POST', body: JSON.stringify(data) }),
+  getInventoryLogs: ({ ingredient_id, from, to, reason, limit } = {}) => {
+    const p = new URLSearchParams();
+    if (ingredient_id) p.set('ingredient_id', ingredient_id);
+    if (from)          p.set('from', from);
+    if (to)            p.set('to', to);
+    if (reason)        p.set('reason', reason);
+    if (limit)         p.set('limit', limit);
+    return req(`/inventory/logs${p.toString() ? '?' + p : ''}`);
+  },
 
   // 画像アップロード（FormData を受け取り multipart/form-data で送信）
   uploadMenuImage: (formData) =>

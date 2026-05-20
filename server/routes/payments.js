@@ -100,6 +100,34 @@ router.post('/:orderId', async (req, res, next) => {
        memo || null, effective_gift_cert, gift_cert_no_change,
        order.id]
     );
+    // レシピベースの材料在庫自動減算
+    for (const item of items) {
+      const { rows: recipeRows } = await client.query(
+        `SELECT r.ingredient_id, r.usage_quantity::float
+         FROM recipes r
+         JOIN ingredient_stock s ON s.ingredient_id = r.ingredient_id
+         WHERE r.menu_item_id = $1`,
+        [item.menu_item_id]
+      );
+      for (const r of recipeRows) {
+        const deduct = r.usage_quantity * item.quantity;
+        const { rows: stock } = await client.query(
+          'SELECT quantity_current FROM ingredient_stock WHERE ingredient_id = $1',
+          [r.ingredient_id]
+        );
+        const before = parseFloat(stock[0].quantity_current);
+        const after  = Math.max(0, before - deduct);
+        await client.query(
+          'UPDATE ingredient_stock SET quantity_current = $1, last_updated = NOW() WHERE ingredient_id = $2',
+          [after, r.ingredient_id]
+        );
+        await client.query(
+          `INSERT INTO ingredient_stock_logs (ingredient_id, quantity_before, quantity_after, quantity_change, reason, related_order_id)
+           VALUES ($1, $2, $3, $4, 'order', $5)`,
+          [r.ingredient_id, before, after, -deduct, order.id]
+        );
+      }
+    }
     // 同テーブルの残オープンオーダーがなければavailableに戻す（赤伝票との共存考慮）
     const { rows: remaining } = await client.query(
       `SELECT id FROM orders WHERE table_id = $1 AND status = 'open'`,

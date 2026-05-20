@@ -51,12 +51,27 @@ router.get('/daily', async (req, res, next) => {
     );
 
     const { rows: items } = await query(
-      `SELECT
+      `WITH recipe_cost AS (
+         SELECT r.menu_item_id,
+           COALESCE(SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0)), 0) AS cost_per_unit
+         FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id
+         GROUP BY r.menu_item_id
+       )
+       SELECT
          oi.item_name AS name,
          SUM(oi.quantity)::int AS quantity_sold,
-         SUM(oi.quantity * oi.unit_price)::float AS revenue
+         SUM(oi.quantity * oi.unit_price)::float AS revenue,
+         COALESCE(MAX(rc.cost_per_unit), 0)::float AS cost_per_unit,
+         (SUM(oi.quantity) * COALESCE(MAX(rc.cost_per_unit), 0))::float AS total_cost,
+         (SUM(oi.quantity * oi.unit_price) - SUM(oi.quantity) * COALESCE(MAX(rc.cost_per_unit), 0))::float AS gross_profit,
+         CASE WHEN SUM(oi.quantity * oi.unit_price) > 0
+           THEN ROUND((SUM(oi.quantity) * COALESCE(MAX(rc.cost_per_unit), 0) / SUM(oi.quantity * oi.unit_price) * 100)::numeric, 1)::float
+           ELSE 0
+         END AS cost_rate
        FROM order_items oi
        JOIN orders o ON oi.order_id = o.id
+       JOIN menu_items m ON oi.menu_item_id = m.id
+       LEFT JOIN recipe_cost rc ON rc.menu_item_id = m.id
        WHERE o.${baseWhere}
        GROUP BY oi.item_name
        ORDER BY revenue DESC`,
@@ -184,6 +199,134 @@ router.get('/items', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// GET /api/reports/cost-analysis?start=YYYY-MM-DD&end=YYYY-MM-DD
+router.get('/cost-analysis', async (req, res, next) => {
+  try {
+    const today = todayJST();
+    const start = req.query.start || today;
+    const end   = req.query.end   || today;
+    try {
+      assertDateFormat(start, 'start');
+      assertDateFormat(end,   'end');
+    } catch (e) { return res.status(e.status).json({ error: e.error }); }
+
+    const { rows: items } = await query(
+      `WITH recipe_cost AS (
+         SELECT r.menu_item_id,
+           COALESCE(SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0)), 0) AS cost_per_unit
+         FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id
+         GROUP BY r.menu_item_id
+       )
+       SELECT
+         m.id AS menu_item_id,
+         oi.item_name AS name,
+         SUM(oi.quantity)::int AS quantity_sold,
+         SUM(oi.quantity * oi.unit_price)::float AS revenue,
+         COALESCE(MAX(rc.cost_per_unit), 0)::float AS cost_per_unit,
+         (SUM(oi.quantity) * COALESCE(MAX(rc.cost_per_unit), 0))::float AS total_cost,
+         (SUM(oi.quantity * oi.unit_price) - SUM(oi.quantity) * COALESCE(MAX(rc.cost_per_unit), 0))::float AS gross_profit,
+         CASE WHEN SUM(oi.quantity * oi.unit_price) > 0
+           THEN ROUND((SUM(oi.quantity) * COALESCE(MAX(rc.cost_per_unit), 0) / SUM(oi.quantity * oi.unit_price) * 100)::numeric, 1)::float
+           ELSE 0
+         END AS cost_rate
+       FROM order_items oi
+       JOIN orders o ON oi.order_id = o.id
+       JOIN menu_items m ON oi.menu_item_id = m.id
+       LEFT JOIN recipe_cost rc ON rc.menu_item_id = m.id
+       WHERE o.status = 'paid'
+         AND (o.receipt_type IS NULL OR o.receipt_type NOT IN ('void', 'black_cancelled'))
+         AND (o.closed_at AT TIME ZONE $3)::date BETWEEN $1 AND $2
+       GROUP BY m.id, oi.item_name
+       ORDER BY revenue DESC`,
+      [start, end, TZ]
+    );
+
+    const totalRevenue = items.reduce((sum, r) => sum + r.revenue,     0);
+    const totalCost    = items.reduce((sum, r) => sum + r.total_cost,  0);
+    res.json({
+      start, end, items,
+      summary: {
+        total_revenue: totalRevenue,
+        total_cost:    totalCost,
+        gross_profit:  totalRevenue - totalCost,
+        cost_rate:     totalRevenue > 0 ? Math.round(totalCost / totalRevenue * 1000) / 10 : 0,
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /api/reports/profit-summary?start=YYYY-MM-DD&end=YYYY-MM-DD
+router.get('/profit-summary', async (req, res, next) => {
+  try {
+    const today = todayJST();
+    const start = req.query.start || today;
+    const end   = req.query.end   || today;
+    try {
+      assertDateFormat(start, 'start');
+      assertDateFormat(end,   'end');
+    } catch (e) { return res.status(e.status).json({ error: e.error }); }
+
+    const { rows } = await query(
+      `WITH recipe_cost AS (
+         SELECT r.menu_item_id,
+           COALESCE(SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0)), 0) AS cost_per_unit
+         FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id
+         GROUP BY r.menu_item_id
+       ),
+       daily_revenue AS (
+         SELECT
+           (o.closed_at AT TIME ZONE $3)::date AS date,
+           SUM(o.total_amount)::float AS revenue,
+           COUNT(DISTINCT o.id)::int AS order_count
+         FROM orders o
+         WHERE o.status = 'paid'
+           AND (o.receipt_type IS NULL OR o.receipt_type NOT IN ('void', 'black_cancelled'))
+           AND (o.closed_at AT TIME ZONE $3)::date BETWEEN $1 AND $2
+         GROUP BY (o.closed_at AT TIME ZONE $3)::date
+       ),
+       daily_cost AS (
+         SELECT
+           (o.closed_at AT TIME ZONE $3)::date AS date,
+           SUM(oi.quantity * COALESCE(rc.cost_per_unit, 0))::float AS total_cost
+         FROM orders o
+         JOIN order_items oi ON oi.order_id = o.id
+         JOIN menu_items m ON oi.menu_item_id = m.id
+         LEFT JOIN recipe_cost rc ON rc.menu_item_id = m.id
+         WHERE o.status = 'paid'
+           AND (o.receipt_type IS NULL OR o.receipt_type NOT IN ('void', 'black_cancelled'))
+           AND (o.closed_at AT TIME ZONE $3)::date BETWEEN $1 AND $2
+         GROUP BY (o.closed_at AT TIME ZONE $3)::date
+       )
+       SELECT
+         r.date::text,
+         r.revenue,
+         COALESCE(c.total_cost, 0)::float AS total_cost,
+         (r.revenue - COALESCE(c.total_cost, 0))::float AS gross_profit,
+         r.order_count,
+         CASE WHEN r.revenue > 0
+           THEN ROUND(((r.revenue - COALESCE(c.total_cost, 0)) / r.revenue * 100)::numeric, 1)::float
+           ELSE 0
+         END AS gross_profit_rate
+       FROM daily_revenue r
+       LEFT JOIN daily_cost c ON c.date = r.date
+       ORDER BY r.date`,
+      [start, end, TZ]
+    );
+
+    const totalRevenue = rows.reduce((sum, r) => sum + r.revenue,    0);
+    const totalCost    = rows.reduce((sum, r) => sum + r.total_cost, 0);
+    res.json({
+      start, end, rows,
+      summary: {
+        total_revenue:     totalRevenue,
+        total_cost:        totalCost,
+        gross_profit:      totalRevenue - totalCost,
+        gross_profit_rate: totalRevenue > 0 ? Math.round((totalRevenue - totalCost) / totalRevenue * 1000) / 10 : 0,
+      },
+    });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;
