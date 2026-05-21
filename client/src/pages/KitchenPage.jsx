@@ -34,6 +34,72 @@ function playNotification() {
   } catch (_) {}
 }
 
+function RecipeModal({ menuItemId, itemName, onClose }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['recipe-detail-kitchen', menuItemId],
+    queryFn: () => api.getRecipeByMenu(menuItemId),
+    enabled: !!menuItemId,
+    staleTime: 60_000,
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">{itemName}</h3>
+            <p className="text-xs text-slate-400 mt-0.5">レシピ</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div className="px-5 py-4 overflow-y-auto space-y-4">
+          {isLoading ? (
+            <p className="text-sm text-slate-400 text-center py-6">読み込み中...</p>
+          ) : !data || data.ingredients.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-6">レシピが登録されていません</p>
+          ) : (
+            <>
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-slate-200">
+                      <th scope="col" className="text-left py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">材料</th>
+                      <th scope="col" className="text-right py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">使用量</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.ingredients.map((ing, idx) => (
+                      <tr key={ing.ingredient_id} className={idx < data.ingredients.length - 1 ? 'border-b border-slate-100' : ''}>
+                        <td className="py-3 px-4 text-sm font-medium text-slate-900">{ing.ingredient_name}</td>
+                        <td className="py-3 px-4 text-sm text-slate-600 text-right font-mono">
+                          {ing.usage_quantity} {ing.quantity_unit}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {data.recipe_notes && (
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-amber-700 mb-1.5">作り方メモ</p>
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{data.recipe_notes}</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CancelConfirmModal({ item, onConfirm, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in">
@@ -67,6 +133,7 @@ function CancelConfirmModal({ item, onConfirm, onClose }) {
 export default function KitchenPage() {
   const queryClient = useQueryClient();
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [recipeTarget, setRecipeTarget] = useState(null);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['kitchenOrders'],
@@ -194,7 +261,13 @@ export default function KitchenPage() {
 
                     {/* 商品名 */}
                     <div>
-                      <span className="text-sm text-slate-700 font-medium">{row.itemName}</span>
+                      <button
+                        onClick={() => row.menuItemId && setRecipeTarget({ menuItemId: row.menuItemId, itemName: row.itemName })}
+                        disabled={!row.menuItemId}
+                        className="-my-4 py-4 w-full text-left text-sm text-slate-700 font-medium hover:text-primary-600 cursor-pointer disabled:cursor-default"
+                      >
+                        {row.itemName}
+                      </button>
                     </div>
 
                     {/* 数量 */}
@@ -230,6 +303,14 @@ export default function KitchenPage() {
           </div>
         )}
       </main>
+
+      {recipeTarget && (
+        <RecipeModal
+          menuItemId={recipeTarget.menuItemId}
+          itemName={recipeTarget.itemName}
+          onClose={() => setRecipeTarget(null)}
+        />
+      )}
 
       {cancelTarget && (
         <CancelConfirmModal

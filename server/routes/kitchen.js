@@ -8,14 +8,15 @@ router.get('/orders', async (req, res, next) => {
   try {
     const { rows } = await query(`
       SELECT
-        oi.id          AS item_id,
+        oi.id             AS item_id,
         oi.order_id,
+        oi.menu_item_id,
         oi.item_name,
         oi.quantity,
-        oi.status      AS item_status,
-        oi.created_at  AS ordered_at,
+        oi.status         AS item_status,
+        oi.created_at     AS ordered_at,
         o.table_id,
-        t.name         AS table_name
+        t.name            AS table_name
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
       JOIN tables t ON t.id = o.table_id
@@ -24,14 +25,15 @@ router.get('/orders', async (req, res, next) => {
     `);
 
     res.json(rows.map((r) => ({
-      itemId:    r.item_id,
-      orderId:   r.order_id,
-      tableId:   r.table_id,
-      tableName: r.table_name,
-      itemName:  r.item_name,
-      quantity:  r.quantity,
-      status:    r.item_status,
-      orderedAt: r.ordered_at,
+      itemId:      r.item_id,
+      orderId:     r.order_id,
+      menuItemId:  r.menu_item_id,
+      tableId:     r.table_id,
+      tableName:   r.table_name,
+      itemName:    r.item_name,
+      quantity:    r.quantity,
+      status:      r.item_status,
+      orderedAt:   r.ordered_at,
     })));
   } catch (err) {
     next(err);

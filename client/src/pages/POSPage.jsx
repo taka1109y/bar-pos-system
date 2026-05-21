@@ -7,7 +7,6 @@ import TableGrid from '../components/pos/TableGrid';
 import OrderPanel from '../components/pos/OrderPanel';
 import MenuManager from '../components/menu/MenuManager';
 import CategoryManager from '../components/menu/CategoryManager';
-import PricingSettings from '../components/menu/PricingSettings';
 import ReportsPage from './ReportsPage';
 import TableManager from '../components/tables/TableManager';
 import ReceiptsPage from './ReceiptsPage';
@@ -50,10 +49,6 @@ const NAV_GROUPS = [
       {
         id: 'categories', label: 'カテゴリ管理', desc: 'カテゴリ・サブカテゴリ',
         icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
-      },
-      {
-        id: 'pricing', label: '価格エンジン', desc: 'パラメータ設定',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>,
       },
       {
         id: 'inventory', label: '在庫管理', desc: '棚卸し・仕入れ',
@@ -365,7 +360,6 @@ export default function POSPage() {
         {view === 'tables'     && <div className="flex-1 overflow-y-auto"><TableManager /></div>}
         {view === 'menu'       && <div className="flex-1 overflow-y-auto"><MenuManager /></div>}
         {view === 'categories' && <div className="flex-1 overflow-y-auto"><CategoryManager /></div>}
-        {view === 'pricing'    && <div className="flex-1 overflow-y-auto"><PricingSettings /></div>}
         {view === 'reports'    && <div className="flex-1 overflow-y-auto"><ReportsPage inline /></div>}
         {view === 'receipts'   && <div className="flex-1 overflow-y-auto"><ReceiptsPage /></div>}
         {view === 'close'      && <div className="flex-1 flex flex-col overflow-hidden"><RegisterClosePage /></div>}
