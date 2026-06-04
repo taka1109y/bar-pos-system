@@ -341,9 +341,9 @@ function HourSelect({ value, onChange }) {
 }
 
 const PRICING_FIELDS = [
-  { key: 'TICK_INTERVAL_MS', label: 'ティック間隔',       unit: 'ms',   desc: '価格再計算の実行間隔。変更はすぐに反映されます。', min: 5000, step: 1000 },
-  { key: 'WINDOW_SECONDS',   label: '需要計測ウィンドウ', unit: '秒',   desc: '過去何秒間の注文を需要として計測するか。',           min: 60,   step: 60 },
-  { key: 'PRICE_STEP_DOWN',  label: '価格下降ステップ',   unit: '割合', desc: '需要がない場合に1ティックあたり何割ずつ基準価格へ戻すか (例: 0.04 = 4%)。', min: 0.01, max: 0.5, step: 0.01 },
+  { key: 'TICK_INTERVAL_MS', label: 'ティック間隔',       unit: '秒', desc: '価格再計算の実行間隔。変更はすぐに反映されます。', min: 5, step: 1, toDisplay: (v) => v / 1000, toApi: (v) => v * 1000 },
+  { key: 'WINDOW_SECONDS',   label: '需要計測ウィンドウ', unit: '秒', desc: '過去何秒間の注文を需要として計測するか。',           min: 60,  step: 60 },
+  { key: 'PRICE_STEP_DOWN',  label: '価格下降ステップ',   unit: '%',  desc: '需要がない場合に1ティックあたり何%ずつ基準価格へ戻すか。', min: 1, max: 50, step: 0.1, toDisplay: (v) => Math.round(v * 1000) / 10, toApi: (v) => v / 100 },
 ];
 
 function PricingEngineTab() {
@@ -385,9 +385,10 @@ function PricingEngineTab() {
   return (
     <div className="space-y-4">
       {PRICING_FIELDS.map((field) => {
-        const current = currentDraft[field.key];
-        const def = data.defaults[field.key];
-        const isChanged = current !== def;
+        const toDisp = field.toDisplay ?? ((v) => v);
+        const current = toDisp(currentDraft[field.key]);
+        const def = toDisp(data.defaults[field.key]);
+        const isChanged = current !== toDisp(data.settings[field.key]);
         return (
           <div key={field.key} className="bg-white rounded-xl border border-slate-200 p-6">
             <div className="flex items-start justify-between gap-4 mb-3">
@@ -401,7 +402,10 @@ function PricingEngineTab() {
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <input
                   type="number" value={current}
-                  onChange={(e) => setDraft((prev) => ({ ...(prev ?? data.settings), [field.key]: Number(e.target.value) }))}
+                  onChange={(e) => {
+                    const apiVal = field.toApi ? field.toApi(Number(e.target.value)) : Number(e.target.value);
+                    setDraft((prev) => ({ ...(prev ?? data.settings), [field.key]: apiVal }));
+                  }}
                   min={field.min} max={field.max} step={field.step}
                   className={`${inp} w-28 text-right`}
                 />

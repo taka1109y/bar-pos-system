@@ -295,11 +295,11 @@ export default function POSPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 title={sidebarCollapsed ? label : undefined}
-                className={`flex items-center gap-2.5 w-full rounded-lg text-slate-400 hover:bg-gray-50 hover:text-slate-600 transition-colors ${
-                  sidebarCollapsed ? 'justify-center px-0 py-3' : 'px-2.5 py-2.5'
+                className={`flex items-center gap-2.5 w-full rounded-lg text-slate-400 hover:bg-gray-50 hover:text-slate-600 transition-colors min-h-[44px] ${
+                  sidebarCollapsed ? 'justify-center px-0' : 'px-2.5'
                 }`}
               >
-                <span className={`flex-shrink-0 [&>svg]:w-full [&>svg]:h-full ${sidebarCollapsed ? 'w-5 h-5' : 'w-4 h-4'}`}>{icon}</span>
+                <span className="flex-shrink-0 [&>svg]:w-full [&>svg]:h-full w-5 h-5">{icon}</span>
                 {!sidebarCollapsed && (
                   <span className="text-sm font-semibold block flex-1">{label}</span>
                 )}
