@@ -5,6 +5,7 @@ import { api } from './api';
 import POSPage from './pages/POSPage';
 import BoardPage from './pages/BoardPage';
 import TablePage from './pages/TablePage';
+import TableSelectPage from './pages/TableSelectPage';
 import KitchenPage from './pages/KitchenPage';
 import RegisterStartPage from './pages/RegisterStartPage';
 
@@ -100,6 +101,7 @@ export default function App() {
           <Route path="/start" element={<RedirectIfOpen><RegisterStartPage /></RedirectIfOpen>} />
           <Route path="/"      element={<RequireRegisterOpen><POSPage /></RequireRegisterOpen>} />
           <Route path="/board" element={<PublicGuard><BoardPage /></PublicGuard>} />
+          <Route path="/table" element={<PublicGuard><TableSelectPage /></PublicGuard>} />
           <Route path="/table/:tableId" element={<PublicGuard><TablePage /></PublicGuard>} />
           <Route path="/kitchen" element={<PublicGuard><KitchenPage /></PublicGuard>} />
         </Routes>
