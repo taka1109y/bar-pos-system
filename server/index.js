@@ -8,12 +8,11 @@ const fs   = require('fs');
 const app = express();
 const server = http.createServer(app);
 
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:4173',
-  'http://localhost',
-  process.env.CLIENT_ORIGIN,
-].filter(Boolean);
+// CLIENT_ORIGIN="*" の場合は全オリジンを許可（LAN結合テスト時のみ使用）
+const rawOrigin = process.env.CLIENT_ORIGIN;
+const allowedOrigins = rawOrigin === '*'
+  ? true
+  : ['http://localhost:5173', 'http://localhost:4173', 'http://localhost', rawOrigin].filter(Boolean);
 
 const io = new Server(server, {
   cors: { origin: allowedOrigins, methods: ['GET', 'POST'] },
