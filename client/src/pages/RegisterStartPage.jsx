@@ -43,7 +43,7 @@ export default function RegisterStartPage() {
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center select-none">
 
       {/* ロゴ */}
-      <img src="/FANZONE_logo_A1.png" alt="ロゴ" className="h-16 w-auto object-contain mb-10" />
+      <img src="/FANZONE_logo_A2.png" alt="ロゴ" className="h-16 w-auto object-contain mb-10" />
 
       {/* 時計 */}
       <div className="tabular-nums font-mono font-thin text-white leading-none mb-4"

@@ -8,6 +8,8 @@ import TablePage from './pages/TablePage';
 import TableSelectPage from './pages/TableSelectPage';
 import KitchenPage from './pages/KitchenPage';
 import RegisterStartPage from './pages/RegisterStartPage';
+// テスト専用 — 本番前に削除すること / DELETE BEFORE PRODUCTION
+import DebugPage from './pages/DebugPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,9 +53,9 @@ function RegisterClosedScreen() {
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center select-none">
       <p className="text-slate-400 text-sm font-medium tracking-[0.3em] uppercase mb-6">
-        POS Management
+        Order System
       </p>
-      <img src="/FANZONE_logo_A1.png" alt="ロゴ" className="h-16 w-auto object-contain mb-10" />
+      <img src="/FANZONE_logo_A2.png" alt="ロゴ" className="h-16 w-auto object-contain mb-10" />
       <div className="tabular-nums font-mono font-thin text-white leading-none mb-8"
         style={{ fontSize: 'clamp(48px, 10vw, 96px)', letterSpacing: '-0.02em' }}
       >
@@ -104,6 +106,8 @@ export default function App() {
           <Route path="/table" element={<PublicGuard><TableSelectPage /></PublicGuard>} />
           <Route path="/table/:tableId" element={<PublicGuard><TablePage /></PublicGuard>} />
           <Route path="/kitchen" element={<PublicGuard><KitchenPage /></PublicGuard>} />
+          {/* テスト専用 — 本番前に削除すること / DELETE BEFORE PRODUCTION */}
+          <Route path="/debug" element={<DebugPage />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

@@ -62,6 +62,10 @@ app.use('/api/logs',         require('./routes/logs'));
 app.use('/api/inventory',    require('./routes/inventory'));
 app.use('/api/ingredients',  require('./routes/ingredients'));
 app.use('/api/recipes',      require('./routes/recipes'));
+// テスト専用デバッグルート — ENABLE_DEBUG_ROUTES=true のときのみ有効 / DELETE BEFORE PRODUCTION
+if (process.env.ENABLE_DEBUG_ROUTES === 'true') {
+  app.use('/api/debug', require('./routes/debug'));
+}
 
 // Socket.io接続処理
 io.on('connection', (socket) => {

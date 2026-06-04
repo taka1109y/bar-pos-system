@@ -135,3 +135,34 @@ docker compose exec postgres psql -U bar -d bardb
 SELECT * FROM tables;
 SELECT * FROM orders ORDER BY id;
 ```
+
+---
+
+## 5. デバッグページ（テスト専用）
+
+`http://localhost/debug` でアクセスできるデバッグページを追加してある。
+
+### 機能
+
+| 機能 | 説明 |
+|------|------|
+| Dockerログ表示 | postgres / server / client(nginx) のログをリアルタイムにストリーミング表示。INFO=緑 / WARN=黄 / ERROR=赤 で色分け |
+| DB Table Viewer | 全テーブルのデータをブラウザで参照（読み取り専用）。50行ごとにページ送り |
+
+### デバッグページの削除手順（テスト完了後）
+
+以下の変更をすべて元に戻すこと：
+
+| ファイル | 操作 |
+|---------|------|
+| `server/routes/debug.js` | ファイルごと削除 |
+| `server/index.js` | `app.use('/api/debug', ...)` の行を削除 |
+| `client/src/pages/DebugPage.jsx` | ファイルごと削除 |
+| `client/src/App.jsx` | `import DebugPage` の行と `/debug Route` を削除 |
+| `docker-compose.yml` | `server` サービスの `/var/run/docker.sock:/var/run/docker.sock:ro` と `ENABLE_DEBUG_ROUTES: 'true'` を削除 |
+
+削除後にコンテナを再ビルド：
+
+```bash
+docker compose up -d --build
+```

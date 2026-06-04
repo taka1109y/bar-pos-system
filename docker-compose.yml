@@ -1,5 +1,6 @@
 services:
   postgres:
+    container_name: bar-pos-postgres
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: bardb
@@ -17,6 +18,7 @@ services:
       retries: 10
 
   server:
+    container_name: bar-pos-server
     build: ./server
     environment:
       TZ: Asia/Tokyo
@@ -28,17 +30,21 @@ services:
       # ─── テスト用 (LANからのWebSocket/CORS接続を許可) ────────────────
       # 切り替え方法: 上の CLIENT_ORIGIN 行をコメントアウトし、下の行を有効にする
       CLIENT_ORIGIN: "*"
+      # テスト専用デバッグルートの有効化 — テスト完了後にこの行を削除すること
+      ENABLE_DEBUG_ROUTES: 'true'
     # --- テスト用: serverに外部から直接APIアクセスしたい場合はコメントを外す ---
     # ports:
     #   - "3001:3001"
     volumes:
       - uploads:/app/uploads
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
 
   client:
+    container_name: bar-pos-client
     build: ./client
     environment:
       TZ: Asia/Tokyo
