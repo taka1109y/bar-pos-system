@@ -4,6 +4,8 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 const fs   = require('fs');
+const logger   = require('./utils/logger');
+const pinoHttp = require('pino-http');
 
 const app = express();
 const server = http.createServer(app);
@@ -24,6 +26,15 @@ socketService.setIo(io);
 
 app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
+app.use(pinoHttp({
+  logger,
+  customLogLevel: (_req, res) =>
+    res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info',
+  serializers: {
+    req: (req) => ({ method: req.method, url: req.url }),
+    res: (res) => ({ statusCode: res.statusCode }),
+  },
+}));
 
 // アップロード画像の静的配信（ローカル開発用 / Docker では Nginx が担当）
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
@@ -50,7 +61,7 @@ app.use('/api/recipes',      require('./routes/recipes'));
 
 // Socket.io接続処理
 io.on('connection', (socket) => {
-  console.log(`[Socket] Client connected: ${socket.id}`);
+  logger.info({ socketId: socket.id }, 'Socket client connected');
 
   socket.on('client:subscribe_table', ({ tableId }) => {
     socket.join(`table:${tableId}`);
@@ -61,7 +72,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    console.log(`[Socket] Client disconnected: ${socket.id}`);
+    logger.info({ socketId: socket.id }, 'Socket client disconnected');
   });
 });
 
@@ -80,7 +91,7 @@ if (process.env.NODE_ENV === 'production' && process.env.SERVE_STATIC === 'true'
 
 // エラーハンドラー
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  (req.log ?? logger).error({ err, method: req.method, url: req.url }, 'Unhandled request error');
   res.status(500).json({ error: 'Internal server error' });
 });
 
@@ -98,11 +109,11 @@ async function main() {
   startPricingEngine();
 
   server.listen(PORT, () => {
-    console.log(`[Server] Running on http://localhost:${PORT}`);
+    logger.info({ port: PORT }, 'Server running');
   });
 }
 
 main().catch((e) => {
-  console.error('[Server] Fatal startup error:', e);
+  logger.fatal({ err: e }, 'Fatal startup error');
   process.exit(1);
 });

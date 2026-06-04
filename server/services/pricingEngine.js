@@ -1,6 +1,7 @@
 const { query } = require('../db/database');
 const { broadcast } = require('./socketService');
 const pricingSettings = require('./pricingSettings');
+const logger = require('../utils/logger');
 
 const TZ = process.env.TZ_REPORT || 'Asia/Tokyo';
 
@@ -145,7 +146,7 @@ async function runTick() {
     }));
 
     broadcast('prices:updated', { items: updatesWithStats, timestamp: Date.now() });
-    console.log(`[PricingEngine] ${updates.length} item(s) price updated`);
+    logger.info({ count: updates.length }, 'PricingEngine price updated');
   }
 
   // 全アイテムの最新価格をブロードキャスト
@@ -173,7 +174,7 @@ async function triggerTick() {
     await runTick();
     if (pendingTick) { pendingTick = false; await runTick(); }
   } catch (e) {
-    console.error('[PricingEngine] triggered tick error:', e);
+    logger.error({ err: e }, 'PricingEngine triggered tick error');
   } finally {
     running = false; pendingTick = false;
   }
@@ -183,10 +184,10 @@ let tickTimer = null;
 
 function startPricingEngine() {
   const { TICK_INTERVAL_MS } = pricingSettings.getSettings();
-  console.log('[PricingEngine] Starting...');
-  runTick().catch((e) => console.error('[PricingEngine] initial tick error:', e));
+  logger.info('PricingEngine starting');
+  runTick().catch((e) => logger.error({ err: e }, 'PricingEngine initial tick error'));
   tickTimer = setInterval(() => {
-    runTick().catch((e) => console.error('[PricingEngine] tick error:', e));
+    runTick().catch((e) => logger.error({ err: e }, 'PricingEngine tick error'));
   }, TICK_INTERVAL_MS);
 }
 
@@ -194,9 +195,9 @@ function restartInterval() {
   if (tickTimer) clearInterval(tickTimer);
   const { TICK_INTERVAL_MS } = pricingSettings.getSettings();
   tickTimer = setInterval(() => {
-    runTick().catch((e) => console.error('[PricingEngine] tick error:', e));
+    runTick().catch((e) => logger.error({ err: e }, 'PricingEngine tick error'));
   }, TICK_INTERVAL_MS);
-  console.log(`[PricingEngine] Interval restarted: ${TICK_INTERVAL_MS}ms`);
+  logger.info({ intervalMs: TICK_INTERVAL_MS }, 'PricingEngine interval restarted');
 }
 
 module.exports = { startPricingEngine, triggerTick, restartInterval };

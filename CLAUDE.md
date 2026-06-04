@@ -61,10 +61,10 @@ No ORM — raw SQL via `pg` pool. No authentication.
 
 ### Server (`server/`)
 
-**Entry point**: `index.js` — registers middleware, mounts route modules, sets up Socket.io event handlers, then runs `initDb() → seed() → seedSubcategories() → startPricingEngine()`.
+**Entry point**: `index.js` — registers middleware, mounts route modules, sets up Socket.io event handlers, then runs `initDb() → seed() → seedSubcategories() → ensureImmediateTable() → startPricingEngine()`.
 
 **Route modules** (`server/routes/`):
-- `tables.js` — CRUD; accepts `table_type` ('table'|'counter'); DELETE blocks if open orders exist (409)
+- `tables.js` — CRUD; accepts `table_type` ('table'|'counter'|'immediate'); `GET /immediate` returns the immediate-checkout table; DELETE blocks if open orders exist (409)
 - `menu.js` — CRUD with soft delete (`is_active=false`); always returns `::float` casts for numeric fields; supports subcategories; crash/reset endpoints for forced price drops. `GET /` accepts `?staff=true` to include `is_staff_only` items (default: excluded). Fields: `image_url` (filename, not URL), `tax_category` ('standard'|'reduced'), `is_staff_only`
 - `orders.js` — Order lifecycle + item add/update/delete; every item mutation runs `recalcTotal()` in a transaction; `GET /open` returns all open orders with charge fields; `POST /` accepts `guest_count`, reads charge settings from `system_settings`, writes `charge_per_person` and `charge_amount` to the order at creation time
 - `payments.js` — Closes orders (tax-inclusive 内税 calculation); applies late-night surcharge, discount, and gift certificate; resets table status to `available`. Splits items by `tax_category` to calculate standard (10%) and reduced (8%) tax separately; charge/late_night amounts use standard rate; discount applied to standard first then remainder to reduced
@@ -77,6 +77,9 @@ No ORM — raw SQL via `pg` pool. No authentication.
 - `uploads.js` — `POST /api/uploads/menu-images`: multer file upload (images only, 5MB limit); resolves filename conflicts by appending `_1`, `_2`, etc.; stores files in `server/uploads/` (Docker: `uploads` volume mounted at `/app/uploads`)
 - `maintenance.js` — `POST /api/maintenance/archive`: 指定日数（`before_days`, デフォルト90日）より古い`paid`オーダーのorder_items・ordersをトランザクションで一括削除。削除前件数チェックあり
 - `logs.js` — `GET /api/logs`: 会計ログ検索。クエリパラメータ: `from`/`to`(YYYY-MM-DD)、`receipt_type`('normal'|'red'|'void'|'black_cancelled')、`payment_method`('cash'|'card'|'emoney')、`limit`(max 200, デフォルト50)、`offset`。`{ orders, total, limit, offset }` を返す
+- `ingredients.js` — 材料マスター CRUD。`GET /api/ingredients`、`POST`、`PATCH /:id`、`DELETE /:id`（在庫・レシピ紐付きの材料は削除不可 409）
+- `inventory.js` — 材料在庫管理。`POST /:id/init`（初期在庫設定）、`POST /adjust`（一括調整）、`POST /purchase`（仕入れ登録）、`GET /logs`（在庫異動ログ）
+- `recipes.js` — 商品レシピ管理。`GET /api/recipes`（全レシピ）、`GET /menu/:menuItemId`（商品別レシピ）、`PUT /menu/:menuItemId`（レシピ一括保存・コスト自動計算）
 
 **Key services**:
 - `services/socketService.js` — Singleton wrapper around Socket.io (`setIo`/`broadcast`/`broadcastToRoom`). Routes import `{ broadcast, broadcastToRoom }` from here, not from `index.js`.
@@ -88,7 +91,7 @@ No ORM — raw SQL via `pg` pool. No authentication.
 - `utils/validate.js` — `assertDateFormat(value, fieldName)`: YYYY-MM-DD 形式チェック（不正なら `{ status, error }` を throw）、`clampInt(value, min, max, defaultVal)`: 整数クランプ
 
 **Database schema** (`db/schema.sql`):
-- `tables` — id, name, table_type ('table'|'counter'), status
+- `tables` — id, name, table_type ('table'|'counter'|'immediate'), status
 - `categories` — id, name, sort_order, crash_pct
 - `subcategories` — id, category_id, name, sort_order, crash_pct
 - `menu_items` — id, category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, is_active, crash_enabled, is_crashed, image_url (filename only), tax_category ('standard'|'reduced'), is_staff_only

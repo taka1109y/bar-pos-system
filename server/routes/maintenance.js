@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db/database');
+const logger = require('../utils/logger');
 
 // POST /api/maintenance/archive
 // Body: { before_days: 90 }
@@ -51,7 +52,7 @@ router.post('/archive', async (req, res, next) => {
     });
   } catch (err) {
     await client.query('ROLLBACK').catch((rbErr) => {
-      console.error('[maintenance] ROLLBACK failed:', rbErr);
+      logger.warn({ err: rbErr }, 'maintenance ROLLBACK failed');
     });
     next(err);
   } finally {

@@ -131,13 +131,7 @@ export const api = {
   },
 
   // 画像アップロード（FormData を受け取り multipart/form-data で送信）
+  // headers: {} で Content-Type を fetch に自動設定させ、multipart boundary を正しく処理する
   uploadMenuImage: (formData) =>
-    fetch('/api/uploads/menu-images', { method: 'POST', body: formData })
-      .then(async (res) => {
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ error: res.statusText }));
-          throw new Error(err.error || res.statusText);
-        }
-        return res.json();
-      }),
+    req('/uploads/menu-images', { method: 'POST', body: formData, headers: {} }),
 };

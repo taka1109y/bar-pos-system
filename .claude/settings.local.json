@@ -80,7 +80,8 @@
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'Saved: menu_item_id={d[\\\\\"menu_item_id\\\\\"]}, total_cost={d[\\\\\"total_cost\\\\\"]}'\\)\")",
       "Bash(rtk git *)",
       "Bash(rtk wc *)",
-      "Bash(rtk docker *)"
+      "Bash(rtk docker *)",
+      "Bash(npm list *)"
     ]
   }
 }

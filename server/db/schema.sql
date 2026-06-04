@@ -191,3 +191,5 @@ CREATE TABLE IF NOT EXISTS ingredient_stock_logs (
 CREATE INDEX IF NOT EXISTS idx_ingredient_stock_logs_ingredient ON ingredient_stock_logs(ingredient_id);
 CREATE INDEX IF NOT EXISTS idx_ingredient_stock_logs_log_date ON ingredient_stock_logs(log_date);
 CREATE INDEX IF NOT EXISTS idx_recipes_menu_item ON recipes(menu_item_id);
+CREATE INDEX IF NOT EXISTS idx_recipes_ingredient ON recipes(ingredient_id);
+CREATE INDEX IF NOT EXISTS idx_menu_items_category ON menu_items(category_id);

@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
+const logger = require('../utils/logger');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgres://bar:bar@localhost:5432/bardb',
@@ -18,11 +19,11 @@ async function initDb() {
   for (let i = 0; i < MAX_RETRIES; i++) {
     try {
       await pool.query(schema);
-      console.log('[DB] Schema applied successfully');
+      logger.info('DB schema applied successfully');
       return;
     } catch (err) {
       if (i < MAX_RETRIES - 1) {
-        console.log(`[DB] Waiting for PostgreSQL... (${i + 1}/${MAX_RETRIES})`);
+        logger.warn({ attempt: i + 1, maxRetries: MAX_RETRIES }, 'Waiting for PostgreSQL');
         await new Promise((r) => setTimeout(r, 2000));
       } else {
         throw err;

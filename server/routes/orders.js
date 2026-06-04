@@ -4,6 +4,7 @@ const { pool, query } = require('../db/database');
 const { broadcastToRoom, broadcast } = require('../services/socketService');
 const { triggerTick } = require('../services/pricingEngine');
 const { nowInTZ } = require('../utils/time');
+const logger = require('../utils/logger');
 
 async function getOrderWithItems(orderId) {
   const { rows: orderRows } = await query(
@@ -142,7 +143,7 @@ router.post('/', async (req, res, next) => {
 
     const { rows } = await query(
       `INSERT INTO orders (table_id, guest_count, charge_per_person, charge_amount)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
+       VALUES ($1, $2, $3, $4) RETURNING id`,
       [table_id, guestCountNum, charge_per_person, charge_amount]
     );
     await query(`UPDATE tables SET status = 'occupied' WHERE id = $1`, [table_id]);
@@ -167,14 +168,14 @@ router.post('/:id/items', async (req, res, next) => {
     if (!menu_item_id) return res.status(400).json({ error: 'menu_item_id is required' });
 
     const { rows: orderRows } = await client.query(
-      `SELECT * FROM orders WHERE id = $1 AND status = 'open'`,
+      `SELECT id, table_id FROM orders WHERE id = $1 AND status = 'open'`,
       [req.params.id]
     );
     const order = orderRows[0];
     if (!order) return res.status(404).json({ error: 'Order not found or already closed' });
 
     const { rows: menuRows } = await client.query(
-      'SELECT * FROM menu_items WHERE id = $1 AND is_active = TRUE',
+      'SELECT id, name, current_price::float, is_drink FROM menu_items WHERE id = $1 AND is_active = TRUE',
       [menu_item_id]
     );
     const menuItem = menuRows[0];
@@ -222,7 +223,7 @@ router.post('/:id/items', async (req, res, next) => {
 
     res.json(updated);
   } catch (err) {
-    await client.query('ROLLBACK').catch((rbErr) => { console.error('[orders] ROLLBACK failed:', rbErr); });
+    await client.query('ROLLBACK').catch((rbErr) => { logger.warn({ err: rbErr }, 'orders ROLLBACK failed'); });
     next(err);
   } finally {
     client.release();
@@ -239,14 +240,14 @@ router.patch('/:id/items/:itemId', async (req, res, next) => {
     }
 
     const { rows: orderRows } = await client.query(
-      `SELECT * FROM orders WHERE id = $1 AND status = 'open'`,
+      `SELECT id, table_id FROM orders WHERE id = $1 AND status = 'open'`,
       [req.params.id]
     );
     const order = orderRows[0];
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
     const { rows: itemRows } = await client.query(
-      'SELECT * FROM order_items WHERE id = $1 AND order_id = $2',
+      'SELECT id FROM order_items WHERE id = $1 AND order_id = $2',
       [req.params.itemId, order.id]
     );
     if (!itemRows[0]) return res.status(404).json({ error: 'Order item not found' });
@@ -273,7 +274,7 @@ router.patch('/:id/items/:itemId', async (req, res, next) => {
 
     res.json(updated);
   } catch (err) {
-    await client.query('ROLLBACK').catch((rbErr) => { console.error('[orders] ROLLBACK failed:', rbErr); });
+    await client.query('ROLLBACK').catch((rbErr) => { logger.warn({ err: rbErr }, 'orders ROLLBACK failed'); });
     next(err);
   } finally {
     client.release();
@@ -285,7 +286,7 @@ router.delete('/:id/items/:itemId', async (req, res, next) => {
   const client = await pool.connect();
   try {
     const { rows: orderRows } = await client.query(
-      `SELECT * FROM orders WHERE id = $1 AND status = 'open'`,
+      `SELECT id, table_id FROM orders WHERE id = $1 AND status = 'open'`,
       [req.params.id]
     );
     const order = orderRows[0];
@@ -309,7 +310,7 @@ router.delete('/:id/items/:itemId', async (req, res, next) => {
 
     res.json(updated);
   } catch (err) {
-    await client.query('ROLLBACK').catch((rbErr) => { console.error('[orders] ROLLBACK failed:', rbErr); });
+    await client.query('ROLLBACK').catch((rbErr) => { logger.warn({ err: rbErr }, 'orders ROLLBACK failed'); });
     next(err);
   } finally {
     client.release();
@@ -323,7 +324,7 @@ router.patch('/:id/guest-count', async (req, res, next) => {
     const guestCountNum = Math.max(1, parseInt(guest_count) || 1);
 
     const { rows: orderRows } = await query(
-      `SELECT * FROM orders WHERE id = $1 AND status = 'open'`,
+      `SELECT id FROM orders WHERE id = $1 AND status = 'open'`,
       [req.params.id]
     );
     const order = orderRows[0];

@@ -1,10 +1,11 @@
 'use strict';
 const { query } = require('./database');
+const logger = require('../utils/logger');
 
 async function seed() {
   const { rows } = await query('SELECT COUNT(*) as c FROM tables');
   if (parseInt(rows[0].c) > 0) {
-    console.log('Database already seeded, skipping.');
+    logger.info('Database already seeded, skipping');
     return;
   }
 
@@ -95,13 +96,13 @@ async function seed() {
     );
   }
 
-  console.log('Database seeded successfully.');
+  logger.info('Database seeded successfully');
 }
 
 async function seedSubcategories() {
   const { rows } = await query('SELECT COUNT(*) as c FROM subcategories');
   if (parseInt(rows[0].c) > 0) {
-    console.log('Subcategories already seeded, skipping.');
+    logger.info('Subcategories already seeded, skipping');
     return;
   }
 
@@ -109,7 +110,7 @@ async function seedSubcategories() {
   const catMap = Object.fromEntries(cats.map((c) => [c.name, c.id]));
 
   if (Object.keys(catMap).length === 0) {
-    console.log('No categories found, skipping subcategory seed.');
+    logger.info('No categories found, skipping subcategory seed');
     return;
   }
 
@@ -165,7 +166,7 @@ async function seedSubcategories() {
     await query('UPDATE menu_items SET subcategory_id = $1 WHERE name = $2', [subcatId, itemName]);
   }
 
-  console.log('Subcategories seeded successfully.');
+  logger.info('Subcategories seeded successfully');
 }
 
 async function ensureImmediateTable() {
@@ -176,7 +177,7 @@ async function ensureImmediateTable() {
     await query(
       `INSERT INTO tables (name, table_type, status) VALUES ('即会計', 'immediate', 'available')`
     );
-    console.log('Immediate checkout table created.');
+    logger.info('Immediate checkout table created');
   }
 }
 

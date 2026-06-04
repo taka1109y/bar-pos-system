@@ -170,9 +170,10 @@ export default function POSPage() {
     if (view === 'tables') {
       queryClient.invalidateQueries({ queryKey: ['tables'] });
     }
-    // 対象ビューへの遷移時に全クエリを無効化して最新データを取得
     if (REFRESH_ON_ENTER.has(nextView)) {
-      queryClient.invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: ['tables'] });
+      queryClient.invalidateQueries({ queryKey: ['orders-open'] });
+      queryClient.invalidateQueries({ queryKey: ['system-settings'] });
     }
     setView(nextView);
     if (nextView !== 'pos') setSelectedTable(null);

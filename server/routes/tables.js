@@ -8,7 +8,7 @@ const VALID_TYPES = ['table', 'counter'];
 // GET /api/tables
 router.get('/', async (req, res, next) => {
   try {
-    const { rows } = await query(`SELECT * FROM tables WHERE table_type != 'immediate' ORDER BY id`);
+    const { rows } = await query(`SELECT id, name, table_type, status FROM tables WHERE table_type != 'immediate' ORDER BY id`);
     res.json(rows);
   } catch (err) {
     next(err);
@@ -18,7 +18,7 @@ router.get('/', async (req, res, next) => {
 // GET /api/tables/immediate — 即会計専用テーブルを返す（/:id の前に配置）
 router.get('/immediate', async (_req, res, next) => {
   try {
-    const { rows } = await query(`SELECT * FROM tables WHERE table_type = 'immediate' LIMIT 1`);
+    const { rows } = await query(`SELECT id, name, table_type, status FROM tables WHERE table_type = 'immediate' LIMIT 1`);
     if (!rows[0]) return res.status(404).json({ error: 'Immediate table not found' });
     res.json(rows[0]);
   } catch (err) {
@@ -40,7 +40,7 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'table_type must be table or counter' });
     }
     const { rows } = await query(
-      'INSERT INTO tables (name, table_type) VALUES ($1, $2) RETURNING *',
+      'INSERT INTO tables (name, table_type) VALUES ($1, $2) RETURNING id, name, table_type, status',
       [name.trim(), table_type]
     );
     res.status(201).json(rows[0]);
@@ -53,7 +53,7 @@ router.post('/', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const { name, table_type, status } = req.body;
-    const { rows: existing } = await query('SELECT * FROM tables WHERE id = $1', [req.params.id]);
+    const { rows: existing } = await query('SELECT id FROM tables WHERE id = $1', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ error: 'Table not found' });
 
     if (name !== undefined) {
@@ -79,7 +79,7 @@ router.patch('/:id', async (req, res, next) => {
 
     values.push(req.params.id);
     const { rows } = await query(
-      `UPDATE tables SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
+      `UPDATE tables SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, name, table_type, status`,
       values
     );
 
