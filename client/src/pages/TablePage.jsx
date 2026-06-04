@@ -172,9 +172,7 @@ function TopBar({ tableName, tableId, guestCount, timeStr }) {
     >
       <div className="absolute top-0 left-0 right-0" style={{ height: 2, background: 'linear-gradient(90deg,transparent,#e52233,transparent)' }} />
       <div className="flex items-center gap-3">
-        <div className="flex items-center justify-center flex-shrink-0" style={{ width: 38, height: 38, background: '#e52233', borderRadius: 8 }}>
-          <span style={{ color: '#fff', fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>F</span>
-        </div>
+        <img src="/FANZONE_logo_A2.png" alt="ロゴ" style={{ height: 38, width: 'auto' }} />
         <div>
           <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#f0f0f5', letterSpacing: '2px', lineHeight: 1 }}>SPORTS BAR</p>
           <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 11, color: '#3a3a50', letterSpacing: '2px' }}>DYNAMIC PRICING</p>

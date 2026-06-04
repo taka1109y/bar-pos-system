@@ -63,9 +63,7 @@ export default function BoardPage() {
       {/* ヘッダー */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-5">
-          <div className="w-14 h-14 bg-amber-500/20 rounded-2xl flex items-center justify-center text-4xl">
-            🍺
-          </div>
+          <img src="/FANZONE_logo_A2.png" alt="ロゴ" className="h-14 w-auto object-contain" />
           <div>
             <h1 className="text-4xl font-black tracking-widest leading-tight text-white">
               SPORTS BAR

@@ -184,7 +184,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   // 注文なし（ローディング完了後）は人数選択画面を表示
   if (!isLoading && !order) {
     return (
-      <div className="flex flex-col h-full bg-white">
+      <div className="flex flex-col flex-1 bg-white overflow-hidden">
         {/* ヘッダー */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50 flex-shrink-0">
           <div>
@@ -230,7 +230,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col flex-1 bg-white overflow-hidden">
       {/* ヘッダー */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50 flex-shrink-0">
         <div>
@@ -275,7 +275,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
       )}
 
       {/* スクロールエリア */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-6">
+      <div className="flex-1 overflow-y-auto p-5 space-y-6 min-h-0">
         {/* メニューグリッド */}
         <div>
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">

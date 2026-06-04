@@ -52,9 +52,7 @@ function RegisterClosedScreen() {
       <p className="text-slate-400 text-sm font-medium tracking-[0.3em] uppercase mb-6">
         POS Management
       </p>
-      <h1 className="text-white text-4xl font-bold tracking-widest mb-10">
-        Sports Bar
-      </h1>
+      <img src="/FANZONE_logo_A1.png" alt="ロゴ" className="h-16 w-auto object-contain mb-10" />
       <div className="tabular-nums font-mono font-thin text-white leading-none mb-8"
         style={{ fontSize: 'clamp(48px, 10vw, 96px)', letterSpacing: '-0.02em' }}
       >

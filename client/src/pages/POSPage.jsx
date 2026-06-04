@@ -186,7 +186,7 @@ export default function POSPage() {
   const currentNav = NAV_GROUPS.flatMap((g) => g.items).find((n) => n.id === view);
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-[100dvh] bg-gray-50 overflow-hidden">
       {/* ─── サイドバー ─── */}
       <aside
         style={{ width: sidebarCollapsed ? '56px' : '224px', transition: 'width 0.2s ease' }}
@@ -209,9 +209,7 @@ export default function POSPage() {
           </div>
         ) : (
           <div className="flex items-center gap-2.5 px-3.5 py-4 border-b border-slate-100 flex-shrink-0">
-            <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center flex-shrink-0">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3"/></svg>
-            </div>
+            <img src="/FANZONE_logo_A1.png" alt="ロゴ" className="h-8 w-auto object-contain flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="font-black text-slate-900 text-sm leading-tight">Sports Bar</p>
               <p className="text-[11px] text-slate-400 font-medium">POS 管理画面</p>
@@ -275,40 +273,41 @@ export default function POSPage() {
               </div>
             </div>
           ))}
-        </nav>
 
-        {/* フッター: 外部リンク（melta UI 3ゾーン構成） */}
-        <div className="flex-shrink-0 p-3 border-t border-slate-200">
-          {[
-            {
-              href: '/board',
-              label: '価格ボード',
-              icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>,
-            },
-            {
-              href: '/kitchen',
-              label: 'キッチン',
-              icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>,
-            },
-          ].map(({ href, label, icon }) => (
-            <a
-              key={href}
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={sidebarCollapsed ? label : undefined}
-              className={`flex items-center gap-2.5 w-full rounded-lg text-slate-400 hover:bg-gray-50 hover:text-slate-600 transition-colors ${
-                sidebarCollapsed ? 'justify-center px-0 py-3' : 'px-2.5 py-2.5'
-              }`}
-            >
-              <span className={`flex-shrink-0 [&>svg]:w-full [&>svg]:h-full ${sidebarCollapsed ? 'w-5 h-5' : 'w-4 h-4'}`}>{icon}</span>
-              {!sidebarCollapsed && (
-                <span className="text-sm font-semibold block flex-1">{label}</span>
-              )}
-              {!sidebarCollapsed && <span className="text-[10px] text-slate-300">↗</span>}
-            </a>
-          ))}
-        </div>
+          {/* 外部リンク: 価格ボード・キッチン */}
+          <div className={`mt-4 pt-4 border-t border-slate-100 space-y-0.5`}>
+            {sidebarCollapsed && <div className="my-1.5 mx-auto w-5 border-t border-slate-200" />}
+            {[
+              {
+                href: '/board',
+                label: '価格ボード',
+                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>,
+              },
+              {
+                href: '/kitchen',
+                label: 'キッチン',
+                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>,
+              },
+            ].map(({ href, label, icon }) => (
+              <a
+                key={href}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={sidebarCollapsed ? label : undefined}
+                className={`flex items-center gap-2.5 w-full rounded-lg text-slate-400 hover:bg-gray-50 hover:text-slate-600 transition-colors ${
+                  sidebarCollapsed ? 'justify-center px-0 py-3' : 'px-2.5 py-2.5'
+                }`}
+              >
+                <span className={`flex-shrink-0 [&>svg]:w-full [&>svg]:h-full ${sidebarCollapsed ? 'w-5 h-5' : 'w-4 h-4'}`}>{icon}</span>
+                {!sidebarCollapsed && (
+                  <span className="text-sm font-semibold block flex-1">{label}</span>
+                )}
+                {!sidebarCollapsed && <span className="text-[10px] text-slate-300">↗</span>}
+              </a>
+            ))}
+          </div>
+        </nav>
 
       </aside>
 
@@ -336,7 +335,7 @@ export default function POSPage() {
               />
             </div>
             {currentTable && (
-              <div className="w-full sm:w-80 md:w-96 flex-shrink-0 border-l border-slate-200">
+              <div className="w-full sm:w-80 md:w-96 flex-shrink-0 border-l border-slate-200 flex flex-col overflow-hidden">
                 <OrderPanel
                   table={currentTable}
                   menuItems={menuItems}

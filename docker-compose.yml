@@ -19,6 +19,7 @@ services:
   server:
     build: ./server
     environment:
+      TZ: Asia/Tokyo
       NODE_ENV: production
       PORT: 3001
       DATABASE_URL: postgres://bar:bar@postgres:5432/bardb
@@ -39,6 +40,8 @@ services:
 
   client:
     build: ./client
+    environment:
+      TZ: Asia/Tokyo
     ports:
       # LAN内のすべてのIPから port 80 でアクセス可能
       # 例: http://192.168.1.x/ からブラウザでアクセスできる
