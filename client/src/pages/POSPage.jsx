@@ -202,7 +202,7 @@ export default function POSPage() {
               onClick={() => setSidebarCollapsed(false)}
               aria-label="サイドバーを展開"
               title="サイドバーを展開"
-              className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded-lg bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-primary-500 cursor-pointer"
+              className="w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-primary-500 cursor-pointer"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
             </button>
@@ -218,7 +218,7 @@ export default function POSPage() {
               onClick={() => setSidebarCollapsed(true)}
               aria-label="サイドバーを折りたたむ"
               title="サイドバーを折りたたむ"
-              className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded-lg bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer flex-shrink-0"
+              className="w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer flex-shrink-0"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
             </button>
@@ -247,7 +247,7 @@ export default function POSPage() {
                       aria-label={sidebarCollapsed ? item.label : undefined}
                       title={sidebarCollapsed ? item.label : undefined}
                       className={`w-full text-left rounded-lg transition-all flex items-center gap-2.5 ${
-                        sidebarCollapsed ? 'justify-center px-0 py-3' : 'px-2.5 py-2.5'
+                        sidebarCollapsed ? 'justify-center px-0 py-3.5' : 'px-2.5 py-3.5'
                       } ${
                         isActive
                           ? 'bg-primary-50 text-primary-500'

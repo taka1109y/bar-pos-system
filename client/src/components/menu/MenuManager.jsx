@@ -19,7 +19,7 @@ function ModalShell({ title, onClose, children, wide }) {
           <h2 className="text-base font-bold text-slate-900">{title}</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -152,18 +152,18 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
               className="h-24 w-24 object-cover rounded-lg border border-slate-200 flex-shrink-0"
               onError={(e) => { e.currentTarget.style.opacity = '0.3'; }}
             />
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="h-8 px-3 text-xs font-medium bg-white border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 cursor-pointer"
+                className="h-11 px-4 text-sm font-medium bg-white border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 cursor-pointer"
               >
                 画像を変更
               </button>
               <button
                 type="button"
                 onClick={handleRemoveImage}
-                className="h-8 px-3 text-xs font-medium bg-red-50 border border-red-200 text-red-600 rounded-lg hover:bg-red-100 cursor-pointer"
+                className="h-11 px-4 text-sm font-medium bg-red-50 border border-red-200 text-red-600 rounded-lg hover:bg-red-100 cursor-pointer"
               >
                 画像を削除
               </button>
@@ -248,13 +248,13 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={lbl}>種別</label>
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             {[{ value: 1, label: 'ドリンク' }, { value: 0, label: 'フード' }].map(({ value, label }) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => set('is_drink', value)}
-                className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
+                className={`flex-1 py-3 rounded-lg border-2 text-sm font-medium transition-colors ${
                   form.is_drink === value
                     ? 'border-primary-500 bg-primary-50 text-primary-700'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
@@ -267,13 +267,13 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
         </div>
         <div>
           <label className={lbl}>税率区分</label>
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             {[{ value: 'standard', label: '標準 (10%)' }, { value: 'reduced', label: '軽減 (8%)' }].map(({ value, label }) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => set('tax_category', value)}
-                className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
+                className={`flex-1 py-3 rounded-lg border-2 text-sm font-medium transition-colors ${
                   form.tax_category === value
                     ? 'border-primary-500 bg-primary-50 text-primary-700'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
@@ -287,13 +287,13 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
         {item && (
           <div>
             <label className={lbl}>状態</label>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               {[{ value: 1, label: '有効' }, { value: 0, label: '無効' }].map(({ value, label }) => (
                 <button
                   key={value}
                   type="button"
                   onClick={() => set('is_active', value)}
-                  className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
+                  className={`flex-1 py-3 rounded-lg border-2 text-sm font-medium transition-colors ${
                     form.is_active === value
                       ? 'border-primary-500 bg-primary-50 text-primary-700'
                       : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
@@ -343,11 +343,11 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
           <p className="text-xs text-amber-600 mt-1 ml-6">この商品はPOS画面にのみ表示されます</p>
         )}
       </div>
-      <div className="flex gap-2.5 pt-1">
-        <button type="button" onClick={onCancel} disabled={isBusy} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+      <div className="flex gap-3 pt-1">
+        <button type="button" onClick={onCancel} disabled={isBusy} className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
           キャンセル
         </button>
-        <button type="submit" disabled={isBusy} className="flex-1 py-2.5 bg-primary-500 hover:bg-primary-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
+        <button type="submit" disabled={isBusy} className="flex-1 py-4 bg-primary-500 hover:bg-primary-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
           {uploading ? 'アップロード中...' : isLoading ? '保存中...' : '保存'}
         </button>
       </div>
@@ -414,7 +414,7 @@ export default function MenuManager() {
         )}
         <button
           onClick={() => setAddOpen(true)}
-          className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-semibold bg-primary-500 text-white rounded-lg hover:bg-primary-700 cursor-pointer flex-shrink-0"
+          className="inline-flex items-center gap-2 h-11 px-4 text-sm font-semibold bg-primary-500 text-white rounded-lg hover:bg-primary-700 cursor-pointer flex-shrink-0"
         >
           + 商品を追加
         </button>
@@ -488,10 +488,10 @@ export default function MenuManager() {
                         無効
                       </span>
                     )}
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-3 flex-shrink-0">
                       <button
                         onClick={() => setEditItem(item)}
-                        className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer"
+                        className="w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer"
                         title="編集"
                       >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -501,7 +501,7 @@ export default function MenuManager() {
                       </button>
                       <button
                         onClick={() => { if (confirm(`「${item.name}」を削除しますか？`)) deleteMutation.mutate(item.id); }}
-                        className="w-7 h-7 flex items-center justify-center border border-red-200 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer"
+                        className="w-9 h-9 flex items-center justify-center border border-red-200 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer"
                         title="削除"
                       >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

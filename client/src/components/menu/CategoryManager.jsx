@@ -13,7 +13,7 @@ function ModalShell({ title, onClose, children }) {
           <h2 className="text-base font-bold text-slate-900">{title}</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -80,14 +80,14 @@ function SubcategoryRow({ sub, drinkCount, itemCount, onEdit, onDelete }) {
         )}
       </div>
       <span className="text-[11px] text-slate-400 flex-shrink-0">順序: {sub.sort_order}</span>
-      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button onClick={() => onEdit(sub)} className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer">
+      <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onClick={() => onEdit(sub)} className="w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
           </svg>
         </button>
-        <button onClick={() => onDelete(sub)} className="w-7 h-7 flex items-center justify-center border border-red-200 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer">
+        <button onClick={() => onDelete(sub)} className="w-9 h-9 flex items-center justify-center border border-red-200 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
             <path d="M10 11v6"/><path d="M14 11v6"/>
@@ -155,11 +155,11 @@ export default function CategoryManager() {
   ];
 
   const formButtons = (onCancel, onSubmit, isLoading) => (
-    <div className="flex gap-2.5 mt-5">
-      <button type="button" onClick={onCancel} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors">
+    <div className="flex gap-3 mt-5">
+      <button type="button" onClick={onCancel} className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors">
         キャンセル
       </button>
-      <button type="button" onClick={onSubmit} disabled={isLoading} className="flex-1 py-2.5 bg-primary-500 hover:bg-primary-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
+      <button type="button" onClick={onSubmit} disabled={isLoading} className="flex-1 py-4 bg-primary-500 hover:bg-primary-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
         保存
       </button>
     </div>
@@ -174,7 +174,7 @@ export default function CategoryManager() {
       <div className="flex items-center justify-end mb-6">
         <button
           onClick={() => { setAddOpen(true); setCatForm({}); }}
-          className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-semibold bg-primary-500 text-white rounded-lg hover:bg-primary-700 cursor-pointer"
+          className="inline-flex items-center gap-2 h-11 px-4 text-sm font-semibold bg-primary-500 text-white rounded-lg hover:bg-primary-700 cursor-pointer"
         >
           + カテゴリを追加
         </button>
@@ -204,7 +204,7 @@ export default function CategoryManager() {
                 <span className="text-xs text-slate-400">順序: {cat.sort_order}</span>
                 <button
                   onClick={() => { setEditingCat(cat); setCatForm({ name: cat.name, sort_order: cat.sort_order, crash_pct: cat.crash_pct ?? 0, is_staff_only: cat.is_staff_only ?? false }); }}
-                  className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer"
+                  className="w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer"
                   title="編集"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -219,7 +219,7 @@ export default function CategoryManager() {
                 )}
                 <button
                   onClick={() => { if (confirm(`「${cat.name}」を削除しますか？\n※商品が存在する場合は削除できません`)) deleteCatMutation.mutate(cat.id); }}
-                  className="w-7 h-7 flex items-center justify-center border border-red-200 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer"
+                  className="w-9 h-9 flex items-center justify-center border border-red-200 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer"
                   title="削除"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

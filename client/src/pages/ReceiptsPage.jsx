@@ -40,14 +40,14 @@ function VoidAndReissueButton({ orderId, onSuccess }) {
         <span className="text-xs text-slate-500 flex-1">この伝票を取り消して赤伝票を発行しますか？</span>
         <button
           onClick={() => setShowConfirm(false)}
-          className="text-xs px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
+          className="text-xs px-4 py-2.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
         >
           キャンセル
         </button>
         <button
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending}
-          className="text-xs px-3 py-1.5 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 disabled:opacity-50"
+          className="text-xs px-4 py-2.5 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 disabled:opacity-50"
         >
           {mutation.isPending ? '処理中...' : '発行確定'}
         </button>
@@ -62,7 +62,7 @@ function VoidAndReissueButton({ orderId, onSuccess }) {
     <div className="mt-3 pt-3 border-t border-slate-100">
       <button
         onClick={() => setShowConfirm(true)}
-        className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+        className="text-xs px-4 py-2.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
       >
         赤伝票を発行
       </button>
@@ -88,7 +88,7 @@ function RedReceiptPayButton({ receipt, onPaid }) {
         <button
           onClick={() => setShowPayment(true)}
           disabled={isFetching}
-          className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+          className="text-xs px-4 py-2.5 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
         >
           {isFetching ? '読み込み中...' : '会計する'}
         </button>
@@ -169,7 +169,7 @@ export default function ReceiptsPage() {
               <button
                 onClick={handlePdfExport}
                 disabled={pdfGenerating}
-                className="inline-flex items-center justify-center gap-1.5 h-8 px-3 text-sm font-medium bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-gray-50 cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 h-11 px-4 text-sm font-medium bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-gray-50 cursor-pointer disabled:opacity-50"
               >
                 {pdfGenerating ? '生成中...' : 'PDF出力'}
               </button>

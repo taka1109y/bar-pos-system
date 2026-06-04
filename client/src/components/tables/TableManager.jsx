@@ -13,7 +13,7 @@ function ModalShell({ title, onClose, children }) {
           <h2 className="text-base font-bold text-slate-900">{title}</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -53,7 +53,7 @@ function TableForm({ table, onSave, onCancel, isLoading }) {
               key={value}
               type="button"
               onClick={() => set('table_type', value)}
-              className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-medium transition-colors ${
+              className={`flex-1 py-4 rounded-lg border-2 text-sm font-medium transition-colors ${
                 form.table_type === value
                   ? 'border-primary-500 bg-primary-50 text-primary-700'
                   : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
@@ -64,11 +64,11 @@ function TableForm({ table, onSave, onCancel, isLoading }) {
           ))}
         </div>
       </div>
-      <div className="flex gap-2.5 pt-1">
-        <button type="button" onClick={onCancel} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors">
+      <div className="flex gap-3 pt-1">
+        <button type="button" onClick={onCancel} className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors">
           キャンセル
         </button>
-        <button type="submit" disabled={isLoading} className="flex-1 py-2.5 bg-primary-500 hover:bg-primary-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
+        <button type="submit" disabled={isLoading} className="flex-1 py-4 bg-primary-500 hover:bg-primary-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
           保存
         </button>
       </div>
@@ -131,10 +131,10 @@ export default function TableManager() {
               <span className={`text-xs px-3 py-1.5 rounded-full font-medium flex-shrink-0 ${statusCls(table.status)}`}>
                 {statusLabel(table.status)}
               </span>
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-3 flex-shrink-0">
                 <button
                   onClick={() => { setEditTable(table); setError(''); }}
-                  className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer"
+                  className="w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer"
                   title="編集"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -152,7 +152,7 @@ export default function TableManager() {
                       deleteMutation.mutate(table.id);
                     }
                   }}
-                  className="w-7 h-7 flex items-center justify-center border border-red-200 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer"
+                  className="w-9 h-9 flex items-center justify-center border border-red-200 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer"
                   title="削除"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -177,7 +177,7 @@ export default function TableManager() {
       <div className="flex items-center justify-end mb-6">
         <button
           onClick={() => { setAddOpen(true); setError(''); }}
-          className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-semibold bg-primary-500 text-white rounded-lg hover:bg-primary-700 cursor-pointer"
+          className="inline-flex items-center gap-2 h-11 px-4 text-sm font-semibold bg-primary-500 text-white rounded-lg hover:bg-primary-700 cursor-pointer"
         >
           + テーブル / カウンターを追加
         </button>

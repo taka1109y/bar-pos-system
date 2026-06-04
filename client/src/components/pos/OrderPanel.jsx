@@ -362,7 +362,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
       </div>
 
       {/* フッター */}
-      <div className="px-5 py-5 border-t border-slate-200 bg-slate-50 space-y-3 flex-shrink-0">
+      <div className="px-5 pt-5 pb-8 border-t border-slate-200 bg-slate-50 space-y-3 flex-shrink-0">
         <div className="flex justify-between items-center">
           <span className="text-sm text-slate-500 font-medium">合計金額</span>
           <span className="text-2xl font-black text-slate-900">¥{total.toLocaleString()}</span>
@@ -370,7 +370,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
 
         <button
           onClick={() => setShowPayment(true)}
-          className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black rounded-xl transition-colors shadow-sm text-base"
+          className="w-full py-5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black rounded-xl transition-colors shadow-sm text-base"
         >
           会計する
         </button>

@@ -114,13 +114,13 @@ function CloseConfirmDialog({ onConfirm, onCancel }) {
           <div className="flex gap-3">
             <button
               onClick={onCancel}
-              className="flex-1 py-2.5 text-[13px] font-bold border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+              className="flex-1 py-4 text-[13px] font-bold border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
             >
               いいえ
             </button>
             <button
               onClick={onConfirm}
-              className="flex-1 py-2.5 text-[13px] font-bold rounded-lg bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white transition-colors"
+              className="flex-1 py-4 text-[13px] font-bold rounded-lg bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white transition-colors"
             >
               はい
             </button>
@@ -436,7 +436,7 @@ export default function RegisterClosePage() {
               )}
               <button
                 onClick={handleCloseAttempt}
-                className={`w-full py-2.5 text-[13px] font-black rounded-lg ${BLUE_BTN}`}
+                className={`w-full py-4 text-[13px] font-black rounded-lg ${BLUE_BTN}`}
               >
                 確定
               </button>
@@ -450,7 +450,7 @@ export default function RegisterClosePage() {
         <button
           onClick={() => setShowPdfConfirm(true)}
           disabled={pdfGenerating}
-          className={`inline-flex items-center justify-center gap-1.5 h-9 px-5 text-[12px] rounded-lg ${BLUE_BTN} disabled:opacity-60 disabled:cursor-not-allowed`}
+          className={`inline-flex items-center justify-center gap-2 h-11 px-5 text-[12px] rounded-lg ${BLUE_BTN} disabled:opacity-60 disabled:cursor-not-allowed`}
         >
           {pdfGenerating ? (
             <>
@@ -565,13 +565,13 @@ export default function RegisterClosePage() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowPdfConfirm(false)}
-                  className="flex-1 py-2.5 text-[13px] font-bold border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="flex-1 py-4 text-[13px] font-bold border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
                 >
                   いいえ
                 </button>
                 <button
                   onClick={() => { setShowPdfConfirm(false); handlePdfExport(); }}
-                  className="flex-1 py-2.5 text-[13px] font-bold rounded-lg bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white transition-colors"
+                  className="flex-1 py-4 text-[13px] font-bold rounded-lg bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white transition-colors"
                 >
                   はい
                 </button>

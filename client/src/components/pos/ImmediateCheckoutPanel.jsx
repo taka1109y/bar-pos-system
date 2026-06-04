@@ -21,7 +21,7 @@ function Numpad({ value, onChange, onConfirm, exactAmount }) {
       key={label}
       type="button"
       onClick={() => handleKey(label)}
-      className="h-10 rounded-xl text-sm font-bold bg-white border border-slate-200 hover:bg-slate-50 text-slate-900 shadow-sm transition-all active:scale-95"
+      className="h-14 rounded-xl text-base font-bold bg-white border border-slate-200 hover:bg-slate-50 text-slate-900 shadow-sm transition-all active:scale-95"
     >
       {label}
     </button>
@@ -31,11 +31,11 @@ function Numpad({ value, onChange, onConfirm, exactAmount }) {
     <div className="space-y-1.5">
       <div className="grid grid-cols-3 gap-1.5">
         <button type="button" onClick={() => handleKey('C')}
-          className="h-10 rounded-xl text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all active:scale-95">
+          className="h-14 rounded-xl text-base font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all active:scale-95">
           C
         </button>
         <button type="button" onClick={() => handleKey('残額')}
-          className="col-span-2 h-10 rounded-xl text-sm font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition-all active:scale-95">
+          className="col-span-2 h-14 rounded-xl text-base font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition-all active:scale-95">
           残額
         </button>
       </div>
@@ -45,7 +45,7 @@ function Numpad({ value, onChange, onConfirm, exactAmount }) {
       <div className="grid grid-cols-3 gap-1.5">
         {['0','00'].map(digitBtn)}
         <button type="button" onClick={() => handleKey('決定')}
-          className="h-10 rounded-xl text-sm font-bold bg-primary-600 hover:bg-primary-700 text-white transition-all active:scale-95 shadow-sm">
+          className="h-14 rounded-xl text-base font-bold bg-primary-600 hover:bg-primary-700 text-white transition-all active:scale-95 shadow-sm">
           決定
         </button>
       </div>
@@ -263,7 +263,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                       <button
                         onClick={() => handleQtyDecrease(item)}
                         disabled={updateItemMutation.isPending}
-                        className="w-6 h-6 rounded-md bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold flex items-center justify-center transition-colors disabled:opacity-50"
+                        className="w-9 h-9 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-bold flex items-center justify-center transition-colors disabled:opacity-50"
                       >
                         −
                       </button>
@@ -271,7 +271,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                       <button
                         onClick={() => handleQtyIncrease(item)}
                         disabled={addItemMutation.isPending}
-                        className="w-6 h-6 rounded-md bg-primary-500 hover:bg-primary-700 text-white text-xs font-bold flex items-center justify-center transition-colors disabled:opacity-50"
+                        className="w-9 h-9 rounded-lg bg-primary-500 hover:bg-primary-700 text-white text-sm font-bold flex items-center justify-center transition-colors disabled:opacity-50"
                       >
                         +
                       </button>
@@ -288,7 +288,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
           {/* 合計 + 支払いUI */}
           <div className="flex-shrink-0 border-t border-slate-200">
             {/* 合計行 */}
-            <div className="px-4 py-2.5 flex justify-between items-center bg-slate-50">
+            <div className="px-4 py-3.5 flex justify-between items-center bg-slate-50">
               <span className="text-xs font-semibold text-slate-500">
                 {discountAmount > 0 && (
                   <span className="text-red-500 mr-1.5">−¥{discountAmount.toLocaleString()}</span>
@@ -298,12 +298,12 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
               <span className="text-xl font-black text-slate-900">¥{finalTotal.toLocaleString()}</span>
             </div>
 
-            <div className="px-3 pb-3 pt-2 space-y-2">
+            <div className="px-3 pb-6 pt-2 space-y-2">
               {/* 支払い方法 */}
               <div className="flex gap-1.5">
                 <button
                   onClick={() => { setPaymentMethod('cash'); setShowOtherPayment(false); setReceivedInput(''); }}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                  className={`flex-1 py-4 rounded-xl text-base font-bold transition-all ${
                     paymentMethod === 'cash'
                       ? 'bg-primary-600 text-white shadow-sm'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -319,7 +319,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                     if (next && paymentMethod === 'cash') setPaymentMethod('card');
                     if (!next) setPaymentMethod('cash');
                   }}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all ${
+                  className={`flex-1 py-4 rounded-xl text-base font-medium border transition-all ${
                     paymentMethod !== 'cash'
                       ? 'border-primary-500 bg-primary-50 text-primary-700'
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
@@ -336,7 +336,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                     <button
                       key={m.id}
                       onClick={() => setPaymentMethod(m.id)}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                      className={`flex-1 py-3 rounded-lg text-sm font-semibold border transition-all ${
                         paymentMethod === m.id
                           ? 'border-primary-500 bg-primary-50 text-primary-700'
                           : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
@@ -388,7 +388,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                   setDiscountInput(savedDiscountInput);
                   setShowDiscountModal(true);
                 }}
-                className={`w-full py-2 text-xs font-medium rounded-lg border transition-colors ${
+                className={`w-full py-4 text-sm font-semibold rounded-lg border transition-colors ${
                   discountAmount > 0
                     ? 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -401,7 +401,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
               <button
                 onClick={() => { if (canPay) payMutation.mutate(); }}
                 disabled={!canPay}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-bold transition-colors text-sm shadow-sm"
+                className="w-full py-5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-black transition-colors text-base shadow-sm"
               >
                 {payMutation.isPending ? '処理中...' : '会計する'}
               </button>
