@@ -123,6 +123,14 @@ body {
   animation: sent-pop 0.25s ease forwards;
 }
 
+@keyframes crash-banner-in {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+.crash-banner-slide {
+  animation: crash-banner-in 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 /* 注文履歴パネル用スクロールバー */
 .scrollbar-dark::-webkit-scrollbar {
   width: 4px;

@@ -286,6 +286,7 @@ router.post('/crash', async (req, res, next) => {
 
     if (updated > 0) {
       broadcast('prices:updated', { items: broadcastItems, timestamp: Date.now() });
+      broadcast('crash:started', { category_ids, subcategory_ids, timestamp: Date.now() });
     }
 
     res.json({ updated });
@@ -313,6 +314,7 @@ router.post('/crash/reset', async (req, res, next) => {
         direction: r.pct_change > 0 ? 'up' : r.pct_change < 0 ? 'down' : 'flat',
       }));
       broadcast('prices:updated', { items, timestamp: Date.now() });
+      broadcast('crash:ended', { timestamp: Date.now() });
     }
 
     res.json({ updated: rows.length });

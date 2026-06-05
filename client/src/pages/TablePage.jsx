@@ -80,6 +80,68 @@ function WelcomeScreen({ tableName, onSelectGuests }) {
 }
 
 // ───────────────────────────────────────────
+// 価格暴落バナー
+// ───────────────────────────────────────────
+function CrashBanner({ crashState, categories, subcategories, onSelectCategory, onSelectSubcategory, onDismiss }) {
+  if (!crashState) return null;
+
+  const crashedCats = categories.filter((c) => crashState.category_ids?.includes(c.id));
+  const crashedSubs = subcategories.filter((s) => crashState.subcategory_ids?.includes(s.id));
+
+  const chipStyle = {
+    background: 'rgba(255,255,255,0.18)',
+    border: '1px solid rgba(255,255,255,0.45)',
+    borderRadius: 20,
+    padding: '5px 16px',
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: 700,
+    fontFamily: "'Noto Sans JP', sans-serif",
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'background 0.13s',
+  };
+
+  return (
+    <div
+      className="crash-banner-slide flex-shrink-0"
+      style={{ background: 'linear-gradient(90deg,#7a0010,#c41230,#7a0010)', borderBottom: '2px solid #ff2244', zIndex: 30 }}
+    >
+      <div className="flex items-center gap-3 px-4 py-2.5 flex-wrap">
+        <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: '3px', color: '#fff', whiteSpace: 'nowrap', textShadow: '0 0 12px rgba(255,100,100,0.6)' }}>
+          価格暴落中！
+        </span>
+        <div className="flex items-center gap-2 flex-wrap flex-1">
+          {crashedCats.map((cat) => (
+            <button
+              key={`cat-${cat.id}`}
+              onClick={() => onSelectCategory(cat.id)}
+              style={chipStyle}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.3)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.18)'; }}
+            >
+              {cat.name} ▶
+            </button>
+          ))}
+          {crashedCats.length > 0 && (
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', fontFamily: "'Noto Sans JP', sans-serif" }}>
+              タップして移動
+            </span>
+          )}
+        </div>
+        <button
+          onClick={onDismiss}
+          aria-label="閉じる"
+          style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 26, cursor: 'pointer', padding: '0 4px', lineHeight: 1, flexShrink: 0 }}
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────
 // 注文確認モーダル（中央表示）
 // ───────────────────────────────────────────
 function ConfirmModal({ item, livePrice, onConfirm, onCancel }) {
@@ -171,12 +233,8 @@ function TopBar({ tableName, tableId, guestCount, timeStr }) {
       style={{ height: 68, background: 'linear-gradient(90deg,#0b0b0f,#18181f 50%,#0b0b0f)', borderBottom: '1px solid #252532', position: 'relative' }}
     >
       <div className="absolute top-0 left-0 right-0" style={{ height: 2, background: 'linear-gradient(90deg,transparent,#e52233,transparent)' }} />
-      <div className="flex items-center gap-3">
+      <div className="flex items-center" style={{ paddingLeft: 8 }}>
         <img src="/FANZONE_logo_A2.png" alt="ロゴ" style={{ height: 38, width: 'auto' }} />
-        <div>
-          <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#f0f0f5', letterSpacing: '2px', lineHeight: 1 }}>SPORTS BAR</p>
-          <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 11, color: '#3a3a50', letterSpacing: '2px' }}>DYNAMIC PRICING</p>
-        </div>
       </div>
       <div className="flex items-center gap-4">
         <div className="flex flex-col items-center justify-center px-3 py-1.5" style={{ background: '#1e1e28', borderRadius: 8, minWidth: 56 }}>
@@ -271,6 +329,8 @@ export default function TablePage() {
   const [toast,             setToast]             = useState(null);
   const [activeCategory,    setActiveCategory]    = useState(null);
   const [activeSubcategory, setActiveSubcategory] = useState(null);
+  const [crashState,        setCrashState]        = useState(null);
+  const [bannerDismissed,   setBannerDismissed]   = useState(false);
   const toastTimerRef = useRef(null);
 
   const now     = useClock();
@@ -298,6 +358,17 @@ export default function TablePage() {
 
   useEffect(() => { api.getPrices().then(initPrices).catch(console.error); }, []);
 
+  // menuItems取得後に暴落中アイテムを検出して初期バナー表示
+  useEffect(() => {
+    if (menuItems.length === 0) return;
+    const crashed = menuItems.filter((i) => i.is_crashed);
+    if (crashed.length > 0) {
+      const catIds = [...new Set(crashed.map((i) => i.category_id).filter(Boolean))];
+      const subIds = [...new Set(crashed.map((i) => i.subcategory_id).filter(Boolean))];
+      setCrashState({ category_ids: catIds, subcategory_ids: subIds });
+    }
+  }, [menuItems]);
+
   useEffect(() => {
     socket.emit('client:subscribe_table', { tableId: tableIdNum });
     const handlePricesUpdated = ({ items }) => updatePrices(items);
@@ -318,11 +389,18 @@ export default function TablePage() {
     const handleTableStatus = (data) => {
       if (data.tableId === tableIdNum && data.status === 'available') resetToWelcome();
     };
+    const handleCrashStarted = ({ category_ids, subcategory_ids }) => {
+      setCrashState({ category_ids, subcategory_ids });
+      setBannerDismissed(false);
+    };
+    const handleCrashEnded = () => setCrashState(null);
     socket.on('prices:updated',       handlePricesUpdated);
     socket.on('prices:sync',          handlePricesSync);
     socket.on('connect',              handleReconnect);
     socket.on('order:updated',        handleOrderUpdated);
     socket.on('table:status_changed', handleTableStatus);
+    socket.on('crash:started',        handleCrashStarted);
+    socket.on('crash:ended',          handleCrashEnded);
     return () => {
       socket.emit('client:unsubscribe_table', { tableId: tableIdNum });
       socket.off('prices:updated',       handlePricesUpdated);
@@ -330,6 +408,8 @@ export default function TablePage() {
       socket.off('connect',              handleReconnect);
       socket.off('order:updated',        handleOrderUpdated);
       socket.off('table:status_changed', handleTableStatus);
+      socket.off('crash:started',        handleCrashStarted);
+      socket.off('crash:ended',          handleCrashEnded);
     };
   }, [tableIdNum, resetToWelcome]);
 
@@ -373,6 +453,15 @@ export default function TablePage() {
   const handleSelectGuests = (count) => { setGuestCount(count); openOrderMutation.mutate(count); };
   const handleTapItem      = (menuItem) => setConfirmItem(menuItem);
 
+  const handleCrashSelectCategory = (catId) => {
+    setActiveCategory(catId);
+    setActiveSubcategory(null);
+  };
+  const handleCrashSelectSubcategory = (sub) => {
+    setActiveCategory(sub.category_id);
+    setActiveSubcategory(sub.id);
+  };
+
   const handleConfirmAdd = async (qty) => {
     const item       = confirmItem;
     setConfirmItem(null);
@@ -405,6 +494,16 @@ export default function TablePage() {
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: '#0b0b0f' }}>
       <TopBar tableName={tableName} tableId={tableId} guestCount={order?.guest_count ?? guestCount} timeStr={timeStr} />
+      {crashState && !bannerDismissed && (
+        <CrashBanner
+          crashState={crashState}
+          categories={categories}
+          subcategories={subcategories}
+          onSelectCategory={handleCrashSelectCategory}
+          onSelectSubcategory={handleCrashSelectSubcategory}
+          onDismiss={() => setBannerDismissed(true)}
+        />
+      )}
       <TickerBar />
       <div className="flex flex-1 overflow-hidden">
         <CategorySidebar

@@ -34,7 +34,7 @@ async function runTick() {
       min_price::float, max_price::float,
       price_step_up::float, price_step_down::float
     FROM menu_items
-    WHERE is_drink = TRUE AND is_active = TRUE
+    WHERE is_drink = TRUE AND is_active = TRUE AND is_crashed = FALSE
   `);
 
   const { rows: demandRows } = await query(
@@ -149,13 +149,13 @@ async function runTick() {
     logger.info({ count: updates.length }, 'PricingEngine price updated');
   }
 
-  // 全アイテムの最新価格をブロードキャスト
+  // 全アイテムの最新価格をブロードキャスト（暴落中アイテムは除外）
   const { rows: allPrices } = await query(`
     SELECT id, name,
       base_price::float, current_price::float,
       ROUND((current_price - base_price) * 100.0 / base_price, 1)::float AS pct_change
     FROM menu_items
-    WHERE is_drink = TRUE AND is_active = TRUE
+    WHERE is_drink = TRUE AND is_active = TRUE AND is_crashed = FALSE
   `);
   const syncItems = allPrices.map((r) => ({
     ...r,
