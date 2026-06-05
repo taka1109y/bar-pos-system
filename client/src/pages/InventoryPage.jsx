@@ -272,10 +272,10 @@ export default function InventoryPage() {
         </button>
       </div>
 
-      <div className="flex border-b border-slate-200 mb-6 gap-1">
+      <div className="flex border-b border-slate-200 mb-6 gap-4">
         {[['stock', '材料在庫'], ['master', '材料マスター'], ['logs', '異動ログ']].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${tab === id ? 'border-primary-500 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            className={`px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === id ? 'border-primary-500 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
             {label}
           </button>
         ))}

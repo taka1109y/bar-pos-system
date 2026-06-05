@@ -46,20 +46,21 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-      <div className="bg-white rounded-xl shadow-xl overflow-hidden flex flex-col" style={{ width: 520 }}>
+      <div className="bg-white rounded-xl shadow-xl overflow-hidden flex flex-col" style={{ width: 780 }}>
         {/* ヘッダー */}
-        <div className={`px-4 py-2.5 flex-shrink-0 ${BLUE_HEADER}`}>
-          <h3 className="text-[13px] font-bold">{title ?? '現金在高　金種入力'}</h3>
+        <div className={`px-6 py-3 flex-shrink-0 ${BLUE_HEADER}`}>
+          <h3 className="text-[16px] font-bold">{title ?? '現金在高　金種入力'}</h3>
         </div>
 
-        <div className="flex overflow-hidden">
+        {/* ボディ: 内側4辺に余白 */}
+        <div className="flex p-4 gap-4 overflow-hidden">
           {/* ══ 左: 金種リスト ══ */}
-          <div className="flex flex-col border-r border-slate-200" style={{ width: 300 }}>
+          <div className="flex flex-col border border-slate-200 rounded-lg overflow-hidden" style={{ width: 440 }}>
             {/* 列ヘッダー */}
-            <div className="flex items-center px-4 py-1 bg-slate-50 border-b border-slate-200 flex-shrink-0">
-              <span className="w-14 text-[10px] font-bold text-slate-400">金種</span>
-              <span className="flex-1 text-right text-[10px] font-bold text-slate-400 pr-2">枚数</span>
-              <span className="w-24 text-right text-[10px] font-bold text-slate-400">小計</span>
+            <div className="flex items-center px-5 py-2 bg-slate-50 border-b border-slate-200 flex-shrink-0">
+              <span className="w-16 text-[13px] font-bold text-slate-400">金種</span>
+              <span className="flex-1 text-right text-[13px] font-bold text-slate-400 pr-2">枚数</span>
+              <span className="w-28 text-right text-[13px] font-bold text-slate-400">小計</span>
             </div>
 
             {/* 金種行 */}
@@ -71,24 +72,25 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
                 return (
                   <div
                     key={d.value}
-                    className={`flex items-center gap-2 px-4 py-1 border-b border-slate-100 last:border-0 cursor-pointer ${isFocused ? 'bg-primary-50' : 'hover:bg-slate-50'}`}
+                    className={`flex items-center gap-3 px-5 py-3 border-b border-slate-100 last:border-0 cursor-pointer ${isFocused ? 'bg-primary-50' : 'hover:bg-slate-50'}`}
                     onClick={() => setFocusedDenom(d.value)}
                   >
-                    <span className={`w-14 text-[12px] flex-shrink-0 ${isFocused ? 'text-primary-600 font-bold' : 'text-slate-700'}`}>
+                    <span className={`w-16 text-[15px] flex-shrink-0 ${isFocused ? 'text-primary-600 font-bold' : 'text-slate-700'}`}>
                       {d.label}
                     </span>
                     <div className="flex-1">
+                      {/* readOnly + inputMode="none" でiPadの標準キーボードを抑制 */}
                       <input
                         type="text"
-                        inputMode="numeric"
+                        inputMode="none"
+                        readOnly
+                        tabIndex={-1}
                         value={denomCounts[d.value] ?? ''}
-                        onFocus={() => setFocusedDenom(d.value)}
-                        onChange={(e) => onChange(d.value, e.target.value.replace(/\D/g, ''))}
                         placeholder="0"
-                        className={`w-full text-right text-[12px] tabular-nums border rounded bg-white px-1.5 py-0.5 focus:outline-none ${isFocused ? 'border-primary-400 ring-1 ring-primary-400' : 'border-slate-200'}`}
+                        className={`w-full text-right text-[15px] tabular-nums border rounded bg-white px-2 py-1 focus:outline-none cursor-default ${isFocused ? 'border-primary-400 ring-1 ring-primary-400' : 'border-slate-200'}`}
                       />
                     </div>
-                    <span className="w-24 text-right text-[12px] tabular-nums text-slate-700 flex-shrink-0">
+                    <span className="w-28 text-right text-[15px] tabular-nums text-slate-700 flex-shrink-0">
                       {subtotal > 0 ? `¥${subtotal.toLocaleString()}` : ''}
                     </span>
                   </div>
@@ -97,34 +99,34 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
             </div>
 
             {/* 合計 */}
-            <div className="flex items-center px-4 py-2 border-t-2 border-primary-400 bg-primary-50 flex-shrink-0">
-              <span className="flex-1 text-[12px] font-bold text-slate-700">合計</span>
-              <span className="text-[15px] font-black text-primary-600 tabular-nums">
+            <div className="flex items-center px-5 py-2.5 border-t-2 border-primary-400 bg-primary-50 flex-shrink-0">
+              <span className="flex-1 text-[15px] font-bold text-slate-700">合計</span>
+              <span className="text-[19px] font-black text-primary-600 tabular-nums">
                 ¥{total.toLocaleString()}
               </span>
             </div>
           </div>
 
           {/* ══ 右: テンキー ══ */}
-          <div className="flex flex-col gap-2 p-3" style={{ width: 220 }}>
+          <div className="flex flex-col gap-3" style={{ width: 300 }}>
             {/* 選択中の金種・入力値表示 */}
-            <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 min-h-[46px] flex flex-col justify-center">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 min-h-[60px] flex flex-col justify-center">
               {focusedDenom ? (
                 <>
-                  <span className="text-[10px] text-slate-400">
+                  <span className="text-[13px] text-slate-400">
                     {DENOMS.find(d => d.value === focusedDenom)?.label}
                   </span>
-                  <span className="text-[16px] font-bold text-primary-600 tabular-nums text-right leading-tight">
+                  <span className="text-[20px] font-bold text-primary-600 tabular-nums text-right leading-tight">
                     {denomCounts[focusedDenom] || '0'} 枚
                   </span>
                 </>
               ) : (
-                <span className="text-[11px] text-slate-400 text-center">← 金種を選択</span>
+                <span className="text-[14px] text-slate-400 text-center">← 金種を選択</span>
               )}
             </div>
 
             {/* テンキーグリッド */}
-            <div className="grid grid-cols-3 gap-1.5 flex-1">
+            <div className="grid grid-cols-3 gap-2 flex-1">
               {TENKEY_ROWS.flat().map((key) => {
                 const isSpecial  = key === 'C' || key === '⌫';
                 const isDisabled = focusedDenom === null;
@@ -133,7 +135,7 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
                     key={key}
                     onClick={() => handleTenkey(key)}
                     disabled={isDisabled}
-                    className={`flex items-center justify-center rounded-lg text-[15px] font-bold h-11 select-none transition-colors
+                    className={`flex items-center justify-center rounded-lg text-[18px] font-bold h-16 select-none transition-colors
                       ${isDisabled
                         ? 'bg-slate-100 text-slate-300 cursor-default'
                         : isSpecial
@@ -148,16 +150,16 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
             </div>
 
             {/* キャンセル・確定ボタン */}
-            <div className="flex gap-1.5">
+            <div className="flex gap-2">
               <button
                 onClick={onCancel}
-                className="flex-1 py-2 text-[11px] font-bold border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                className="flex-1 py-3 text-[14px] font-bold border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
               >
                 キャンセル
               </button>
               <button
                 onClick={() => onConfirm(total)}
-                className={`flex-1 py-2 text-[11px] font-bold rounded-lg ${BLUE_BTN}`}
+                className={`flex-1 py-3 text-[14px] font-bold rounded-lg ${BLUE_BTN}`}
               >
                 確定
               </button>

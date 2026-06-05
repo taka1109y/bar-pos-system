@@ -381,12 +381,12 @@ export default function CostReportPage() {
         <p className="text-sm text-slate-500 mt-1">レシピベースの原価・粗利・在庫評価</p>
       </div>
 
-      <div className="flex gap-1 border-b border-slate-200 mb-6">
+      <div className="flex gap-4 border-b border-slate-200 mb-6">
         {TABS.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === t.id
                 ? 'text-primary-500 border-primary-500'
                 : 'text-slate-500 border-transparent hover:text-slate-700'
