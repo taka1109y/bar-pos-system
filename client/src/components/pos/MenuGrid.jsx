@@ -226,7 +226,7 @@ export default function MenuGrid({
               <button
                 key={cat.id}
                 onClick={() => { setInternalActiveCategory(cat.id); setInternalActiveSubcategory(null); }}
-                className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 ${
+                className={`px-5 py-3 rounded-full text-sm font-bold whitespace-nowrap transition-all flex-shrink-0 ${
                   activeCat === cat.id ? 'bg-primary-500 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-slate-200'
                 }`}
               >
@@ -238,7 +238,7 @@ export default function MenuGrid({
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
               <button
                 onClick={() => setInternalActiveSubcategory(null)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
+                className={`px-4 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
                   activeSub === null ? 'bg-primary-100 text-primary-700' : 'text-slate-400 hover:bg-slate-100'
                 }`}
               >
@@ -248,7 +248,7 @@ export default function MenuGrid({
                 <button
                   key={sub.id}
                   onClick={() => setInternalActiveSubcategory(sub.id)}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
+                  className={`px-4 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
                     activeSub === sub.id ? 'bg-primary-100 text-primary-700' : 'text-slate-400 hover:bg-slate-100'
                   }`}
                 >

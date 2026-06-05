@@ -23,7 +23,7 @@ const MOCK_STATIC = {
 // ── 青テーマのスタイル定数 ──────────────────────────────────
 const BLUE_HEADER = 'bg-primary-500 text-white';
 const BLUE_BTN    = 'bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white font-bold rounded transition-colors';
-const INPUT_CLS   = 'w-full text-right text-xs tabular-nums border border-slate-300 rounded bg-white px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500/50';
+const INPUT_CLS   = 'w-full text-right text-sm tabular-nums border border-slate-300 rounded bg-white px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500/50';
 
 // ── PDF出力用行（インラインスタイル・html2canvas用） ────────────
 function PRow({ label, value, sub, indent, dot }) {
@@ -50,14 +50,14 @@ function LRow({ label, value, sub, dot }) {
   return (
     <div className="flex items-start justify-between px-2 py-1.5 border-b border-slate-100 last:border-0 min-h-[32px]">
       <div className="flex items-center gap-1">
-        {dot && <span className="text-primary-500 text-sm leading-none">●</span>}
-        <span className="text-[11px] text-slate-600">{label}</span>
+        {dot && <span className="text-primary-500 text-base leading-none">●</span>}
+        <span className="text-[13px] text-slate-600">{label}</span>
       </div>
       <div className="text-right">
         {value !== '' && value !== undefined && (
-          <span className="text-[11px] font-bold text-slate-800 block tabular-nums">{value}</span>
+          <span className="text-[13px] font-bold text-slate-800 block tabular-nums">{value}</span>
         )}
-        {sub && <span className="text-[10px] text-slate-400 block">{sub}</span>}
+        {sub && <span className="text-[12px] text-slate-400 block">{sub}</span>}
       </div>
     </div>
   );
@@ -70,11 +70,11 @@ function IRow({ label, value, onChange, onBlur, diff, indent, readOnly, onClick 
       className={`flex items-center gap-1.5 px-3 py-1 border-b border-slate-100 last:border-0 min-h-[34px] ${indent ? 'bg-slate-50' : ''} ${onClick ? 'cursor-pointer hover:bg-primary-500 transition-colors' : ''}`}
       onClick={onClick}
     >
-      <span className={`flex-shrink-0 w-32 text-[11px] ${indent ? 'pl-3 text-slate-400' : 'text-slate-600'}`}>
+      <span className={`flex-shrink-0 w-24 text-[13px] ${indent ? 'pl-3 text-slate-400' : 'text-slate-600'}`}>
         {indent && '└ '}{label}
       </span>
       {readOnly ? (
-        <span className="flex-1 text-right text-[11px] text-slate-700 tabular-nums pr-1">
+        <span className="flex-1 text-right text-[13px] text-slate-700 tabular-nums pr-1">
           ¥{Number(value || 0).toLocaleString()}
         </span>
       ) : (
@@ -90,7 +90,7 @@ function IRow({ label, value, onChange, onBlur, diff, indent, readOnly, onClick 
           />
         </div>
       )}
-      <span className={`flex-shrink-0 w-14 text-right text-[11px] tabular-nums ${
+      <span className={`flex-shrink-0 w-14 text-right text-[13px] tabular-nums ${
         diff === undefined || diff === 0 ? 'text-slate-400' : diff > 0 ? 'text-amber-600 font-bold' : 'text-red-600 font-bold'
       }`}>
         {diff !== undefined ? `¥${diff.toLocaleString()}` : ''}
@@ -105,22 +105,22 @@ function CloseConfirmDialog({ onConfirm, onCancel }) {
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
       <div className="bg-white rounded-xl shadow-xl overflow-hidden w-80">
         <div className="bg-primary-500 text-white px-4 py-3">
-          <h3 className="text-[14px] font-bold">レジクローズ確認</h3>
+          <h3 className="text-[16px] font-bold">レジクローズ確認</h3>
         </div>
         <div className="px-5 py-5">
-          <p className="text-[13px] text-slate-700 text-center mb-6">
+          <p className="text-[15px] text-slate-700 text-center mb-6">
             レジクローズしますか？
           </p>
           <div className="flex gap-3">
             <button
               onClick={onCancel}
-              className="flex-1 py-4 text-[13px] font-bold border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+              className="flex-1 py-4 text-[15px] font-bold border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
             >
               いいえ
             </button>
             <button
               onClick={onConfirm}
-              className="flex-1 py-4 text-[13px] font-bold rounded-lg bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white transition-colors"
+              className="flex-1 py-4 text-[15px] font-bold rounded-lg bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white transition-colors"
             >
               はい
             </button>
@@ -332,13 +332,13 @@ export default function RegisterClosePage() {
       <div className="flex-1 flex gap-0 overflow-hidden min-h-0 p-1.5 gap-1.5">
 
         {/* ══ 左列: 精算レポート ══ */}
-        <div className="flex flex-col rounded-lg overflow-hidden shadow-sm bg-white" style={{ width: '44%' }}>
+        <div className="flex flex-col rounded-lg overflow-hidden shadow-sm bg-white" style={{ width: '72%' }}>
           <div className={`flex items-center justify-between px-3 py-2 flex-shrink-0 ${BLUE_HEADER}`}>
-            <h2 className="text-[13px] font-bold">精算レポート</h2>
+            <h2 className="text-[15px] font-bold">精算レポート</h2>
           </div>
 
           {isLoading ? (
-            <div className="flex-1 flex items-center justify-center text-[12px] text-slate-400">
+            <div className="flex-1 flex items-center justify-center text-[14px] text-slate-400">
               読み込み中...
             </div>
           ) : (
@@ -352,10 +352,10 @@ export default function RegisterClosePage() {
                 <LRow label="消費税"           value={`¥${Math.floor(tax).toLocaleString()}`} />
                 {/* 売上・消費税 内訳トグル */}
                 <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100 min-h-[32px]">
-                  <span className="text-[11px] text-slate-600">売上・消費税 内訳</span>
+                  <span className="text-[13px] text-slate-600">売上・消費税 内訳</span>
                   <button
                     onClick={() => setShowTaxDetail(v => !v)}
-                    className="w-5 h-5 flex items-center justify-center rounded bg-slate-100 hover:bg-slate-200 text-slate-500 text-[11px] font-bold leading-none transition-colors"
+                    className="w-5 h-5 flex items-center justify-center rounded bg-slate-100 hover:bg-slate-200 text-slate-500 text-[13px] font-bold leading-none transition-colors"
                   >
                     {showTaxDetail ? '−' : '+'}
                   </button>
@@ -399,16 +399,16 @@ export default function RegisterClosePage() {
         </div>
 
         {/* ══ 右列: レジクローズ時レジ実績入力 ══ */}
-        <div className="flex flex-col rounded-lg overflow-hidden shadow-sm bg-white ml-1" style={{ flex: 1 }}>
+        <div className="flex flex-col rounded-lg overflow-hidden shadow-sm bg-white ml-1" style={{ width: '28%' }}>
           <div className={`flex items-center px-3 py-2 flex-shrink-0 ${BLUE_HEADER}`}>
-            <span className="text-[12px] font-bold">レジクローズ時レジ実績入力</span>
+            <span className="text-[14px] font-bold">レジクローズ時レジ実績入力</span>
           </div>
 
           <div className="flex items-center px-3 py-0.5 bg-slate-50 border-b border-slate-200 flex-shrink-0">
-            <span className="flex-shrink-0 w-32" />
+            <span className="flex-shrink-0 w-24" />
             <div className="flex-1" />
             <span className="flex-shrink-0 w-14" />
-            <span className="flex-shrink-0 w-14 text-right text-[10px] font-bold text-slate-400 uppercase tracking-wider">差異</span>
+            <span className="flex-shrink-0 w-14 text-right text-[12px] font-bold text-slate-400 uppercase tracking-wider">差異</span>
           </div>
 
           <div className="flex-1 overflow-y-auto mx-2">
@@ -430,13 +430,13 @@ export default function RegisterClosePage() {
             {/* 確定ボタン */}
             <div className="p-3">
               {closeError && (
-                <div className="mb-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-[12px] text-red-700 leading-snug">
+                <div className="mb-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-[14px] text-red-700 leading-snug">
                   {closeError}
                 </div>
               )}
               <button
                 onClick={handleCloseAttempt}
-                className={`w-full py-4 text-[13px] font-black rounded-lg ${BLUE_BTN}`}
+                className={`w-full py-4 text-[15px] font-black rounded-lg ${BLUE_BTN}`}
               >
                 確定
               </button>
@@ -450,7 +450,7 @@ export default function RegisterClosePage() {
         <button
           onClick={() => setShowPdfConfirm(true)}
           disabled={pdfGenerating}
-          className={`inline-flex items-center justify-center gap-2 h-11 px-5 text-[12px] rounded-lg ${BLUE_BTN} disabled:opacity-60 disabled:cursor-not-allowed`}
+          className={`inline-flex items-center justify-center gap-2 h-11 px-5 text-[14px] rounded-lg ${BLUE_BTN} disabled:opacity-60 disabled:cursor-not-allowed`}
         >
           {pdfGenerating ? (
             <>
@@ -556,22 +556,22 @@ export default function RegisterClosePage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
           <div className="bg-white rounded-xl shadow-xl overflow-hidden w-80">
             <div className="bg-primary-500 text-white px-4 py-3">
-              <h3 className="text-[14px] font-bold">日計レポート出力</h3>
+              <h3 className="text-[16px] font-bold">日計レポート出力</h3>
             </div>
             <div className="px-5 py-5">
-              <p className="text-[13px] text-slate-700 text-center mb-6">
+              <p className="text-[15px] text-slate-700 text-center mb-6">
                 日計レポートを出力しますか？
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowPdfConfirm(false)}
-                  className="flex-1 py-4 text-[13px] font-bold border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="flex-1 py-4 text-[15px] font-bold border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
                 >
                   いいえ
                 </button>
                 <button
                   onClick={() => { setShowPdfConfirm(false); handlePdfExport(); }}
-                  className="flex-1 py-4 text-[13px] font-bold rounded-lg bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white transition-colors"
+                  className="flex-1 py-4 text-[15px] font-bold rounded-lg bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white transition-colors"
                 >
                   はい
                 </button>

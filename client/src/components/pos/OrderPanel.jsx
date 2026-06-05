@@ -192,9 +192,9 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
@@ -240,9 +240,9 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
           {order && (
             <button
               onClick={() => setShowGuestModal(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 transition-colors text-xs font-medium text-slate-600"
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 transition-colors text-sm font-medium text-slate-600"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
               </svg>
@@ -255,9 +255,9 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
           )}
           <button
             onClick={onClose}
-            className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
@@ -362,7 +362,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
       </div>
 
       {/* フッター */}
-      <div className="px-5 pt-5 pb-8 border-t border-slate-200 bg-slate-50 space-y-3 flex-shrink-0">
+      <div className="px-5 pt-5 pb-20 border-t border-slate-200 bg-slate-50 space-y-3 flex-shrink-0">
         <div className="flex justify-between items-center">
           <span className="text-sm text-slate-500 font-medium">合計金額</span>
           <span className="text-2xl font-black text-slate-900">¥{total.toLocaleString()}</span>
@@ -370,7 +370,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
 
         <button
           onClick={() => setShowPayment(true)}
-          className="w-full py-5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black rounded-xl transition-colors shadow-sm text-base"
+          className="w-full py-6 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black rounded-xl transition-colors shadow-sm text-lg"
         >
           会計する
         </button>

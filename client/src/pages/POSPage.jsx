@@ -326,7 +326,7 @@ export default function POSPage() {
 
         {view === 'pos' && (
           <div className="flex flex-1 overflow-hidden">
-            <div className={`${currentTable ? 'hidden sm:block sm:flex-1' : 'flex-1'} overflow-y-auto`}>
+            <div className={`${currentTable ? 'hidden sm:block sm:flex-1' : 'flex-1'} overflow-y-auto pr-2`}>
               <TableGrid
                 tables={tables}
                 openOrders={openOrders}

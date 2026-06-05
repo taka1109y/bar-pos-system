@@ -126,7 +126,7 @@ export function DiscountModal({ subtotal, discountType, discountInput, onTypeCha
 }
 
 // ── 金券サブモーダル ──────────────────────────────────────
-function GiftCertModal({ finalTotal, giftCertTotal, onAddCert, onClear, giftCertNoChange, onToggleNoChange, onApply, onClose }) {
+export function GiftCertModal({ finalTotal, giftCertTotal, onAddCert, onClear, giftCertNoChange, onToggleNoChange, onApply, onClose }) {
   const effectiveGiftCert = giftCertNoChange
     ? Math.min(giftCertTotal, finalTotal)
     : giftCertTotal;
@@ -491,7 +491,7 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
 
         {/* ── トップバー ── */}
         <div className="bg-white px-4 py-2.5 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+          <div className="flex items-center gap-1.5 text-sm text-slate-400">
             <span className="font-semibold text-slate-700">{table.name}</span>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M9 18l6-6-6-6"/>
@@ -528,7 +528,7 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
             {/* 商品リスト */}
             <div className="flex-1 overflow-y-auto">
               {order.items.map((item) => (
-                <div key={item.id} className="flex items-center justify-between px-3 py-2.5 border-b border-slate-50 text-xs">
+                <div key={item.id} className="flex items-center justify-between px-3 py-3 border-b border-slate-50 text-sm">
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-slate-800 truncate leading-tight">{item.item_name}</p>
                     <p className="text-slate-400 mt-0.5">×{item.quantity}</p>
@@ -556,18 +556,18 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
           <div className="flex-1 flex flex-col bg-slate-50 border-r border-slate-200">
             {/* 中央ヘッダー */}
             <div className="flex items-center justify-center px-3 py-2 bg-white border-b border-slate-100 flex-shrink-0">
-              <span className="text-xs font-bold text-slate-700">レジ会計</span>
+              <span className="text-sm font-bold text-slate-700">レジ会計</span>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
 
               {/* 小計内訳 */}
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
-                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">内訳</span>
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">内訳</span>
                 </div>
                 <div className="divide-y divide-slate-50">
-                  <div className="flex justify-between items-center px-4 py-2.5 text-sm">
+                  <div className="flex justify-between items-center px-5 py-4 text-base">
                     <span className="text-slate-600 flex items-center gap-1.5">
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-emerald-500 flex-shrink-0">
                         <path d="M20 6L9 17l-5-5"/>
@@ -576,13 +576,13 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                     </span>
                     <span className="font-semibold text-slate-900">¥{itemsSubtotal.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center px-4 py-2.5 text-sm">
+                  <div className="flex justify-between items-center px-5 py-4 text-base">
                     <span className="text-slate-600">
                       チャージ（{order.guest_count ?? 1}名 × ¥{(order.charge_per_person ?? 0).toLocaleString()}）
                     </span>
                     <span className="font-semibold text-slate-900">¥{chargeAmount.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center px-4 py-2.5 text-sm">
+                  <div className="flex justify-between items-center px-5 py-4 text-base">
                     <span className={isLateNight ? 'text-amber-600' : 'text-slate-400'}>
                       深夜料金（{Math.round(lnRate * 100)}%）
                     </span>
@@ -591,7 +591,7 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                     </span>
                   </div>
                   {discountAmount > 0 && (
-                    <div className="flex justify-between items-center px-4 py-2.5 text-sm">
+                    <div className="flex justify-between items-center px-5 py-4 text-base">
                       <span className="text-red-500">値引合計</span>
                       <span className="font-semibold text-red-500">
                         −¥{discountAmount.toLocaleString()}
@@ -602,11 +602,11 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
               </div>
 
               {/* お支払い金額 */}
-              <div className="bg-white rounded-xl border border-slate-200 px-4 py-3">
+              <div className="bg-white rounded-xl border border-slate-200 px-5 py-4">
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="text-xs font-semibold text-slate-500">お支払い総額（税込み）</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
+                    <p className="text-sm font-semibold text-slate-500">お支払い総額（税込み）</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
                       内税（{Math.round(taxRate * 100)}%）: ¥{taxAmount.toLocaleString()}
                     </p>
                   </div>
@@ -615,14 +615,14 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
               </div>
 
               {/* メモ */}
-              <div className="bg-white rounded-xl border border-slate-200 px-4 py-3">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">メモ</p>
+              <div className="bg-white rounded-xl border border-slate-200 px-5 py-4">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">メモ</p>
                 <textarea
                   value={memo}
                   onChange={(e) => setMemo(e.target.value)}
                   placeholder="メモを入力..."
                   rows={2}
-                  className="w-full text-xs text-slate-700 bg-transparent outline-none resize-none placeholder-slate-300 leading-relaxed"
+                  className="w-full text-sm text-slate-700 bg-transparent outline-none resize-none placeholder-slate-300 leading-relaxed"
                 />
               </div>
 
@@ -635,11 +635,11 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
           <div className="w-80 bg-white flex flex-col flex-shrink-0">
 
             {/* 割引登録 / 金券 */}
-            <div className="px-3 pt-3 pb-2 flex gap-2 border-b border-slate-100 flex-shrink-0">
+            <div className="px-4 pt-4 pb-4 flex gap-4 border-b border-slate-100 flex-shrink-0">
               {/* 割引登録 */}
               <button
                 onClick={openDiscountModal}
-                className={`flex-1 py-4 text-sm font-semibold rounded-lg border transition-colors relative ${
+                className={`flex-1 py-5 text-sm font-semibold rounded-lg border transition-colors relative ${
                   discountAmount > 0
                     ? 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -655,7 +655,7 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
               {/* 金券 */}
               <button
                 onClick={openGiftCertModal}
-                className={`flex-1 py-4 text-sm font-semibold rounded-lg border transition-colors relative ${
+                className={`flex-1 py-5 text-sm font-semibold rounded-lg border transition-colors relative ${
                   effectiveGiftCert > 0
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -670,12 +670,12 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
               </button>
             </div>
 
-            <div className="flex-1 flex flex-col p-3 gap-2.5 overflow-hidden">
+            <div className="flex-1 flex flex-col p-4 gap-5 overflow-hidden">
 
               {/* 現金ボタン */}
               <button
                 onClick={() => { setPaymentMethod('cash'); setShowOtherPayment(false); setReceivedInput(''); }}
-                className={`w-full py-5 rounded-xl text-xl font-bold transition-all ${
+                className={`w-full py-6 rounded-xl text-xl font-bold transition-all ${
                   paymentMethod === 'cash'
                     ? 'bg-primary-600 text-white shadow-md'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -693,7 +693,7 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                   if (next && paymentMethod === 'cash') setPaymentMethod('card');
                   if (!next) setPaymentMethod('cash');
                 }}
-                className={`w-full py-4 rounded-xl text-sm font-medium transition-all border ${
+                className={`w-full py-5 rounded-xl text-sm font-medium transition-all border ${
                   paymentMethod !== 'cash'
                     ? 'border-primary-500 bg-primary-50 text-primary-700'
                     : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
@@ -763,11 +763,11 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
             </div>
 
             {/* 会計ボタン */}
-            <div className="p-3 border-t border-slate-200 flex-shrink-0">
+            <div className="px-4 py-5 border-t border-slate-200 flex-shrink-0">
               <button
                 onClick={handleConfirm}
                 disabled={!canPay || payMutation.isPending}
-                className="w-full py-5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-black transition-colors text-base shadow-sm"
+                className="w-full py-6 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-black transition-colors text-xl shadow-sm"
               >
                 {payMutation.isPending ? '処理中...' : '会計'}
               </button>
