@@ -486,11 +486,43 @@ export default function SystemSettingsPage() {
   const [crashModalOpen, setCrashModalOpen] = useState(false);
   const [crashMsg,       setCrashMsg]       = useState('');
   const [resetMsg,       setResetMsg]       = useState('');
+  const [elapsed,        setElapsed]        = useState(0);
+
+  // 暴落中アイテムからアクティブ状態・対象カテゴリを導出
+  const crashedItems      = menuItems.filter((i) => i.is_crashed && i.is_active);
+  const isCrashActive     = crashedItems.length > 0;
+  const crashedCatIds     = [...new Set(crashedItems.map((i) => i.category_id))];
+  const crashedCategories = categories.filter((c) => crashedCatIds.includes(c.id));
+  const crashStartedAt    = settings?.crash_started_at ?? null;
+
+  // 経過時間カウンター
+  useEffect(() => {
+    if (!isCrashActive || !crashStartedAt) { setElapsed(0); return; }
+    const update = () => setElapsed(Math.floor((Date.now() - new Date(crashStartedAt).getTime()) / 1000));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [isCrashActive, crashStartedAt]);
+
+  const fmtElapsed = (sec) => {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  const fmtStartTime = (iso) => {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    return `${d.getMonth() + 1}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+  };
 
   const crashMutation = useMutation({
     mutationFn: api.triggerCrash,
     onSuccess: (data) => {
       setCrashModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['menu-all'] });
+      queryClient.invalidateQueries({ queryKey: ['system-settings'] });
       setCrashMsg(`暴落を実行しました（${data.updated}商品）`);
       setTimeout(() => setCrashMsg(''), 3000);
     },
@@ -503,6 +535,8 @@ export default function SystemSettingsPage() {
   const resetMutation = useMutation({
     mutationFn: api.resetCrash,
     onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['menu-all'] });
+      queryClient.invalidateQueries({ queryKey: ['system-settings'] });
       setResetMsg(`暴落を解除しました（${data.updated}商品）`);
       setTimeout(() => setResetMsg(''), 3000);
     },
@@ -889,20 +923,62 @@ export default function SystemSettingsPage() {
 
           {/* ── 株価暴落 ── */}
           {activeTab === 'crash' && <Section title="株価暴落" desc="選択したカテゴリ・サブカテゴリ内の暴落許可商品を一括で暴落価格に変更します。">
-            <div className="flex gap-3">
-              <button
-                onClick={() => setCrashModalOpen(true)}
-                className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-lg cursor-pointer transition-colors"
-              >
-                暴落を実行
-              </button>
-              <button
-                onClick={handleCrashReset}
-                disabled={resetMutation.isPending}
-                className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer disabled:opacity-50 transition-colors"
-              >
-                暴落解除
-              </button>
+
+            {/* 暴落中ステータスパネル */}
+            {isCrashActive && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-sm font-bold text-red-700">暴落実行中</span>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex gap-2 items-start">
+                    <span className="text-slate-500 w-20 flex-shrink-0">対象</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {crashedCategories.map((c) => (
+                        <span key={c.id} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
+                          {c.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <span className="text-slate-500 w-20 flex-shrink-0">実行時刻</span>
+                    <span className="font-medium text-slate-800 tabular-nums">{fmtStartTime(crashStartedAt)}</span>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <span className="text-slate-500 w-20 flex-shrink-0">経過時間</span>
+                    <span className="font-bold text-red-600 tabular-nums text-base">{fmtElapsed(elapsed)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    if (isCrashActive) return;
+                    setCrashModalOpen(true);
+                  }}
+                  disabled={isCrashActive}
+                  className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-lg cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  暴落を実行
+                </button>
+                <button
+                  onClick={handleCrashReset}
+                  disabled={resetMutation.isPending || !isCrashActive}
+                  className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  暴落解除
+                </button>
+              </div>
+              {isCrashActive && (
+                <p className="text-sm text-amber-600 font-medium">
+                  ※ 再度実施する際は一度解除してからおこなってください
+                </p>
+              )}
             </div>
             {crashMsg && <p className="mt-2 text-sm text-red-600 font-medium">{crashMsg}</p>}
             {resetMsg && <p className="mt-2 text-sm text-emerald-600 font-medium">{resetMsg}</p>}

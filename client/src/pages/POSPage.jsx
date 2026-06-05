@@ -93,6 +93,8 @@ export default function POSPage() {
   const [view, setView] = useState('pos');
   const [selectedTable, setSelectedTable] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [crashActive, setCrashActive] = useState(false);
+  const [crashElapsed, setCrashElapsed] = useState(0);
   const { initPrices, updatePrices } = usePriceStore();
 
   const { data: tables = [] } = useQuery({
@@ -112,6 +114,27 @@ export default function POSPage() {
     queryFn: api.getStaffMenu,
     staleTime: 60_000,
   });
+
+  const { data: settings } = useQuery({
+    queryKey: ['system-settings'],
+    queryFn: api.getSystemSettings,
+    staleTime: 30_000,
+  });
+
+  // menuItems取得後に暴落中かどうかを初期検出
+  useEffect(() => {
+    const active = menuItems.some((i) => i.is_crashed && i.is_active);
+    setCrashActive(active);
+  }, [menuItems]);
+
+  // 経過時間カウンター
+  useEffect(() => {
+    if (!crashActive || !settings?.crash_started_at) { setCrashElapsed(0); return; }
+    const update = () => setCrashElapsed(Math.floor((Date.now() - new Date(settings.crash_started_at).getTime()) / 1000));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [crashActive, settings?.crash_started_at]);
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories-staff'],
@@ -141,17 +164,29 @@ export default function POSPage() {
     const handleOrderUpdated = () => {
       queryClient.invalidateQueries({ queryKey: ['orders-open'] });
     };
+    const handleCrashStarted = () => {
+      setCrashActive(true);
+      queryClient.invalidateQueries({ queryKey: ['system-settings'] });
+    };
+    const handleCrashEnded = () => {
+      setCrashActive(false);
+      setCrashElapsed(0);
+    };
 
     socket.on('prices:updated',       handlePricesUpdated);
     socket.on('prices:sync',          handlePricesSync);
     socket.on('table:status_changed', handleTableStatusChanged);
     socket.on('order:updated',        handleOrderUpdated);
+    socket.on('crash:started',        handleCrashStarted);
+    socket.on('crash:ended',          handleCrashEnded);
 
     return () => {
       socket.off('prices:updated',       handlePricesUpdated);
       socket.off('prices:sync',          handlePricesSync);
       socket.off('table:status_changed', handleTableStatusChanged);
       socket.off('order:updated',        handleOrderUpdated);
+      socket.off('crash:started',        handleCrashStarted);
+      socket.off('crash:ended',          handleCrashEnded);
     };
   }, []);
 
@@ -322,6 +357,19 @@ export default function POSPage() {
               <p className="text-xs text-slate-400 mt-0.5">{currentNav?.desc}</p>
             </div>
           </div>
+          {crashActive && (
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 cursor-pointer hover:bg-red-100 transition-colors"
+              onClick={() => handleSetView('system')}
+              title="暴落設定へ移動"
+            >
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+              <span className="text-xs font-bold text-red-700 whitespace-nowrap">暴落実行中</span>
+              <span className="text-xs font-mono text-red-500 tabular-nums whitespace-nowrap">
+                {String(Math.floor(crashElapsed / 3600)).padStart(2, '0')}:{String(Math.floor((crashElapsed % 3600) / 60)).padStart(2, '0')}:{String(crashElapsed % 60).padStart(2, '0')}
+              </span>
+            </div>
+          )}
         </header>
 
         {view === 'pos' && (

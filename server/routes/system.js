@@ -23,6 +23,7 @@ function parseSettings(rows) {
     register_open_cash:   parseInt(  s.register_open_cash    ?? '0',  10),
     register_open:        s.register_open === 'true',
     register_opened_at:   s.register_opened_at ?? null,
+    crash_started_at:     s.crash_started_at ?? null,
   };
 }
 

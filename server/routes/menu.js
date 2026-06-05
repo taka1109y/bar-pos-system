@@ -285,6 +285,12 @@ router.post('/crash', async (req, res, next) => {
     }
 
     if (updated > 0) {
+      const startedAt = new Date().toISOString();
+      await query(
+        `INSERT INTO system_settings (key, value) VALUES ('crash_started_at', $1)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+        [startedAt]
+      );
       broadcast('prices:updated', { items: broadcastItems, timestamp: Date.now() });
       broadcast('crash:started', { category_ids, subcategory_ids, timestamp: Date.now() });
     }
@@ -313,6 +319,7 @@ router.post('/crash/reset', async (req, res, next) => {
         ...r,
         direction: r.pct_change > 0 ? 'up' : r.pct_change < 0 ? 'down' : 'flat',
       }));
+      await query(`DELETE FROM system_settings WHERE key = 'crash_started_at'`);
       broadcast('prices:updated', { items, timestamp: Date.now() });
       broadcast('crash:ended', { timestamp: Date.now() });
     }
