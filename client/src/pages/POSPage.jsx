@@ -92,7 +92,6 @@ export default function POSPage() {
   const queryClient = useQueryClient();
   const [view, setView] = useState('pos');
   const [selectedTable, setSelectedTable] = useState(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [crashActive, setCrashActive] = useState(false);
   const [crashElapsed, setCrashElapsed] = useState(0);
   const { initPrices, updatePrices } = usePriceStore();
@@ -100,13 +99,13 @@ export default function POSPage() {
   const { data: tables = [] } = useQuery({
     queryKey: ['tables'],
     queryFn: api.getTables,
-    refetchInterval: 30_000,
+    refetchInterval: 10_000,
   });
 
   const { data: openOrders = [] } = useQuery({
     queryKey: ['orders-open'],
     queryFn: api.getOpenOrders,
-    refetchInterval: 30_000,
+    refetchInterval: 10_000,
   });
 
   const { data: menuItems = [] } = useQuery({
@@ -164,6 +163,9 @@ export default function POSPage() {
     const handleOrderUpdated = () => {
       queryClient.invalidateQueries({ queryKey: ['orders-open'] });
     };
+    const handleOrdersChanged = () => {
+      queryClient.invalidateQueries({ queryKey: ['orders-open'] });
+    };
     const handleCrashStarted = () => {
       setCrashActive(true);
       queryClient.invalidateQueries({ queryKey: ['system-settings'] });
@@ -177,6 +179,7 @@ export default function POSPage() {
     socket.on('prices:sync',          handlePricesSync);
     socket.on('table:status_changed', handleTableStatusChanged);
     socket.on('order:updated',        handleOrderUpdated);
+    socket.on('orders:changed',       handleOrdersChanged);
     socket.on('crash:started',        handleCrashStarted);
     socket.on('crash:ended',          handleCrashEnded);
 
@@ -185,6 +188,7 @@ export default function POSPage() {
       socket.off('prices:sync',          handlePricesSync);
       socket.off('table:status_changed', handleTableStatusChanged);
       socket.off('order:updated',        handleOrderUpdated);
+      socket.off('orders:changed',       handleOrdersChanged);
       socket.off('crash:started',        handleCrashStarted);
       socket.off('crash:ended',          handleCrashEnded);
     };
@@ -223,55 +227,20 @@ export default function POSPage() {
   return (
     <div className="flex h-[100dvh] bg-gray-50 overflow-hidden">
       {/* ─── サイドバー ─── */}
-      <aside
-        style={{ width: sidebarCollapsed ? '56px' : '224px', transition: 'width 0.2s ease' }}
-        className="bg-white border-r border-slate-200 flex flex-col flex-shrink-0 overflow-hidden"
-      >
+      <aside className="w-56 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 overflow-hidden">
         {/* ブランドヘッダー */}
-        {sidebarCollapsed ? (
-          <div className="flex flex-col items-center gap-2 px-0 py-3 border-b border-slate-100 flex-shrink-0">
-            <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center flex-shrink-0">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3"/></svg>
-            </div>
-            <button
-              onClick={() => setSidebarCollapsed(false)}
-              aria-label="サイドバーを展開"
-              title="サイドバーを展開"
-              className="w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-primary-500 cursor-pointer"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2.5 px-3.5 py-4 border-b border-slate-100 flex-shrink-0">
-            <img src="/FANZONE_logo_A1.png" alt="ロゴ" className="h-8 w-auto object-contain flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="font-black text-slate-900 text-sm leading-tight">Sports Bar</p>
-              <p className="text-[11px] text-slate-400 font-medium">POS 管理画面</p>
-            </div>
-            <button
-              onClick={() => setSidebarCollapsed(true)}
-              aria-label="サイドバーを折りたたむ"
-              title="サイドバーを折りたたむ"
-              className="w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer flex-shrink-0"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
-            </button>
-          </div>
-        )}
+        <div className="flex flex-col items-center gap-1 px-3.5 py-4 border-b border-slate-100 flex-shrink-0">
+          <img src="/FANZONE_logo_A1.png" alt="ロゴ" className="h-8 w-auto object-contain" />
+          <p className="text-[11px] text-slate-400 font-medium">POS 管理画面</p>
+        </div>
 
         {/* ナビゲーション */}
         <nav aria-label="メインナビゲーション" className="flex-1 p-3 overflow-y-auto">
           {NAV_GROUPS.map((group, gi) => (
             <div key={group.label} className={gi > 0 ? 'mt-4 pt-4 border-t border-slate-100' : ''}>
-              {!sidebarCollapsed && (
-                <p className="px-4 mb-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                  {group.label}
-                </p>
-              )}
-              {sidebarCollapsed && gi > 0 && (
-                <div className="my-1.5 mx-auto w-5 border-t border-slate-200" />
-              )}
+              <p className="px-4 mb-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                {group.label}
+              </p>
               <div className="space-y-0.5">
                 {group.items.map((item) => {
                   const isActive = view === item.id;
@@ -279,29 +248,21 @@ export default function POSPage() {
                     <button
                       key={item.id}
                       onClick={() => handleSetView(item.id)}
-                      aria-label={sidebarCollapsed ? item.label : undefined}
-                      title={sidebarCollapsed ? item.label : undefined}
-                      className={`w-full text-left rounded-lg transition-all flex items-center gap-2.5 ${
-                        sidebarCollapsed ? 'justify-center px-0 py-3.5' : 'px-2.5 py-3.5'
-                      } ${
-                        isActive
-                          ? 'bg-primary-50 text-primary-500'
-                          : 'text-body hover:bg-gray-50'
+                      className={`w-full text-left rounded-lg transition-all flex items-center gap-2.5 px-2.5 py-3.5 ${
+                        isActive ? 'bg-primary-50 text-primary-500' : 'text-body hover:bg-gray-50'
                       }`}
                     >
-                      <span className={`flex-shrink-0 [&>svg]:w-full [&>svg]:h-full ${sidebarCollapsed ? 'w-5 h-5' : 'w-4 h-4'} ${isActive ? 'text-primary-500' : ''}`}>
+                      <span className={`flex-shrink-0 [&>svg]:w-full [&>svg]:h-full w-4 h-4 ${isActive ? 'text-primary-500' : ''}`}>
                         {item.icon}
                       </span>
-                      {!sidebarCollapsed && (
-                        <div className="min-w-0">
-                          <span className={`text-sm block font-semibold truncate ${isActive ? 'text-primary-500' : ''}`}>
-                            {item.label}
-                          </span>
-                          <span className={`text-[10px] block truncate ${isActive ? 'text-primary-400' : 'text-slate-400'}`}>
-                            {item.desc}
-                          </span>
-                        </div>
-                      )}
+                      <div className="min-w-0">
+                        <span className={`text-sm block font-semibold truncate ${isActive ? 'text-primary-500' : ''}`}>
+                          {item.label}
+                        </span>
+                        <span className={`text-[10px] block truncate ${isActive ? 'text-primary-400' : 'text-slate-400'}`}>
+                          {item.desc}
+                        </span>
+                      </div>
                     </button>
                   );
                 })}
@@ -310,8 +271,7 @@ export default function POSPage() {
           ))}
 
           {/* 外部リンク: 価格ボード・キッチン */}
-          <div className={`mt-4 pt-4 border-t border-slate-100 space-y-0.5`}>
-            {sidebarCollapsed && <div className="my-1.5 mx-auto w-5 border-t border-slate-200" />}
+          <div className="mt-4 pt-4 border-t border-slate-100 space-y-0.5">
             {[
               {
                 href: '/board',
@@ -329,16 +289,11 @@ export default function POSPage() {
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                title={sidebarCollapsed ? label : undefined}
-                className={`flex items-center gap-2.5 w-full rounded-lg text-slate-400 hover:bg-gray-50 hover:text-slate-600 transition-colors min-h-[44px] ${
-                  sidebarCollapsed ? 'justify-center px-0' : 'px-2.5'
-                }`}
+                className="flex items-center gap-2.5 w-full rounded-lg text-slate-400 hover:bg-gray-50 hover:text-slate-600 transition-colors min-h-[44px] px-2.5"
               >
-                <span className="flex-shrink-0 [&>svg]:w-full [&>svg]:h-full w-5 h-5">{icon}</span>
-                {!sidebarCollapsed && (
-                  <span className="text-sm font-semibold block flex-1">{label}</span>
-                )}
-                {!sidebarCollapsed && <span className="text-[10px] text-slate-300">↗</span>}
+                <span className="flex-shrink-0 [&>svg]:w-full [&>svg]:h-full w-4 h-4">{icon}</span>
+                <span className="text-sm font-semibold block flex-1">{label}</span>
+                <span className="text-[10px] text-slate-300">↗</span>
               </a>
             ))}
           </div>

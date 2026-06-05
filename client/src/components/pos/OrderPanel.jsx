@@ -98,10 +98,16 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
         }));
       }
     };
+    const handleReconnect = () => {
+      socket.emit('client:subscribe_table', { tableId: table.id });
+      queryClient.invalidateQueries({ queryKey: orderKey });
+    };
     socket.on('order:updated', handleOrderUpdated);
+    socket.on('connect',       handleReconnect);
     return () => {
       socket.emit('client:unsubscribe_table', { tableId: table.id });
       socket.off('order:updated', handleOrderUpdated);
+      socket.off('connect',       handleReconnect);
     };
   }, [table.id]);
 

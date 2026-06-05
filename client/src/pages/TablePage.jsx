@@ -341,7 +341,7 @@ export default function TablePage() {
   const { data: menuItems = [] }     = useQuery({ queryKey: ['menu'],          queryFn: api.getMenu,          staleTime: 60_000 });
   const { data: categories = [] }    = useQuery({ queryKey: ['categories'],    queryFn: api.getCategories,    staleTime: 60_000 });
   const { data: subcategories = [] } = useQuery({ queryKey: ['subcategories'], queryFn: api.getSubcategories, staleTime: 60_000 });
-  const { data: order }              = useQuery({ queryKey: orderKey,          queryFn: () => api.getOrderByTable(tableIdNum), enabled: !!tableIdNum });
+  const { data: order }              = useQuery({ queryKey: orderKey,          queryFn: () => api.getOrderByTable(tableIdNum), enabled: !!tableIdNum, refetchInterval: 10_000 });
 
   const table     = tables.find((t) => t.id === tableIdNum);
   const tableName = table?.name ?? `テーブル ${tableId}`;
@@ -373,7 +373,11 @@ export default function TablePage() {
     socket.emit('client:subscribe_table', { tableId: tableIdNum });
     const handlePricesUpdated = ({ items }) => updatePrices(items);
     const handlePricesSync    = ({ items }) => initPrices(items);
-    const handleReconnect     = () => api.getPrices().then(initPrices).catch(console.error);
+    const handleReconnect     = () => {
+      api.getPrices().then(initPrices).catch(console.error);
+      socket.emit('client:subscribe_table', { tableId: tableIdNum });
+      queryClient.invalidateQueries({ queryKey: orderKey });
+    };
     const handleOrderUpdated  = (data) => {
       if (data.tableId === tableIdNum) {
         queryClient.setQueryData(orderKey, (old) => ({

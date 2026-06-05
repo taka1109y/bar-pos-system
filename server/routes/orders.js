@@ -219,6 +219,7 @@ router.post('/:id/items', async (req, res, next) => {
       chargePerPerson: updated.charge_per_person,
       guestCount: updated.guest_count,
     });
+    broadcast('orders:changed', { tableId: order.table_id });
     broadcast('kitchen:new_item', { orderId: order.id, tableId: order.table_id });
 
     res.json(updated);
@@ -271,6 +272,7 @@ router.patch('/:id/items/:itemId', async (req, res, next) => {
       chargePerPerson: updated.charge_per_person,
       guestCount: updated.guest_count,
     });
+    broadcast('orders:changed', { tableId: order.table_id });
 
     res.json(updated);
   } catch (err) {
@@ -307,6 +309,7 @@ router.delete('/:id/items/:itemId', async (req, res, next) => {
       chargePerPerson: updated.charge_per_person,
       guestCount: updated.guest_count,
     });
+    broadcast('orders:changed', { tableId: order.table_id });
 
     res.json(updated);
   } catch (err) {
@@ -351,6 +354,7 @@ router.patch('/:id/guest-count', async (req, res, next) => {
       chargePerPerson: updated.charge_per_person,
       guestCount: updated.guest_count,
     });
+    broadcast('orders:changed', { tableId: order.table_id });
 
     res.json(updated);
   } catch (err) {
