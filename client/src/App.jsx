@@ -8,8 +8,6 @@ import TablePage from './pages/TablePage';
 import TableSelectPage from './pages/TableSelectPage';
 import KitchenPage from './pages/KitchenPage';
 import RegisterStartPage from './pages/RegisterStartPage';
-// テスト専用 — 本番前に削除すること / DELETE BEFORE PRODUCTION
-import DebugPage from './pages/DebugPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -106,8 +104,6 @@ export default function App() {
           <Route path="/table" element={<PublicGuard><TableSelectPage /></PublicGuard>} />
           <Route path="/table/:tableId" element={<PublicGuard><TablePage /></PublicGuard>} />
           <Route path="/kitchen" element={<PublicGuard><KitchenPage /></PublicGuard>} />
-          {/* テスト専用 — 本番前に削除すること / DELETE BEFORE PRODUCTION */}
-          <Route path="/debug" element={<DebugPage />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

@@ -6,7 +6,14 @@
 
 ## 起動方法
 
-### 本番 (Docker)
+### 本番 (Docker / Raspberry Pi 5・Ubuntu 24.04)
+
+初回のみ環境変数ファイルを用意する:
+
+```bash
+cp .env.example .env
+# .env を編集し POSTGRES_PASSWORD を強力なものに変更（初回起動前に必須）
+```
 
 ```bash
 docker compose up -d --build  # ビルドして起動
@@ -15,7 +22,9 @@ docker compose down           # 停止
 docker compose down -v        # 停止 + 全ボリューム削除（DB・画像データも消える）
 ```
 
-アクセス: **http://localhost**
+- アクセス: **http://localhost**（同一LANの端末からは **http://<ラズパイのIP>/**）
+- ベースイメージ（node:20-alpine / postgres:16-alpine / nginx:alpine）はいずれも ARM64 対応
+- `POSTGRES_PASSWORD` は空のDBボリュームへの初回起動時のみ適用される。後から変更する場合はボリューム再作成が必要
 
 ### 開発 (ローカル)
 

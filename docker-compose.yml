@@ -3,19 +3,20 @@ services:
     container_name: bar-pos-postgres
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: bardb
-      POSTGRES_USER: bar
-      POSTGRES_PASSWORD: bar
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - pg_data:/var/lib/postgresql/data
-    # --- テスト用: DBに外部から直接接続したい場合はコメントを外す ---
+    # DBは外部公開しない（同一Dockerネットワーク内のみ）。デバッグ時のみ有効化:
     # ports:
     #   - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bar -d bardb"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
 
   server:
     container_name: bar-pos-server
@@ -24,20 +25,14 @@ services:
       TZ: Asia/Tokyo
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgres://bar:bar@postgres:5432/bardb
-      # ─── 本番用 (localhost固定) ───────────────────────────────────────
-      # CLIENT_ORIGIN: http://localhost
-      # ─── テスト用 (LANからのWebSocket/CORS接続を許可) ────────────────
-      # 切り替え方法: 上の CLIENT_ORIGIN 行をコメントアウトし、下の行を有効にする
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # LAN内の複数端末（iPad等）からアクセスするため全オリジン許可（LAN内限定運用）
       CLIENT_ORIGIN: "*"
-      # テスト専用デバッグルートの有効化 — テスト完了後にこの行を削除すること
-      ENABLE_DEBUG_ROUTES: 'true'
-    # --- テスト用: serverに外部から直接APIアクセスしたい場合はコメントを外す ---
+    # serverは外部公開しない（nginx経由でのみアクセス）。デバッグ時のみ有効化:
     # ports:
     #   - "3001:3001"
     volumes:
       - uploads:/app/uploads
-      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       postgres:
         condition: service_healthy
