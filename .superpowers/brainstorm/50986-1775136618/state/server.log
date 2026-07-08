@@ -1,8 +1,0 @@
-{"type":"server-started","port":61408,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:61408","screen_dir":"/Users/takaadm/Desktop/bar-pos-system/.superpowers/brainstorm/50986-1775136618/content","state_dir":"/Users/takaadm/Desktop/bar-pos-system/.superpowers/brainstorm/50986-1775136618/state"}
-{"type":"screen-added","file":"/Users/takaadm/Desktop/bar-pos-system/.superpowers/brainstorm/50986-1775136618/content/design-direction.html"}
-{"type":"screen-added","file":"/Users/takaadm/Desktop/bar-pos-system/.superpowers/brainstorm/50986-1775136618/content/table-page-direction.html"}
-{"type":"screen-added","file":"/Users/takaadm/Desktop/bar-pos-system/.superpowers/brainstorm/50986-1775136618/content/ipad-orientation.html"}
-{"type":"screen-added","file":"/Users/takaadm/Desktop/bar-pos-system/.superpowers/brainstorm/50986-1775136618/content/table-color.html"}
-{"type":"screen-added","file":"/Users/takaadm/Desktop/bar-pos-system/.superpowers/brainstorm/50986-1775136618/content/board-kitchen-theme.html"}
-{"type":"screen-added","file":"/Users/takaadm/Desktop/bar-pos-system/.superpowers/brainstorm/50986-1775136618/content/waiting.html"}
-{"type":"server-stopped","reason":"idle timeout"}
