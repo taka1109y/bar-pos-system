@@ -49,6 +49,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     image_url:       item?.image_url || '',  // DBに保存されているファイル名
     tax_category:    item?.tax_category || 'standard',
     is_staff_only:   item?.is_staff_only ?? false,
+    price_editable:  item?.price_editable ?? false,
   });
 
   // 新たに選択した画像ファイルとプレビューURL
@@ -123,6 +124,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
       image_url:       imageFilename || null,
       tax_category:    form.tax_category,
       is_staff_only:   Boolean(form.is_staff_only),
+      price_editable:  Boolean(form.price_editable),
     });
   };
 
@@ -342,6 +344,18 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
         {form.is_staff_only && (
           <p className="text-xs text-amber-600 mt-1 ml-6">この商品はPOS画面にのみ表示されます</p>
         )}
+        <label className="flex items-center gap-2 cursor-pointer mt-3">
+          <input
+            type="checkbox"
+            checked={Boolean(form.price_editable)}
+            onChange={(e) => set('price_editable', e.target.checked)}
+            className="w-4 h-4 accent-amber-600 rounded"
+          />
+          <span className="text-sm text-slate-700">価格変更可（時価）：注文時に価格・商品名を編集</span>
+        </label>
+        {form.price_editable && (
+          <p className="text-xs text-amber-600 mt-1 ml-6">スタッフ注文画面でタップ時に価格・商品名の入力画面が表示されます</p>
+        )}
       </div>
       <div className="flex gap-3 pt-1">
         <button type="button" onClick={onCancel} disabled={isBusy} className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
@@ -481,6 +495,11 @@ export default function MenuManager() {
                     {item.is_staff_only && (
                       <span className="text-xs px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 font-medium flex-shrink-0">
                         従業員専用
+                      </span>
+                    )}
+                    {item.price_editable && (
+                      <span className="text-xs px-2.5 py-1.5 rounded-full bg-amber-50 text-amber-700 font-medium flex-shrink-0">
+                        時価
                       </span>
                     )}
                     {!item.is_active && (

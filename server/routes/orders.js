@@ -164,7 +164,7 @@ router.post('/', async (req, res, next) => {
 router.post('/:id/items', async (req, res, next) => {
   const client = await pool.connect();
   try {
-    const { menu_item_id, quantity = 1 } = req.body;
+    const { menu_item_id, quantity = 1, unit_price, item_name } = req.body;
     if (!menu_item_id) return res.status(400).json({ error: 'menu_item_id is required' });
 
     const { rows: orderRows } = await client.query(
@@ -175,13 +175,30 @@ router.post('/:id/items', async (req, res, next) => {
     if (!order) return res.status(404).json({ error: 'Order not found or already closed' });
 
     const { rows: menuRows } = await client.query(
-      'SELECT id, name, current_price::float, is_drink FROM menu_items WHERE id = $1 AND is_active = TRUE',
+      'SELECT id, name, current_price::float, is_drink, price_editable FROM menu_items WHERE id = $1 AND is_active = TRUE',
       [menu_item_id]
     );
     const menuItem = menuRows[0];
     if (!menuItem) return res.status(404).json({ error: 'Menu item not found' });
 
-    const currentPrice = parseFloat(menuItem.current_price);
+    // 既定はメニュー登録値。price_editable(時価)商品のみ、スタッフ指定の価格・商品名で上書きする
+    let finalPrice = parseFloat(menuItem.current_price);
+    let finalName  = menuItem.name;
+    if (menuItem.price_editable) {
+      if (unit_price !== undefined && unit_price !== null && unit_price !== '') {
+        const p = Number(unit_price);
+        if (!Number.isFinite(p) || p < 0) {
+          return res.status(400).json({ error: 'unit_price must be a non-negative number' });
+        }
+        finalPrice = Math.round(p);
+      }
+      if (typeof item_name === 'string' && item_name.trim().length > 0) {
+        if (item_name.trim().length > 100) {
+          return res.status(400).json({ error: 'item_name must be 1-100 characters' });
+        }
+        finalName = item_name.trim();
+      }
+    }
 
     await client.query('BEGIN');
 
@@ -189,7 +206,7 @@ router.post('/:id/items', async (req, res, next) => {
     await client.query(
       `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, item_name)
        VALUES ($1, $2, $3, $4, $5)`,
-      [order.id, menu_item_id, quantity, currentPrice, menuItem.name]
+      [order.id, menu_item_id, quantity, finalPrice, finalName]
     );
 
     await recalcTotal(client, order.id);

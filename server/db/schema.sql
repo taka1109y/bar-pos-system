@@ -120,6 +120,9 @@ INSERT INTO system_settings (key, value) VALUES ('default_tax_category', 'standa
 -- 従業員専用商品
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS is_staff_only BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- 価格変更可（時価）: 注文時にスタッフが価格・商品名を上書きできる商品フラグ
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS price_editable BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- 従業員専用カテゴリ
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS is_staff_only BOOLEAN NOT NULL DEFAULT FALSE;
 

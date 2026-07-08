@@ -180,6 +180,9 @@ function StaffMenuItem({ item, onAdd }) {
         flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : ''
       }`}
     >
+      {item.price_editable && (
+        <span className="inline-flex self-start items-center px-1.5 py-0.5 mb-1.5 rounded bg-amber-50 text-amber-700 text-[10px] font-bold">時価</span>
+      )}
       <span className="text-sm font-semibold text-slate-700 leading-snug mb-3 line-clamp-2">{item.name}</span>
       <div className="flex items-baseline gap-1.5">
         <span className="text-base font-black text-primary-600">¥{price.toLocaleString()}</span>

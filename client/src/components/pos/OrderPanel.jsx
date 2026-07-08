@@ -68,12 +68,92 @@ function GuestCountModal({ currentCount, onSelect, onClose, isPending }) {
   );
 }
 
+// ── 価格・商品名編集モーダル（時価商品用） ──────────────────
+function CustomPriceModal({ defaultName, defaultPrice, onConfirm, onClose, isPending }) {
+  const [name, setName]   = useState(defaultName ?? '');
+  const [price, setPrice] = useState(String(defaultPrice ?? ''));
+
+  const priceNum   = Number(price);
+  const nameValid  = name.trim().length > 0 && name.trim().length <= 100;
+  const priceValid = price !== '' && Number.isFinite(priceNum) && priceNum >= 0;
+  const canSubmit  = nameValid && priceValid && !isPending;
+
+  const submit = () => {
+    if (!canSubmit) return;
+    onConfirm(name.trim(), Math.round(priceNum));
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in">
+      <div className="bg-white rounded-xl p-5 w-80 shadow-xl pop-in border border-slate-200">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold text-slate-900">価格・商品名を入力</h3>
+          <button onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5">商品名</label>
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={100}
+              placeholder="例: 本マグロ中トロ"
+              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5">価格（税込）</label>
+            <div className="flex items-center bg-white border border-slate-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-primary-500/50 focus-within:border-primary-500">
+              <span className="pl-3 pr-1 text-slate-400 text-sm">¥</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+                placeholder="0"
+                className="flex-1 bg-transparent px-2 py-2.5 text-slate-900 text-sm focus:outline-none caret-primary-500"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-2.5 mt-5">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium rounded-lg transition-colors"
+          >
+            キャンセル
+          </button>
+          <button
+            onClick={submit}
+            disabled={!canSubmit}
+            className="flex-1 py-2.5 bg-primary-500 hover:bg-primary-700 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-50"
+          >
+            追加する
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── メインコンポーネント ──────────────────────────────────
 export default function OrderPanel({ table, menuItems, categories, subcategories = [], onClose }) {
   const queryClient = useQueryClient();
   const [showPayment,    setShowPayment]    = useState(false);
   const [pendingAction,  setPendingAction]  = useState(null);
   const [showGuestModal, setShowGuestModal] = useState(false);
+  const [priceEditItem,  setPriceEditItem]  = useState(null);
 
   const orderKey = ['order', table.id];
 
@@ -117,8 +197,8 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menu_item_id }) =>
-      api.addOrderItem(orderId, { menu_item_id, quantity: 1 }),
+    mutationFn: ({ orderId, menu_item_id, unit_price, item_name }) =>
+      api.addOrderItem(orderId, { menu_item_id, quantity: 1, unit_price, item_name }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
@@ -142,6 +222,15 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
 
   // ── 確認付きアクション ────────────────────────────────
   const handleAddItem = (menuItem) => {
+    // 時価商品はタップ時に価格・商品名を入力させる
+    if (menuItem.price_editable) {
+      setPriceEditItem({
+        menu_item_id: menuItem.id,
+        defaultName:  menuItem.name,
+        defaultPrice: Math.round(menuItem.current_price ?? menuItem.base_price ?? 0),
+      });
+      return;
+    }
     setPendingAction({
       label:        '追加する',
       confirmClass: 'bg-primary-500 hover:bg-primary-700',
@@ -154,6 +243,16 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   };
 
   const handleQtyIncrease = (item) => {
+    // 時価商品はもう1品追加するときも価格・商品名を入力させる
+    const menuItem = menuItems.find((m) => m.id === item.menu_item_id);
+    if (menuItem?.price_editable) {
+      setPriceEditItem({
+        menu_item_id: item.menu_item_id,
+        defaultName:  item.item_name,
+        defaultPrice: Math.round(item.unit_price),
+      });
+      return;
+    }
     // 現在価格で新規追加（価格が変わっていれば別行、同じなら既存行に積む）
     setPendingAction({
       label:        '追加する',
@@ -390,6 +489,24 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
           confirmClass={pendingAction.confirmClass}
           onConfirm={handleConfirm}
           onClose={() => setPendingAction(null)}
+        />
+      )}
+
+      {priceEditItem && (
+        <CustomPriceModal
+          defaultName={priceEditItem.defaultName}
+          defaultPrice={priceEditItem.defaultPrice}
+          isPending={addItemMutation.isPending}
+          onConfirm={(name, price) => {
+            addItemMutation.mutate({
+              orderId: order.id,
+              menu_item_id: priceEditItem.menu_item_id,
+              unit_price: price,
+              item_name: name,
+            });
+            setPriceEditItem(null);
+          }}
+          onClose={() => setPriceEditItem(null)}
         />
       )}
 

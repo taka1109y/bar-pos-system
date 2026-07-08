@@ -15,7 +15,7 @@ const ITEM_SELECT = `
     ), 0)::float AS cost_price,
     m.recipe_notes,
     m.is_drink, m.is_active, m.crash_enabled, m.is_crashed,
-    m.image_url, m.tax_category, m.is_staff_only,
+    m.image_url, m.tax_category, m.is_staff_only, m.price_editable,
     c.name  AS category_name,  c.sort_order,
     sc.name AS subcategory_name, sc.sort_order AS subcategory_sort_order
   FROM menu_items m
@@ -192,7 +192,7 @@ router.post('/', async (req, res, next) => {
   try {
     const { category_id, subcategory_id, name, base_price, min_price, max_price,
             price_step_up, price_step_down, is_drink = true, image_url = null,
-            tax_category, is_staff_only = false } = req.body;
+            tax_category, is_staff_only = false, price_editable = false } = req.body;
     if (!category_id || !name || base_price == null) {
       return res.status(400).json({ error: 'category_id, name, base_price are required' });
     }
@@ -219,10 +219,10 @@ router.post('/', async (req, res, next) => {
     const stepDn = price_step_down ?? 25;
     const { rows } = await query(
       `INSERT INTO menu_items
-         (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, image_url, tax_category, is_staff_only)
-       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, image_url, tax_category, is_staff_only, price_editable)
+       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING id`,
-      [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink, image_url || null, effectiveTaxCategory, Boolean(is_staff_only)]
+      [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink, image_url || null, effectiveTaxCategory, Boolean(is_staff_only), Boolean(price_editable)]
     );
     const { rows: result } = await query(`${ITEM_SELECT} WHERE m.id = $1`, [rows[0].id]);
     res.status(201).json(result[0]);
@@ -336,7 +336,7 @@ router.patch('/:id', async (req, res, next) => {
 
     const { name, base_price, min_price, max_price, price_step_up, price_step_down,
             is_drink, is_active, subcategory_id, crash_enabled, is_crashed,
-            image_url, tax_category, is_staff_only } = req.body;
+            image_url, tax_category, is_staff_only, price_editable } = req.body;
     const updates = [];
     const values = [];
     let idx = 1;
@@ -361,6 +361,7 @@ router.patch('/:id', async (req, res, next) => {
       values.push(tax_category);
     }
     if (is_staff_only !== undefined)   { updates.push(`is_staff_only = $${idx++}`);   values.push(Boolean(is_staff_only)); }
+    if (price_editable !== undefined)  { updates.push(`price_editable = $${idx++}`);  values.push(Boolean(price_editable)); }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
