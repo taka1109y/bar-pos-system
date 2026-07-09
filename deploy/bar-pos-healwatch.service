@@ -1,0 +1,8 @@
+[Unit]
+Description=bar-pos health watchdog (restart unhealthy containers)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/bar-pos-healwatch.sh

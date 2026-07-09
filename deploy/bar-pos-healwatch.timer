@@ -1,0 +1,10 @@
+[Unit]
+Description=Run bar-pos health watchdog every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=60s
+Unit=bar-pos-healwatch.service
+
+[Install]
+WantedBy=timers.target
