@@ -17,10 +17,13 @@ router.get('/', async (req, res, next) => {
     if (from) assertDateFormat(from, 'from');
     if (to)   assertDateFormat(to,   'to');
 
-    // $1 = タイムゾーン文字列（WHERE・SELECTで共用）
-    const params = [TZ];
+    // TZ は日付フィルタ($1)でのみ使用する。from/to が無いと $1 が参照されず、
+    // 常に params 先頭に TZ を入れるとパラメータ数不一致で bind エラーになるため、
+    // 日付フィルタを使うときだけ TZ を追加する。
+    const params = [];
     const conditions = ["o.status = 'paid'"];
 
+    if (from || to) params.push(TZ); // $1
     if (from) {
       params.push(from);
       conditions.push(`(o.closed_at AT TIME ZONE $1)::date >= $${params.length}::date`);
