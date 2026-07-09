@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { yen, num } from '../utils/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import PaymentModal from '../components/pos/PaymentModal';
@@ -181,18 +182,18 @@ export default function ReceiptsPage() {
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">総売上</p>
-              <p className="text-lg font-black text-slate-900">¥{Math.floor(totalRevenue).toLocaleString()}</p>
+              <p className="text-lg font-black text-slate-900">¥{yen(Math.floor(totalRevenue))}</p>
             </div>
             <div className={`border rounded-xl px-4 py-3 shadow-sm ${totalDiscount > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">割引合計</p>
               <p className={`text-lg font-black ${totalDiscount > 0 ? 'text-red-500' : 'text-slate-400'}`}>
-                {totalDiscount > 0 ? `−¥${Math.floor(totalDiscount).toLocaleString()}` : '¥0'}
+                {totalDiscount > 0 ? `−¥${yen(Math.floor(totalDiscount))}` : '¥0'}
               </p>
             </div>
             <div className={`border rounded-xl px-4 py-3 shadow-sm ${totalGiftCert > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'}`}>
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">金券合計</p>
               <p className={`text-lg font-black ${totalGiftCert > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                {totalGiftCert > 0 ? `¥${Math.floor(totalGiftCert).toLocaleString()}` : '¥0'}
+                {totalGiftCert > 0 ? `¥${yen(Math.floor(totalGiftCert))}` : '¥0'}
               </p>
             </div>
           </div>
@@ -257,7 +258,7 @@ export default function ReceiptsPage() {
                   </div>
 
                   <span className={`text-sm font-bold w-24 text-right flex-shrink-0 ${isCancelled ? 'text-slate-400' : 'text-slate-900'}`}>
-                    {isRedOpen ? '未会計' : `¥${Math.floor(r.total_amount).toLocaleString()}`}
+                    {isRedOpen ? '未会計' : `¥${yen(Math.floor(r.total_amount))}`}
                   </span>
                   <span className={`text-xs text-slate-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-90' : ''}`}>▶</span>
                 </button>
@@ -274,10 +275,10 @@ export default function ReceiptsPage() {
                           <div key={idx} className="flex items-center gap-3 text-sm">
                             <span className="flex-1 text-slate-800">{item.item_name}</span>
                             <span className="text-slate-400 text-xs w-20 text-right">
-                              ¥{Math.floor(item.unit_price).toLocaleString()} × {item.quantity}
+                              ¥{yen(Math.floor(item.unit_price))} × {item.quantity}
                             </span>
                             <span className="font-semibold text-slate-900 w-20 text-right">
-                              ¥{Math.floor(item.unit_price * item.quantity).toLocaleString()}
+                              ¥{yen(Math.floor(item.unit_price * item.quantity))}
                             </span>
                           </div>
                         ))}
@@ -294,38 +295,38 @@ export default function ReceiptsPage() {
                             <>
                               <div className="flex justify-between text-xs text-slate-500">
                                 <span>商品合計（税込み）</span>
-                                <span>¥{Math.floor(subtotal).toLocaleString()}</span>
+                                <span>¥{yen(Math.floor(subtotal))}</span>
                               </div>
                               {(r.charge_amount ?? 0) > 0 && (
                                 <div className="flex justify-between text-xs text-slate-500">
-                                  <span>チャージ（{r.guest_count}名 × ¥{Math.floor(r.charge_per_person).toLocaleString()}）</span>
-                                  <span>¥{Math.floor(r.charge_amount).toLocaleString()}</span>
+                                  <span>チャージ（{r.guest_count}名 × ¥{yen(Math.floor(r.charge_per_person))}）</span>
+                                  <span>¥{yen(Math.floor(r.charge_amount))}</span>
                                 </div>
                               )}
                               {r.late_night_amount > 0 && (
                                 <div className="flex justify-between text-xs text-amber-600">
                                   <span>深夜料金（{Math.round((r.late_night_rate ?? 0) * 100)}%）</span>
-                                  <span>+¥{Math.floor(r.late_night_amount).toLocaleString()}</span>
+                                  <span>+¥{yen(Math.floor(r.late_night_amount))}</span>
                                 </div>
                               )}
                               {r.discount_amount > 0 && (
                                 <div className="flex justify-between text-xs">
                                   <span className="text-red-500 font-medium">割引</span>
-                                  <span className="text-red-500 font-medium">−¥{Math.floor(r.discount_amount).toLocaleString()}</span>
+                                  <span className="text-red-500 font-medium">−¥{yen(Math.floor(r.discount_amount))}</span>
                                 </div>
                               )}
                               <div className="flex justify-between text-sm font-black text-slate-900 pt-1 border-t border-slate-200">
                                 <span>合計（税込み）</span>
-                                <span>¥{Math.floor(r.total_amount).toLocaleString()}</span>
+                                <span>¥{yen(Math.floor(r.total_amount))}</span>
                               </div>
                               <div className="flex justify-between text-xs text-slate-400">
                                 <span>内税（{Math.round((r.tax_rate ?? 0.10) * 100)}%）</span>
-                                <span>¥{Math.floor(r.tax_amount ?? 0).toLocaleString()}</span>
+                                <span>¥{yen(Math.floor(r.tax_amount ?? 0))}</span>
                               </div>
                               {r.gift_cert_amount > 0 && (
                                 <div className="flex justify-between text-xs text-emerald-700 pt-1 border-t border-slate-100">
                                   <span>金券適用{r.gift_cert_no_change ? '（釣り無し）' : '（釣り有り）'}</span>
-                                  <span className="font-semibold">−¥{Math.floor(r.gift_cert_amount).toLocaleString()}</span>
+                                  <span className="font-semibold">−¥{yen(Math.floor(r.gift_cert_amount))}</span>
                                 </div>
                               )}
                             </>

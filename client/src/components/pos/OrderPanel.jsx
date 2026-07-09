@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { yen, num } from '../../utils/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 import socket from '../../socket';
@@ -407,11 +408,11 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
                   <div className="flex-1 min-w-0">
                     <span className="text-sm text-slate-800 font-medium block">チャージ</span>
                     <span className="text-[11px] text-slate-400 mt-0.5 block">
-                      {order.guest_count}名 × ¥{Math.floor(order.charge_per_person).toLocaleString()}
+                      {order.guest_count}名 × ¥{yen(Math.floor(order.charge_per_person))}
                     </span>
                   </div>
                   <span className="text-sm font-bold text-amber-600 w-16 text-right flex-shrink-0">
-                    ¥{Math.floor(chargeAmt).toLocaleString()}
+                    ¥{yen(Math.floor(chargeAmt))}
                   </span>
                 </div>
               )}
@@ -429,13 +430,13 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
                       </span>
                       {hasPriceVariants && (
                         <span className="text-[11px] text-slate-400 mt-0.5 block">
-                          注文時 ¥{item.unit_price.toLocaleString()}
+                          注文時 ¥{yen(item.unit_price)}
                         </span>
                       )}
                     </div>
                     {!hasPriceVariants && (
                       <span className="text-xs text-slate-400 flex-shrink-0">
-                        ¥{item.unit_price.toLocaleString()}
+                        ¥{yen(item.unit_price)}
                       </span>
                     )}
                     <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -456,7 +457,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
                       </button>
                     </div>
                     <span className="text-sm font-bold text-primary-600 w-16 text-right flex-shrink-0">
-                      ¥{(item.quantity * item.unit_price).toLocaleString()}
+                      ¥{yen((item.quantity * item.unit_price))}
                     </span>
                   </div>
                 );
@@ -470,7 +471,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
       <div className="px-5 pt-5 pb-20 border-t border-slate-200 bg-slate-50 space-y-3 flex-shrink-0">
         <div className="flex justify-between items-center">
           <span className="text-sm text-slate-500 font-medium">合計金額</span>
-          <span className="text-2xl font-black text-slate-900">¥{total.toLocaleString()}</span>
+          <span className="text-2xl font-black text-slate-900">¥{yen(total)}</span>
         </div>
 
         <button

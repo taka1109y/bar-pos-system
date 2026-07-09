@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { yen, num } from '../../utils/format';
 
 function useNow() {
   const [now, setNow] = useState(() => Date.now());
@@ -71,7 +72,7 @@ export default function TableGrid({ tables, openOrders = [], selectedTableId, on
 
               <div className={`mt-2 space-y-0.5 ${isOccupied ? '' : 'invisible'}`}>
                 <p className="text-base font-black text-primary-600">
-                  {order ? `¥${Math.floor(order.total_amount + (order.charge_amount ?? 0)).toLocaleString()}` : '¥0'}
+                  {order ? `¥${yen(Math.floor(order.total_amount + (order.charge_amount ?? 0)))}` : '¥0'}
                 </p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <p className="text-xs text-slate-400 flex items-center gap-1">

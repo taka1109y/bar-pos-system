@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { yen, num } from '../utils/format';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { TZ } from '../utils/tz';
@@ -59,26 +60,26 @@ export default function ReportsPage({ onClose, inline = false }) {
         <>
           {/* サマリーカード（上段） */}
           <div className="grid grid-cols-3 gap-4">
-            <StatCard label="総売上" value={`¥${Math.floor(report?.total_revenue ?? 0).toLocaleString()}`} />
+            <StatCard label="総売上" value={`¥${yen(Math.floor(report?.total_revenue ?? 0))}`} />
             <StatCard label="会計件数" value={`${report?.order_count ?? 0}件`} />
-            <StatCard label="平均単価" value={`¥${Math.floor(report?.avg_order_value ?? 0).toLocaleString()}`} />
+            <StatCard label="平均単価" value={`¥${yen(Math.floor(report?.avg_order_value ?? 0))}`} />
           </div>
 
           {/* サマリーカード（下段: 割引・金券・深夜） */}
           <div className="grid grid-cols-3 gap-4">
             <StatCard
               label="割引合計"
-              value={report?.total_discount > 0 ? `−¥${Math.floor(report.total_discount).toLocaleString()}` : '¥0'}
+              value={report?.total_discount > 0 ? `−¥${yen(Math.floor(report.total_discount))}` : '¥0'}
               accent={report?.total_discount > 0 ? 'text-red-500' : 'text-slate-400'}
             />
             <StatCard
               label="金券合計"
-              value={report?.total_gift_cert > 0 ? `¥${Math.floor(report.total_gift_cert).toLocaleString()}` : '¥0'}
+              value={report?.total_gift_cert > 0 ? `¥${yen(Math.floor(report.total_gift_cert))}` : '¥0'}
               accent={report?.total_gift_cert > 0 ? 'text-emerald-600' : 'text-slate-400'}
             />
             <StatCard
               label="深夜料金合計"
-              value={report?.total_late_night > 0 ? `¥${Math.floor(report.total_late_night).toLocaleString()}` : '¥0'}
+              value={report?.total_late_night > 0 ? `¥${yen(Math.floor(report.total_late_night))}` : '¥0'}
               accent={report?.total_late_night > 0 ? 'text-amber-600' : 'text-slate-400'}
             />
           </div>
@@ -99,7 +100,7 @@ export default function ReportsPage({ onClose, inline = false }) {
                     </div>
                     <span className="text-xs text-slate-400 w-8 text-right flex-shrink-0">{b.count}件</span>
                     <span className="text-sm font-bold text-slate-900 w-24 text-right flex-shrink-0">
-                      ¥{Math.floor(b.revenue).toLocaleString()}
+                      ¥{yen(Math.floor(b.revenue))}
                     </span>
                   </div>
                 ))}
@@ -127,7 +128,7 @@ export default function ReportsPage({ onClose, inline = false }) {
                       </span>
                       {item.cost_per_unit > 0 && (
                         <span className="text-xs text-amber-500">
-                          原価率 {item.cost_rate}% ／ 粗利 ¥{Math.floor(item.gross_profit).toLocaleString()}
+                          原価率 {item.cost_rate}% ／ 粗利 ¥{yen(Math.floor(item.gross_profit))}
                         </span>
                       )}
                     </div>
@@ -141,7 +142,7 @@ export default function ReportsPage({ onClose, inline = false }) {
                       />
                     </div>
                     <span className="text-sm font-bold text-slate-900 w-20 text-right flex-shrink-0">
-                      ¥{item.revenue.toLocaleString()}
+                      ¥{yen(item.revenue)}
                     </span>
                   </div>
                 ))}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import usePriceStore from '../../store/usePriceStore';
 import Sparkline from './Sparkline';
+import { yen } from '../../utils/format';
 
 const CATEGORY_STYLES = {
   'ドリンク': { emoji: '🍺', gradient: 'linear-gradient(135deg,#7b4f0d,#c88820)', glow: 'rgba(200,136,32,0.3)' },
@@ -134,7 +135,7 @@ function CustomerMenuItem({ item, onAdd, categories, subcategories }) {
         </p>
         <div className="flex items-baseline gap-2">
           <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 26, fontWeight: 700, color: '#ffc531', letterSpacing: '0.5px' }}>
-            ¥{price.toLocaleString()}
+            ¥{yen(price)}
           </span>
           {item.is_drink && pctChange !== 0 && (
             <span style={{ fontSize: 14, fontWeight: 700, color: isUp ? '#00e5a0' : '#ff4466' }}>
@@ -185,7 +186,7 @@ function StaffMenuItem({ item, onAdd }) {
       )}
       <span className="text-sm font-semibold text-slate-700 leading-snug mb-3 line-clamp-2">{item.name}</span>
       <div className="flex items-baseline gap-1.5">
-        <span className="text-base font-black text-primary-600">¥{price.toLocaleString()}</span>
+        <span className="text-base font-black text-primary-600">¥{yen(price)}</span>
         {item.is_drink && (
           <span className={`text-xs font-bold ${isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
             {isUp ? '▲' : isDown ? '▼' : '—'}{pctChange !== 0 ? `${Math.abs(pctChange).toFixed(1)}%` : ''}

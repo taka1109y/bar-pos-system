@@ -4,6 +4,7 @@ const usePriceStore = create((set, get) => ({
   prices: {}, // { [itemId]: { id, name, current_price, base_price, pct_change, direction, previous_price } }
 
   initPrices: (items) => {
+    if (!Array.isArray(items)) return;
     const prices = {};
     for (const item of items) {
       prices[item.id] = {
@@ -16,6 +17,7 @@ const usePriceStore = create((set, get) => ({
   },
 
   updatePrices: (items) => {
+    if (!Array.isArray(items)) return;
     set((state) => {
       const updated = { ...state.prices };
       for (const item of items) {

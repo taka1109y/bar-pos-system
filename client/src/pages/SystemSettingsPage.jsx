@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { yen, num } from '../utils/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 
@@ -100,7 +101,7 @@ function LogTab() {
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
           <p className="text-sm font-semibold text-slate-700">
-            {isFetching ? '読み込み中...' : `${total.toLocaleString()} 件`}
+            {isFetching ? '読み込み中...' : `${yen(total)} 件`}
           </p>
           {totalPages > 1 && (
             <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -153,10 +154,10 @@ function LogTab() {
                         </span>
                       </td>
                       <td className={`py-3 px-4 text-sm text-right font-medium tabular-nums ${isVoid ? 'text-red-600' : 'text-slate-900'}`}>
-                        ¥{o.total_amount.toLocaleString()}
+                        ¥{yen(o.total_amount)}
                       </td>
                       <td className="py-3 px-4 text-sm text-right text-slate-500 tabular-nums">
-                        {o.discount_amount > 0 ? `¥${o.discount_amount.toLocaleString()}` : '-'}
+                        {o.discount_amount > 0 ? `¥${yen(o.discount_amount)}` : '-'}
                       </td>
                       <td className="py-3 px-4 text-sm text-slate-500 max-w-[10rem] truncate">{o.memo ?? '-'}</td>
                     </tr>
@@ -736,20 +737,20 @@ export default function SystemSettingsPage() {
                 </div>
                 <div className="flex justify-between text-amber-700">
                   <span>深夜料金（{lnPct}%）</span>
-                  <span>¥{Math.round(1000 * lnPct / 100).toLocaleString()}</span>
+                  <span>¥{yen(Math.round(1000 * lnPct / 100))}</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
                   <span>消費税（{taxPct}%）</span>
-                  <span>¥{Math.round((1000 + Math.round(1000 * lnPct / 100)) * taxPct / 100).toLocaleString()}</span>
+                  <span>¥{yen(Math.round((1000 + Math.round(1000 * lnPct / 100)) * taxPct / 100))}</span>
                 </div>
                 <div className="flex justify-between font-bold text-slate-900 pt-1 border-t border-amber-200 mt-1">
                   <span>合計（税込み）</span>
                   <span>
-                    ¥{(
+                    ¥{yen((
                       1000 +
                       Math.round(1000 * lnPct / 100) +
                       Math.round((1000 + Math.round(1000 * lnPct / 100)) * taxPct / 100)
-                    ).toLocaleString()}
+                    ))}
                   </span>
                 </div>
               </div>

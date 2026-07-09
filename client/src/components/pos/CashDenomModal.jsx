@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { yen, num } from '../../utils/format';
 
 const BLUE_HEADER = 'bg-primary-500 text-white';
 const BLUE_BTN    = 'bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white font-bold rounded transition-colors';
@@ -91,7 +92,7 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
                       />
                     </div>
                     <span className="w-28 text-right text-[15px] tabular-nums text-slate-700 flex-shrink-0">
-                      {subtotal > 0 ? `¥${subtotal.toLocaleString()}` : ''}
+                      {subtotal > 0 ? `¥${yen(subtotal)}` : ''}
                     </span>
                   </div>
                 );
@@ -102,7 +103,7 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
             <div className="flex items-center px-5 py-2.5 border-t-2 border-primary-400 bg-primary-50 flex-shrink-0">
               <span className="flex-1 text-[15px] font-bold text-slate-700">合計</span>
               <span className="text-[19px] font-black text-primary-600 tabular-nums">
-                ¥{total.toLocaleString()}
+                ¥{yen(total)}
               </span>
             </div>
           </div>

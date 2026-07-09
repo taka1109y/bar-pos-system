@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { yen, num } from '../utils/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 
@@ -84,7 +85,7 @@ function IngredientModal({ item, onClose }) {
           <input type="number" min="0" step="1" value={form.cost_per_purchase_unit} onChange={(e) => setForm(f => ({ ...f, cost_per_purchase_unit: e.target.value }))} className={inp} placeholder="1500" />
           {Number(form.purchase_quantity) > 0 && Number(form.cost_per_purchase_unit) > 0 && (
             <p className="text-xs text-amber-600 mt-1">
-              1{form.quantity_unit}あたり ¥{(Number(form.cost_per_purchase_unit) / Number(form.purchase_quantity)).toFixed(2)}
+              1{form.quantity_unit}あたり ¥{num((Number(form.cost_per_purchase_unit) / Number(form.purchase_quantity)), 2)}
             </p>
           )}
         </div>
@@ -179,7 +180,7 @@ function PurchaseModal({ ingredients, onClose }) {
           <label className={lbl}>入庫数量（{selected?.quantity_unit || '単位'}）*</label>
           <input type="number" min="0" step="any" value={qty} onChange={(e) => setQty(e.target.value)} className={inp} placeholder="例: 700（ml）または 1（本）" />
           {selected && qty && Number(qty) > 0 && (
-            <p className="text-xs text-emerald-600 mt-1">入庫後: {(Number(selected.quantity_current) + Number(qty)).toFixed(1)}{selected.quantity_unit}</p>
+            <p className="text-xs text-emerald-600 mt-1">入庫後: {num((Number(selected.quantity_current) + Number(qty)), 1)}{selected.quantity_unit}</p>
           )}
         </div>
         <div>
@@ -421,7 +422,7 @@ export default function InventoryPage() {
                 <tbody>
                   {inventory.map((item, idx) => {
                     const unitCost = item.purchase_quantity > 0
-                      ? (item.cost_per_purchase_unit / item.purchase_quantity).toFixed(2) : '-';
+                      ? num((item.cost_per_purchase_unit / item.purchase_quantity), 2) : '-';
                     return (
                       <tr key={item.ingredient_id} className={`hover:bg-gray-50 ${idx < inventory.length - 1 ? 'border-b border-slate-100' : ''}`}>
                         <td className="py-3 px-4 text-sm font-medium text-slate-900">{item.name}</td>

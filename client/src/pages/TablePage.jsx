@@ -6,6 +6,8 @@ import socket from '../socket';
 import usePriceStore from '../store/usePriceStore';
 import TickerBar from '../components/layout/TickerBar';
 import MenuGrid, { CategorySidebar } from '../components/pos/MenuGrid';
+import { yen } from '../utils/format';
+import { useConnStore } from '../store/useConnStore';
 
 function useClock() {
   const [now, setNow] = useState(new Date());
@@ -166,7 +168,7 @@ function ConfirmModal({ item, livePrice, onConfirm, onCancel }) {
           </h3>
           <div className="flex items-baseline justify-center gap-3 mb-8">
             <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 40, fontWeight: 700, color: '#f0f0f5' }}>
-              ¥{price.toLocaleString()}
+              ¥{yen(price)}
             </span>
             {item.is_drink && pctChange !== 0 && (
               <span style={{ fontSize: 16, fontWeight: 700, color: isUp ? '#00e5a0' : '#ff4466' }}>
@@ -210,6 +212,19 @@ function ConfirmModal({ item, livePrice, onConfirm, onCancel }) {
 // ───────────────────────────────────────────
 function OrderToast({ toast }) {
   if (!toast) return null;
+  if (toast.error) {
+    return (
+      <div className="sent-pop fixed z-50 pointer-events-none" style={{ top: 88, left: '50%', whiteSpace: 'nowrap' }}>
+        <div style={{
+          background: '#ff4466', color: '#1a0006', borderRadius: 50,
+          padding: '12px 32px', fontFamily: "'Noto Sans JP', sans-serif",
+          fontSize: 16, fontWeight: 700, boxShadow: '0 0 32px rgba(255,68,102,0.3)',
+        }}>
+          {toast.error}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="sent-pop fixed z-50 pointer-events-none" style={{ top: 88, left: '50%', whiteSpace: 'nowrap' }}>
       <div style={{
@@ -217,7 +232,7 @@ function OrderToast({ toast }) {
         padding: '12px 32px', fontFamily: "'Noto Sans JP', sans-serif",
         fontSize: 16, fontWeight: 700, boxShadow: '0 0 32px rgba(0,229,160,0.3)',
       }}>
-        ✓ 「{toast.name}」を注文しました ¥{toast.price.toLocaleString()}
+        ✓ 「{toast.name}」を注文しました ¥{yen(toast.price)}
       </div>
     </div>
   );
@@ -332,6 +347,7 @@ export default function TablePage() {
   const [crashState,        setCrashState]        = useState(null);
   const [bannerDismissed,   setBannerDismissed]   = useState(false);
   const toastTimerRef = useRef(null);
+  const connected = useConnStore((s) => s.connected);
 
   const now     = useClock();
   const timeStr = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
@@ -423,6 +439,12 @@ export default function TablePage() {
     toastTimerRef.current = setTimeout(() => setToast(null), 2000);
   };
 
+  const showErrorToast = (message) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ error: message });
+    toastTimerRef.current = setTimeout(() => setToast(null), 2500);
+  };
+
   const openOrderMutation = useMutation({
     mutationFn: (count) => api.createOrder(tableIdNum, count ?? guestCount ?? 1),
     onSuccess:  () => queryClient.invalidateQueries({ queryKey: orderKey }),
@@ -430,6 +452,7 @@ export default function TablePage() {
       if (err.message?.includes('already has an open order')) {
         queryClient.invalidateQueries({ queryKey: orderKey });
       } else {
+        showErrorToast('注文を開始できませんでした。もう一度お試しください');
         setGuestCount(null);
       }
     },
@@ -450,7 +473,10 @@ export default function TablePage() {
       });
       return { previous };
     },
-    onError:   (_err, _vars, context) => { queryClient.setQueryData(orderKey, context.previous); },
+    onError:   (_err, _vars, context) => {
+      queryClient.setQueryData(orderKey, context.previous);
+      showErrorToast('注文できませんでした。もう一度お試しください');
+    },
     onSuccess: (_data, vars) => { showToast(vars.name, vars.price); },
   });
 
@@ -498,6 +524,11 @@ export default function TablePage() {
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: '#0b0b0f' }}>
       <TopBar tableName={tableName} tableId={tableId} guestCount={order?.guest_count ?? guestCount} timeStr={timeStr} />
+      {!connected && (
+        <div style={{ background: '#ff4466', color: '#fff', textAlign: 'center', padding: '6px 0', fontSize: 13, fontWeight: 700, fontFamily: "'Noto Sans JP', sans-serif", flexShrink: 0 }}>
+          接続が切れました・再接続中…
+        </div>
+      )}
       {crashState && !bannerDismissed && (
         <CrashBanner
           crashState={crashState}

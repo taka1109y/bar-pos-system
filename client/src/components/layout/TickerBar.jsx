@@ -1,8 +1,10 @@
 import usePriceStore from '../../store/usePriceStore';
+import { yen, num } from '../../utils/format';
 
 function TickerItem({ item }) {
-  const isUp   = item.pct_change > 0;
-  const isDown = item.pct_change < 0;
+  const pct    = Number(item.pct_change) || 0;
+  const isUp   = pct > 0;
+  const isDown = pct < 0;
   const arrow  = isUp ? '▲' : isDown ? '▼' : '─';
   const trendColor = isUp ? '#00e5a0' : isDown ? '#ff4466' : '#3a3a50';
   const flashClass = item.flash === 'up' ? 'flash-up' : item.flash === 'down' ? 'flash-down' : '';
@@ -15,10 +17,10 @@ function TickerItem({ item }) {
       <span style={{ color: '#3a3a50', fontSize: '12px' }}>·</span>
       <span style={{ color: '#7a7a90', fontSize: '12px' }}>{item.name}</span>
       <span style={{ color: '#ffc531', fontSize: '12px', fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700 }}>
-        ¥{item.current_price.toLocaleString()}
+        ¥{yen(item.current_price)}
       </span>
       <span style={{ color: trendColor, fontSize: '12px', fontWeight: 700 }}>
-        {arrow}{Math.abs(item.pct_change).toFixed(1)}%
+        {arrow}{num(Math.abs(pct), 1)}%
       </span>
     </span>
   );

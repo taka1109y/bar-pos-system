@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { yen, num } from '../utils/format';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
@@ -75,7 +76,7 @@ function IRow({ label, value, onChange, onBlur, diff, indent, readOnly, onClick 
       </span>
       {readOnly ? (
         <span className="flex-1 text-right text-[13px] text-slate-700 tabular-nums pr-1">
-          ¥{Number(value || 0).toLocaleString()}
+          ¥{yen(Number(value || 0))}
         </span>
       ) : (
         <div className="flex-1">
@@ -93,7 +94,7 @@ function IRow({ label, value, onChange, onBlur, diff, indent, readOnly, onClick 
       <span className={`flex-shrink-0 w-14 text-right text-[13px] tabular-nums ${
         diff === undefined || diff === 0 ? 'text-slate-400' : diff > 0 ? 'text-amber-600 font-bold' : 'text-red-600 font-bold'
       }`}>
-        {diff !== undefined ? `¥${diff.toLocaleString()}` : ''}
+        {diff !== undefined ? `¥${yen(diff)}` : ''}
       </span>
     </div>
   );
@@ -346,10 +347,10 @@ export default function RegisterClosePage() {
               <div className="flex-1 overflow-y-auto border-r border-slate-100 pr-2">
                 <LRow label="件数"             value={`${kenCount}件`} />
                 <LRow label="客数"             value={`${guestCount}名様`} />
-                <LRow label="客単価"           value={`¥${avgPerGuest.toLocaleString()}`} />
+                <LRow label="客単価"           value={`¥${yen(avgPerGuest)}`} />
                 <LRow label="総売上点数"       value={`${totalItemCount}点`} />
-                <LRow label="売上"             value={`¥${Math.floor(sales).toLocaleString()}`} />
-                <LRow label="消費税"           value={`¥${Math.floor(tax).toLocaleString()}`} />
+                <LRow label="売上"             value={`¥${yen(Math.floor(sales))}`} />
+                <LRow label="消費税"           value={`¥${yen(Math.floor(tax))}`} />
                 {/* 売上・消費税 内訳トグル */}
                 <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100 min-h-[32px]">
                   <span className="text-[13px] text-slate-600">売上・消費税 内訳</span>
@@ -364,35 +365,35 @@ export default function RegisterClosePage() {
                   <>
                     <LRow
                       label={`標準税率（${Math.round(taxRateNum * 100)}%）対象`}
-                      value={`¥${Math.floor(taxableStandard).toLocaleString()}`}
-                      sub={`消費税 ¥${stdTax.toLocaleString()}`}
+                      value={`¥${yen(Math.floor(taxableStandard))}`}
+                      sub={`消費税 ¥${yen(stdTax)}`}
                       dot
                     />
                     <LRow
                       label={`軽減税率（${Math.round(reducedRateNum * 100)}%）対象`}
-                      value={`¥${Math.floor(taxableReduced).toLocaleString()}`}
-                      sub={`消費税 ¥${redTax.toLocaleString()}`}
+                      value={`¥${yen(Math.floor(taxableReduced))}`}
+                      sub={`消費税 ¥${yen(redTax)}`}
                       dot
                     />
                   </>
                 )}
-                <LRow label="純売上"           value={`¥${junSales.toLocaleString()}`} />
-                <LRow label="サービス料金"     value={`¥${Math.floor(serviceCharge).toLocaleString()}`} sub={`${serviceCount}件`} />
-                <LRow label="深夜料金"         value={`¥${Math.floor(lateNight).toLocaleString()}`} sub={`${lateNightCount}件`} />
+                <LRow label="純売上"           value={`¥${yen(junSales)}`} />
+                <LRow label="サービス料金"     value={`¥${yen(Math.floor(serviceCharge))}`} sub={`${serviceCount}件`} />
+                <LRow label="深夜料金"         value={`¥${yen(Math.floor(lateNight))}`} sub={`${lateNightCount}件`} />
                 <LRow label="値割引"           value="" sub={`${discountCount}件`} />
-                <LRow label="取消（赤伝票）"    value={`¥${Math.floor(cancelAmount).toLocaleString()}`}     sub={`${cancelCount}件`} />
-                <LRow label="訂正（黒伝票）"    value={`¥${Math.floor(correctionAmount).toLocaleString()}`} sub={`${correctionCount}件`} />
+                <LRow label="取消（赤伝票）"    value={`¥${yen(Math.floor(cancelAmount))}`}     sub={`${cancelCount}件`} />
+                <LRow label="訂正（黒伝票）"    value={`¥${yen(Math.floor(correctionAmount))}`} sub={`${correctionCount}件`} />
               </div>
               <div className="flex-1 overflow-y-auto">
                 <LRow label="入金"             value="" sub={`${m.deposit_count}件`} />
                 <LRow label="出金"             value="¥0" sub={`${m.withdraw_count}件`} />
-                <LRow label="現金"             value={`¥${Math.floor(cashPay.revenue).toLocaleString()}`}   sub={`${cashPay.count}件`} />
-                <LRow label="クレジット"       value={`¥${Math.floor(cardPay.revenue).toLocaleString()}`}   sub={`${cardPay.count}件`} />
-                <LRow label="ポイント"         value={`¥${m.point_amount.toLocaleString()}`}                sub={`${m.point_count}件`} />
-                <LRow label="電子マネー"       value={`¥${Math.floor(emoneyPay.revenue).toLocaleString()}`} sub={`${emoneyPay.count}件`} />
-                <LRow label="商品券（釣無し）"  value={`¥${Math.floor(giftNoChgAmount).toLocaleString()}`}  sub={`${giftNoChgCount}件`} />
-                <LRow label="商品券（釣有り）"  value={`¥${Math.floor(giftChgAmount).toLocaleString()}`}    sub={`${giftChgCount}件`} />
-                <LRow label="掛売"             value={`¥${m.kakeuri_amount.toLocaleString()}`}              sub={`${m.kakeuri_count}件`} />
+                <LRow label="現金"             value={`¥${yen(Math.floor(cashPay.revenue))}`}   sub={`${cashPay.count}件`} />
+                <LRow label="クレジット"       value={`¥${yen(Math.floor(cardPay.revenue))}`}   sub={`${cardPay.count}件`} />
+                <LRow label="ポイント"         value={`¥${yen(m.point_amount)}`}                sub={`${m.point_count}件`} />
+                <LRow label="電子マネー"       value={`¥${yen(Math.floor(emoneyPay.revenue))}`} sub={`${emoneyPay.count}件`} />
+                <LRow label="商品券（釣無し）"  value={`¥${yen(Math.floor(giftNoChgAmount))}`}  sub={`${giftNoChgCount}件`} />
+                <LRow label="商品券（釣有り）"  value={`¥${yen(Math.floor(giftChgAmount))}`}    sub={`${giftChgCount}件`} />
+                <LRow label="掛売"             value={`¥${yen(m.kakeuri_amount)}`}              sub={`${m.kakeuri_count}件`} />
               </div>
             </div>
           )}
@@ -500,39 +501,39 @@ export default function RegisterClosePage() {
           <div style={{ width: '50%', borderRight: '1px solid #e2e8f0' }}>
             <PRow label="件数"         value={`${kenCount}件`} />
             <PRow label="客数"         value={`${guestCount}名様`} />
-            <PRow label="客単価"       value={`¥${avgPerGuest.toLocaleString()}`} />
+            <PRow label="客単価"       value={`¥${yen(avgPerGuest)}`} />
             <PRow label="総売上点数"   value={`${totalItemCount}点`} />
-            <PRow label="売上"         value={`¥${Math.floor(sales).toLocaleString()}`} />
-            <PRow label="消費税"       value={`¥${Math.floor(tax).toLocaleString()}`} />
+            <PRow label="売上"         value={`¥${yen(Math.floor(sales))}`} />
+            <PRow label="消費税"       value={`¥${yen(Math.floor(tax))}`} />
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start',
               padding:'4px 8px', borderBottom:'1px solid #f1f5f9', minHeight:'26px' }}>
               <span style={{ color:'#475569', fontSize:'11px' }}>売上・消費税 内訳</span>
               <div />
             </div>
             <PRow label={`標準税率（${Math.round(taxRateNum * 100)}%）対象`}
-              value={`¥${Math.floor(taxableStandard).toLocaleString()}`}
-              sub={`消費税 ¥${stdTax.toLocaleString()}`} indent dot />
+              value={`¥${yen(Math.floor(taxableStandard))}`}
+              sub={`消費税 ¥${yen(stdTax)}`} indent dot />
             <PRow label={`軽減税率（${Math.round(reducedRateNum * 100)}%）対象`}
-              value={`¥${Math.floor(taxableReduced).toLocaleString()}`}
-              sub={`消費税 ¥${redTax.toLocaleString()}`} indent dot />
-            <PRow label="純売上"       value={`¥${junSales.toLocaleString()}`} />
-            <PRow label="サービス料金" value={`¥${Math.floor(serviceCharge).toLocaleString()}`} sub={`${serviceCount}件`} />
-            <PRow label="深夜料金"     value={`¥${Math.floor(lateNight).toLocaleString()}`}     sub={`${lateNightCount}件`} />
+              value={`¥${yen(Math.floor(taxableReduced))}`}
+              sub={`消費税 ¥${yen(redTax)}`} indent dot />
+            <PRow label="純売上"       value={`¥${yen(junSales)}`} />
+            <PRow label="サービス料金" value={`¥${yen(Math.floor(serviceCharge))}`} sub={`${serviceCount}件`} />
+            <PRow label="深夜料金"     value={`¥${yen(Math.floor(lateNight))}`}     sub={`${lateNightCount}件`} />
             <PRow label="値割引"       sub={`${discountCount}件`} />
-            <PRow label="取消（赤伝票）" value={`¥${Math.floor(cancelAmount).toLocaleString()}`}     sub={`${cancelCount}件`} />
-            <PRow label="訂正（黒伝票）" value={`¥${Math.floor(correctionAmount).toLocaleString()}`} sub={`${correctionCount}件`} />
+            <PRow label="取消（赤伝票）" value={`¥${yen(Math.floor(cancelAmount))}`}     sub={`${cancelCount}件`} />
+            <PRow label="訂正（黒伝票）" value={`¥${yen(Math.floor(correctionAmount))}`} sub={`${correctionCount}件`} />
           </div>
           {/* 右列 */}
           <div style={{ width: '50%' }}>
             <PRow label="入金"           sub={`${m.deposit_count}件`} />
             <PRow label="出金"           value="¥0"                                              sub={`${m.withdraw_count}件`} />
-            <PRow label="現金"           value={`¥${Math.floor(cashPay.revenue).toLocaleString()}`}   sub={`${cashPay.count}件`} />
-            <PRow label="クレジット"     value={`¥${Math.floor(cardPay.revenue).toLocaleString()}`}   sub={`${cardPay.count}件`} />
-            <PRow label="ポイント"       value={`¥${m.point_amount.toLocaleString()}`}                sub={`${m.point_count}件`} />
-            <PRow label="電子マネー"     value={`¥${Math.floor(emoneyPay.revenue).toLocaleString()}`} sub={`${emoneyPay.count}件`} />
-            <PRow label="商品券（釣無し）" value={`¥${Math.floor(giftNoChgAmount).toLocaleString()}`}  sub={`${giftNoChgCount}件`} />
-            <PRow label="商品券（釣有り）" value={`¥${Math.floor(giftChgAmount).toLocaleString()}`}    sub={`${giftChgCount}件`} />
-            <PRow label="掛売"           value={`¥${m.kakeuri_amount.toLocaleString()}`}              sub={`${m.kakeuri_count}件`} />
+            <PRow label="現金"           value={`¥${yen(Math.floor(cashPay.revenue))}`}   sub={`${cashPay.count}件`} />
+            <PRow label="クレジット"     value={`¥${yen(Math.floor(cardPay.revenue))}`}   sub={`${cardPay.count}件`} />
+            <PRow label="ポイント"       value={`¥${yen(m.point_amount)}`}                sub={`${m.point_count}件`} />
+            <PRow label="電子マネー"     value={`¥${yen(Math.floor(emoneyPay.revenue))}`} sub={`${emoneyPay.count}件`} />
+            <PRow label="商品券（釣無し）" value={`¥${yen(Math.floor(giftNoChgAmount))}`}  sub={`${giftNoChgCount}件`} />
+            <PRow label="商品券（釣有り）" value={`¥${yen(Math.floor(giftChgAmount))}`}    sub={`${giftChgCount}件`} />
+            <PRow label="掛売"           value={`¥${yen(m.kakeuri_amount)}`}              sub={`${m.kakeuri_count}件`} />
           </div>
         </div>
 
@@ -541,7 +542,7 @@ export default function RegisterClosePage() {
         <div style={{ border: '1px solid #e2e8f0', marginBottom: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px' }}>
             <span style={{ fontWeight: 700, color: '#475569' }}>開店時レジ現金</span>
-            <span style={{ fontSize: '16px', fontWeight: 900, color: '#1e293b' }}>¥{registerOpenCash.toLocaleString()}</span>
+            <span style={{ fontSize: '16px', fontWeight: 900, color: '#1e293b' }}>¥{yen(registerOpenCash)}</span>
           </div>
         </div>
 

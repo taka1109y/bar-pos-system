@@ -3,6 +3,7 @@ import { api } from '../api';
 import socket from '../socket';
 import usePriceStore from '../store/usePriceStore';
 import PriceRow from '../components/board/PriceRow';
+import { yen, num } from '../utils/format';
 
 function Ticker({ prices }) {
   if (prices.length === 0) return null;
@@ -11,16 +12,15 @@ function Ticker({ prices }) {
     <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-700/60 overflow-hidden py-2">
       <div className="flex whitespace-nowrap" style={{ animation: 'ticker 40s linear infinite' }}>
         {items.map((item, i) => {
-          const isUp   = item.pct_change > 0;
-          const isDown = item.pct_change < 0;
+          const pct    = Number(item.pct_change) || 0;
+          const isUp   = pct > 0;
+          const isDown = pct < 0;
           const pctColor   = isUp ? 'text-green-400' : isDown ? 'text-red-400' : 'text-slate-500';
-          const pctDisplay = item.pct_change < 0
-            ? `-${Math.abs(item.pct_change).toFixed(1)}%`
-            : `${Math.abs(item.pct_change).toFixed(1)}%`;
+          const pctDisplay = pct < 0 ? `-${num(Math.abs(pct), 1)}%` : `${num(Math.abs(pct), 1)}%`;
           return (
             <span key={i} className="inline-flex items-center gap-3 mx-10">
               <span className="text-slate-300 font-semibold tracking-wide">{item.name}</span>
-              <span className="text-amber-300 font-bold tabular-nums">¥{item.current_price.toLocaleString()}</span>
+              <span className="text-amber-300 font-bold tabular-nums">¥{yen(item.current_price)}</span>
               <span className={`font-bold tabular-nums ${pctColor}`}>{pctDisplay}</span>
             </span>
           );

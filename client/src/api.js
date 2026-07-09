@@ -1,15 +1,33 @@
 const BASE = '/api';
+const TIMEOUT_MS = 12_000;
+
+function networkError(message) {
+  const err = new Error(message);
+  err.isNetwork = true;
+  return err;
+}
 
 async function req(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      ...options,
+    });
+  } catch (e) {
+    throw networkError(e.name === 'AbortError' ? '通信がタイムアウトしました' : '通信に失敗しました');
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || res.statusText);
   }
-  return res.json();
+  if (res.status === 204) return null;
+  return res.json().catch(() => null);
 }
 
 export const api = {

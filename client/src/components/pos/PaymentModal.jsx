@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { yen, num } from '../../utils/format';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 
@@ -105,7 +106,7 @@ export function DiscountModal({ subtotal, discountType, discountInput, onTypeCha
           <div className="flex justify-between items-center px-1">
             <span className="text-sm text-slate-500">割引額プレビュー</span>
             <span className="text-xl font-black text-red-500">
-              {preview > 0 ? `−¥${preview.toLocaleString()}` : '¥0'}
+              {preview > 0 ? `−¥${yen(preview)}` : '¥0'}
             </span>
           </div>
           {/* ボタン */}
@@ -164,7 +165,7 @@ export function GiftCertModal({ finalTotal, giftCertTotal, onAddCert, onClear, g
           {/* 合計 */}
           <div className="bg-slate-50 rounded-xl px-4 py-3 flex justify-between items-center">
             <span className="text-sm text-slate-500">金券合計</span>
-            <span className="text-2xl font-black text-slate-900">¥{giftCertTotal.toLocaleString()}</span>
+            <span className="text-2xl font-black text-slate-900">¥{yen(giftCertTotal)}</span>
           </div>
 
           {/* 釣り有り / 無し */}
@@ -188,13 +189,13 @@ export function GiftCertModal({ finalTotal, giftCertTotal, onAddCert, onClear, g
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">金券後残額</span>
                 <span className={`font-semibold ${remaining > 0 ? 'text-slate-900' : 'text-emerald-600'}`}>
-                  ¥{remaining.toLocaleString()}
+                  ¥{yen(remaining)}
                 </span>
               </div>
               {giftChange > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">金券おつり</span>
-                  <span className="font-semibold text-emerald-600">¥{giftChange.toLocaleString()}</span>
+                  <span className="font-semibold text-emerald-600">¥{yen(giftChange)}</span>
                 </div>
               )}
             </div>
@@ -244,30 +245,30 @@ export function PaymentResultModal({ result, onClose }) {
           <div className="space-y-1.5">
             <div className="flex justify-between text-sm">
               <span className="text-slate-500">商品合計</span>
-              <span className="text-slate-900">¥{result.itemsSubtotal.toLocaleString()}</span>
+              <span className="text-slate-900">¥{yen(result.itemsSubtotal)}</span>
             </div>
             {result.chargeAmount > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">チャージ</span>
-                <span className="text-slate-900">¥{result.chargeAmount.toLocaleString()}</span>
+                <span className="text-slate-900">¥{yen(result.chargeAmount)}</span>
               </div>
             )}
             {result.lateNightAmount > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-amber-600">深夜料金</span>
-                <span className="text-amber-600">+¥{result.lateNightAmount.toLocaleString()}</span>
+                <span className="text-amber-600">+¥{yen(result.lateNightAmount)}</span>
               </div>
             )}
             {result.discountAmount > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-red-500">割引</span>
-                <span className="text-red-500">−¥{result.discountAmount.toLocaleString()}</span>
+                <span className="text-red-500">−¥{yen(result.discountAmount)}</span>
               </div>
             )}
             {result.giftCertAmount > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-emerald-600">金券</span>
-                <span className="text-emerald-600">−¥{result.giftCertAmount.toLocaleString()}</span>
+                <span className="text-emerald-600">−¥{yen(result.giftCertAmount)}</span>
               </div>
             )}
           </div>
@@ -276,7 +277,7 @@ export function PaymentResultModal({ result, onClose }) {
 
           <div className="flex justify-between items-center">
             <span className="text-sm font-semibold text-slate-700">お支払い金額</span>
-            <span className="text-2xl font-black text-slate-900">¥{result.finalTotal.toLocaleString()}</span>
+            <span className="text-2xl font-black text-slate-900">¥{yen(result.finalTotal)}</span>
           </div>
 
           <div className="flex justify-between text-sm">
@@ -288,11 +289,11 @@ export function PaymentResultModal({ result, onClose }) {
             <>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">お預かり金額</span>
-                <span className="font-semibold text-slate-900">¥{result.received.toLocaleString()}</span>
+                <span className="font-semibold text-slate-900">¥{yen(result.received)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">お釣り</span>
-                <span className="font-bold text-slate-900">¥{result.change.toLocaleString()}</span>
+                <span className="font-bold text-slate-900">¥{yen(result.change)}</span>
               </div>
             </>
           )}
@@ -534,7 +535,7 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                     <p className="text-slate-400 mt-0.5">×{item.quantity}</p>
                   </div>
                   <span className="text-slate-700 font-semibold ml-2 flex-shrink-0">
-                    ¥{(item.quantity * item.unit_price).toLocaleString()}
+                    ¥{yen((item.quantity * item.unit_price))}
                   </span>
                 </div>
               ))}
@@ -574,27 +575,27 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                       </svg>
                       商品合計（税込み）
                     </span>
-                    <span className="font-semibold text-slate-900">¥{itemsSubtotal.toLocaleString()}</span>
+                    <span className="font-semibold text-slate-900">¥{yen(itemsSubtotal)}</span>
                   </div>
                   <div className="flex justify-between items-center px-5 py-4 text-base">
                     <span className="text-slate-600">
-                      チャージ（{order.guest_count ?? 1}名 × ¥{(order.charge_per_person ?? 0).toLocaleString()}）
+                      チャージ（{order.guest_count ?? 1}名 × ¥{yen((order.charge_per_person ?? 0))}）
                     </span>
-                    <span className="font-semibold text-slate-900">¥{chargeAmount.toLocaleString()}</span>
+                    <span className="font-semibold text-slate-900">¥{yen(chargeAmount)}</span>
                   </div>
                   <div className="flex justify-between items-center px-5 py-4 text-base">
                     <span className={isLateNight ? 'text-amber-600' : 'text-slate-400'}>
                       深夜料金（{Math.round(lnRate * 100)}%）
                     </span>
                     <span className={`font-semibold ${isLateNight ? 'text-amber-600' : 'text-slate-400'}`}>
-                      {isLateNight ? `+¥${lateNightAmount.toLocaleString()}` : '¥0'}
+                      {isLateNight ? `+¥${yen(lateNightAmount)}` : '¥0'}
                     </span>
                   </div>
                   {discountAmount > 0 && (
                     <div className="flex justify-between items-center px-5 py-4 text-base">
                       <span className="text-red-500">値引合計</span>
                       <span className="font-semibold text-red-500">
-                        −¥{discountAmount.toLocaleString()}
+                        −¥{yen(discountAmount)}
                       </span>
                     </div>
                   )}
@@ -607,10 +608,10 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                   <div>
                     <p className="text-sm font-semibold text-slate-500">お支払い総額（税込み）</p>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      内税（{Math.round(taxRate * 100)}%）: ¥{taxAmount.toLocaleString()}
+                      内税（{Math.round(taxRate * 100)}%）: ¥{yen(taxAmount)}
                     </p>
                   </div>
-                  <span className="text-2xl font-black text-slate-900">¥{finalTotal.toLocaleString()}</span>
+                  <span className="text-2xl font-black text-slate-900">¥{yen(finalTotal)}</span>
                 </div>
               </div>
 
@@ -728,11 +729,11 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                     {isCash ? 'お預かり（現金）' : PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label ?? 'その他'}
                   </p>
                   <p className="text-xl font-black text-slate-900 tracking-wider">
-                    ¥{receivedInput ? parseInt(receivedInput, 10).toLocaleString() : '0'}
+                    ¥{receivedInput ? yen(parseInt(receivedInput, 10)) : '0'}
                   </p>
                   {isCash && remainingAfterGift > 0 && effectiveGiftCert > 0 && (
                     <p className="text-xs text-slate-400 mt-0.5">
-                      金券後残額 ¥{remainingAfterGift.toLocaleString()}
+                      金券後残額 ¥{yen(remainingAfterGift)}
                     </p>
                   )}
                 </div>
@@ -740,12 +741,12 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500">残高</span>
                     <span className={`font-semibold ${balance > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                      ¥{balance.toLocaleString()}
+                      ¥{yen(balance)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500">おつり</span>
-                    <span className="font-bold text-slate-900">¥{change.toLocaleString()}</span>
+                    <span className="font-bold text-slate-900">¥{yen(change)}</span>
                   </div>
                 </div>
               </div>

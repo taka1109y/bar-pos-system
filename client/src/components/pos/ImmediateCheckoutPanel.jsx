@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { yen, num } from '../../utils/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 import socket from '../../socket';
@@ -289,7 +290,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                   <div key={item.id} className="flex items-center gap-2 px-3 py-2.5">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-slate-800 truncate">{item.item_name}</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">¥{item.unit_price.toLocaleString()}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">¥{yen(item.unit_price)}</p>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <button
@@ -309,7 +310,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                       </button>
                     </div>
                     <span className="text-xs font-bold text-primary-600 w-14 text-right flex-shrink-0">
-                      ¥{(item.quantity * item.unit_price).toLocaleString()}
+                      ¥{yen((item.quantity * item.unit_price))}
                     </span>
                   </div>
                 ))}
@@ -323,11 +324,11 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
             <div className="px-4 py-3.5 flex justify-between items-center bg-slate-50">
               <span className="text-xs font-semibold text-slate-500">
                 {discountAmount > 0 && (
-                  <span className="text-red-500 mr-1.5">−¥{discountAmount.toLocaleString()}</span>
+                  <span className="text-red-500 mr-1.5">−¥{yen(discountAmount)}</span>
                 )}
                 合計
               </span>
-              <span className="text-xl font-black text-slate-900">¥{finalTotal.toLocaleString()}</span>
+              <span className="text-xl font-black text-slate-900">¥{yen(finalTotal)}</span>
             </div>
 
             {/* 割引登録 / 金券 */}
@@ -430,11 +431,11 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                     {isCash ? 'お預かり（現金）' : ({ card: 'カード', emoney: '電子マネー' }[paymentMethod] ?? 'その他')}
                   </p>
                   <p className="text-xl font-black text-slate-900 tracking-wider">
-                    ¥{receivedInput ? parseInt(receivedInput, 10).toLocaleString() : '0'}
+                    ¥{receivedInput ? yen(parseInt(receivedInput, 10)) : '0'}
                   </p>
                   {isCash && remainingAfterGift > 0 && effectiveGiftCert > 0 && (
                     <p className="text-xs text-slate-400 mt-0.5">
-                      金券後残額 ¥{remainingAfterGift.toLocaleString()}
+                      金券後残額 ¥{yen(remainingAfterGift)}
                     </p>
                   )}
                 </div>
@@ -442,12 +443,12 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500">残高</span>
                     <span className={`font-semibold ${balance > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                      ¥{balance.toLocaleString()}
+                      ¥{yen(balance)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500">おつり</span>
-                    <span className="font-bold text-slate-900">¥{change.toLocaleString()}</span>
+                    <span className="font-bold text-slate-900">¥{yen(change)}</span>
                   </div>
                 </div>
               </div>

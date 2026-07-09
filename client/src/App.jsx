@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache, useQuery } from '@tanstack/react-query';
 import { api } from './api';
 import POSPage from './pages/POSPage';
 import BoardPage from './pages/BoardPage';
@@ -10,10 +10,22 @@ import KitchenPage from './pages/KitchenPage';
 import RegisterStartPage from './pages/RegisterStartPage';
 
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error) => console.error('[query error]', error),
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => console.error('[mutation error]', error),
+  }),
   defaultOptions: {
     queries: {
-      retry: 1,
+      retry: 2,
       staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      // ネットワーク/タイムアウト系のみ最大2回リトライ（非冪等POSTの二重実行を避ける）
+      retry: (failureCount, error) => failureCount < 2 && !!error?.isNetwork,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
     },
   },
 });
@@ -24,6 +36,10 @@ function useRegisterOpen() {
     queryKey: ['system-settings'],
     queryFn: () => api.getSystemSettings(),
     staleTime: 0,
+    retry: 5,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
+    // エラー中は数秒ごとに再取得して自動回復（顧客を締め出さない）
+    refetchInterval: (query) => (query.state.status === 'error' ? 3000 : false),
   });
 }
 
@@ -71,25 +87,25 @@ function RegisterClosedScreen() {
 
 // ── ① 管理画面ガード: 未オープン時 → /start ─────────────────
 function RequireRegisterOpen({ children }) {
-  const { data: settings, isLoading } = useRegisterOpen();
-  if (isLoading) return <FullScreenLoader />;
+  const { data: settings, isLoading, isError } = useRegisterOpen();
+  if (isLoading || (isError && !settings)) return <FullScreenLoader />;
   if (!settings?.register_open) return <Navigate to="/start" replace />;
   return children;
 }
 
 // ── ② /start ガード: オープン済み → / ───────────────────────
 function RedirectIfOpen({ children }) {
-  const { data: settings, isLoading } = useRegisterOpen();
-  if (isLoading) return <FullScreenLoader />;
+  const { data: settings, isLoading, isError } = useRegisterOpen();
+  if (isLoading || (isError && !settings)) return <FullScreenLoader />;
   if (settings?.register_open) return <Navigate to="/" replace />;
   return children;
 }
 
 // ── ③ 顧客向けガード: 未オープン時 → 「レジオープン前です」 ─
 function PublicGuard({ children }) {
-  const { data: settings, isLoading } = useRegisterOpen();
-  if (isLoading) return <FullScreenLoader />;
-  if (!settings?.register_open) return <RegisterClosedScreen />;
+  const { data: settings, isLoading, isError } = useRegisterOpen();
+  if (isLoading || (isError && !settings)) return <FullScreenLoader />;
+  if (settings && !settings.register_open) return <RegisterClosedScreen />;
   return children;
 }
 

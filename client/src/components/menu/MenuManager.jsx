@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from 'react';
+import { yen, num } from '../../utils/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 
@@ -237,11 +238,11 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
       {item && item.cost_price > 0 && (
         <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
           <p className="text-xs font-semibold text-amber-700 mb-1">原価（レシピから自動計算）</p>
-          <p className="text-base font-bold text-amber-700">¥{Math.round(item.cost_price).toLocaleString()}</p>
+          <p className="text-base font-bold text-amber-700">¥{yen(Math.round(item.cost_price))}</p>
           {item.base_price > 0 && (
             <p className="text-xs text-amber-600 mt-0.5">
               原価率 {Math.round(item.cost_price / item.base_price * 100)}%
-              ／粗利 ¥{Math.round(item.base_price - item.cost_price).toLocaleString()}
+              ／粗利 ¥{yen(Math.round(item.base_price - item.cost_price))}
             </p>
           )}
           <p className="text-xs text-amber-500 mt-1">レシピ管理で材料を設定すると更新されます</p>
@@ -469,10 +470,10 @@ export default function MenuManager() {
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-semibold text-slate-900 block truncate">{item.name}</span>
                       <span className="text-xs text-slate-400 mt-1 block">
-                        ¥{item.base_price.toLocaleString()}
+                        ¥{yen(item.base_price)}
                         {item.cost_price > 0 && (
                           <span className="ml-2 text-amber-500">
-                            原価¥{item.cost_price.toLocaleString()} ({Math.round(item.cost_price / item.base_price * 100)}%)
+                            原価¥{yen(item.cost_price)} ({Math.round(item.cost_price / item.base_price * 100)}%)
                           </span>
                         )}
                         {item.subcategory_name && (

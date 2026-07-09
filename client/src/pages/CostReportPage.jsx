@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { yen, num } from '../utils/format';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 
@@ -8,8 +9,8 @@ const firstOfMonth = () => {
   return t.slice(0, 8) + '01';
 };
 
-function fmt(n) { return Math.round(n).toLocaleString(); }
-function fmtRate(n) { return n.toFixed(1); }
+function fmt(n) { return yen(Math.round(n)); }
+function fmtRate(n) { return num(n, 1); }
 
 function CostRateBadge({ rate }) {
   const color =
@@ -137,7 +138,7 @@ function ItemCostTab() {
                   <td className="py-3 px-4 text-right text-slate-700">{row.quantity_sold}</td>
                   <td className="py-3 px-4 text-right text-slate-900 font-medium">¥{fmt(row.revenue)}</td>
                   <td className="py-3 px-4 text-right text-slate-600">
-                    {row.cost_per_unit > 0 ? `¥${row.cost_per_unit.toFixed(2)}` : <span className="text-slate-300">—</span>}
+                    {row.cost_per_unit > 0 ? `¥${num(row.cost_per_unit, 2)}` : <span className="text-slate-300">—</span>}
                   </td>
                   <td className="py-3 px-4 text-right text-slate-700">
                     {row.total_cost > 0 ? `¥${fmt(row.total_cost)}` : <span className="text-slate-300">—</span>}
@@ -332,16 +333,16 @@ function StockValuationTab() {
             <tbody>
               {rows.map(row => {
                 const purchaseUnitsLeft = row.purchase_quantity > 0
-                  ? (row.quantity_current / row.purchase_quantity).toFixed(2)
+                  ? num((row.quantity_current / row.purchase_quantity), 2)
                   : '—';
                 return (
                   <tr key={row.ingredient_id} className="border-b border-slate-100 hover:bg-gray-50 transition-colors">
                     <td className="py-3 px-4 text-slate-900 font-medium">{row.name}</td>
                     <td className="py-3 px-4 text-right text-slate-700">
-                      {row.quantity_current.toLocaleString()}{row.quantity_unit}
+                      {yen(row.quantity_current)}{row.quantity_unit}
                     </td>
                     <td className="py-3 px-4 text-right text-slate-600">
-                      ¥{row.unit_cost.toFixed(4)}/{row.quantity_unit}
+                      ¥{num(row.unit_cost, 4)}/{row.quantity_unit}
                     </td>
                     <td className="py-3 px-4 text-right font-semibold text-slate-900">¥{fmt(row.valuation)}</td>
                     <td className="py-3 px-4 text-right text-slate-500">

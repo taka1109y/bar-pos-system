@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { yen, num } from '../utils/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 
@@ -152,7 +153,7 @@ export default function RecipePage() {
                         {item.name}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-slate-500">¥{item.base_price.toLocaleString()}</span>
+                        <span className="text-xs text-slate-500">¥{yen(item.base_price)}</span>
                         <CostBadge costPrice={item.cost_price} basePrice={item.base_price} />
                       </div>
                     </button>
@@ -179,10 +180,10 @@ export default function RecipePage() {
                 <h2 className="text-xl font-bold text-slate-900">{detail.menu_item_name}</h2>
                 {selectedItem && (
                   <div className="flex items-center gap-3 mt-1">
-                    <span className="text-sm text-slate-500">販売価格 ¥{selectedItem.base_price.toLocaleString()}</span>
+                    <span className="text-sm text-slate-500">販売価格 ¥{yen(selectedItem.base_price)}</span>
                     {detail.total_cost > 0 && (
                       <>
-                        <span className="text-sm text-amber-600">原価 ¥{Math.round(detail.total_cost).toLocaleString()}</span>
+                        <span className="text-sm text-amber-600">原価 ¥{yen(Math.round(detail.total_cost))}</span>
                         <CostBadge costPrice={detail.total_cost} basePrice={selectedItem.base_price} />
                       </>
                     )}
@@ -223,14 +224,14 @@ export default function RecipePage() {
                             <td className="py-3 px-4 text-sm font-medium text-slate-900">{ing.ingredient_name}</td>
                             <td className="py-3 px-4 text-sm text-slate-600 text-right">{ing.usage_quantity} {ing.quantity_unit}</td>
                             <td className="py-3 px-4 text-sm text-amber-600 text-right">
-                              ¥{ing.cost_contribution != null ? Math.round(ing.cost_contribution).toLocaleString() : '-'}
+                              ¥{ing.cost_contribution != null ? yen(Math.round(ing.cost_contribution)) : '-'}
                             </td>
                           </tr>
                         ))}
                         <tr className="bg-amber-50 border-t border-amber-100">
                           <td colSpan={2} className="py-2.5 px-4 text-sm font-semibold text-amber-800">合計原価</td>
                           <td className="py-2.5 px-4 text-sm font-bold text-amber-700 text-right">
-                            ¥{Math.round(detail.total_cost).toLocaleString()}
+                            ¥{yen(Math.round(detail.total_cost))}
                           </td>
                         </tr>
                       </tbody>
@@ -282,7 +283,7 @@ export default function RecipePage() {
                                   <span className="text-xs text-slate-500">{ei.quantity_unit}</span>
                                 </div>
                               </td>
-                              <td className="py-2 px-4 text-sm text-amber-600 text-right">¥{Math.round(cost).toLocaleString()}</td>
+                              <td className="py-2 px-4 text-sm text-amber-600 text-right">¥{yen(Math.round(cost))}</td>
                               <td className="py-2 px-2">
                                 <button onClick={() => removeIngredient(ei.ingredient_id)} className="w-6 h-6 inline-flex items-center justify-center text-slate-400 hover:text-red-500 rounded" aria-label="削除">
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -319,7 +320,7 @@ export default function RecipePage() {
                   <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center justify-between">
                     <span className="text-sm font-medium text-amber-800">推定合計原価</span>
                     <span className="text-base font-bold text-amber-700">
-                      ¥{Math.round(calcCost(editIngredients)).toLocaleString()}
+                      ¥{yen(Math.round(calcCost(editIngredients)))}
                       {selectedItem && selectedItem.base_price > 0 && (
                         <span className="text-sm font-normal ml-2 text-amber-600">
                           （原価率 {Math.round(calcCost(editIngredients) / selectedItem.base_price * 100)}%）
