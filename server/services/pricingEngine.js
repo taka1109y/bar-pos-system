@@ -153,7 +153,7 @@ async function runTick() {
   const { rows: allPrices } = await query(`
     SELECT id, name,
       base_price::float, current_price::float,
-      ROUND((current_price - base_price) * 100.0 / base_price, 1)::float AS pct_change
+      COALESCE(ROUND((current_price - base_price) * 100.0 / NULLIF(base_price, 0), 1), 0)::float AS pct_change
     FROM menu_items
     WHERE is_drink = TRUE AND is_active = TRUE AND is_crashed = FALSE
   `);

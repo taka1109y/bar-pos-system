@@ -12,7 +12,7 @@ router.get('/', async (req, res, next) => {
         m.id, m.name,
         m.base_price::float,
         m.current_price::float,
-        ROUND((m.current_price - m.base_price) * 100.0 / m.base_price, 1)::float AS pct_change,
+        COALESCE(ROUND((m.current_price - m.base_price) * 100.0 / NULLIF(m.base_price, 0), 1), 0)::float AS pct_change,
         COALESCE(dh.day_high, m.current_price)::float AS day_high,
         COALESCE(dh.day_low,  m.current_price)::float AS day_low
       FROM menu_items m
