@@ -27,7 +27,11 @@ function TickerItem({ item }) {
 }
 
 export default function TickerBar() {
-  const prices = usePriceStore((s) => s.getAllPrices());
+  // usePriceStore((s) => s.getAllPrices()) は呼ぶたびに新しい配列を返すため、
+  // Zustandのセレクターとして使うと参照が毎回変わり無限レンダリングループになる。
+  // BoardPage.jsx と同様に、ストア全体を購読してから関数として呼び出す。
+  const { order, prices: priceMap } = usePriceStore();
+  const prices = order.map((id) => priceMap[id]).filter(Boolean);
 
   if (prices.length === 0) return null;
 
