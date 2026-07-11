@@ -47,6 +47,7 @@ export const api = {
   createMenuItem: (data) => req('/menu', { method: 'POST', body: JSON.stringify(data) }),
   updateMenuItem: (id, data) => req(`/menu/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteMenuItem: (id) => req(`/menu/${id}`, { method: 'DELETE' }),
+  reorderMenuItems: (items) => req('/menu/reorder', { method: 'POST', body: JSON.stringify({ items }) }),
   createCategory: (data) => req('/menu/categories', { method: 'POST', body: JSON.stringify(data) }),
   updateCategory: (id, data) => req(`/menu/categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteCategory: (id) => req(`/menu/categories/${id}`, { method: 'DELETE' }),

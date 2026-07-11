@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import socket from '../socket';
@@ -131,6 +132,7 @@ function CancelConfirmModal({ item, onConfirm, onClose }) {
 }
 
 export default function KitchenPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [cancelTarget, setCancelTarget] = useState(null);
   const [recipeTarget, setRecipeTarget] = useState(null);
@@ -203,6 +205,16 @@ export default function KitchenPage() {
             className="text-xs text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors font-medium"
           >
             更新
+          </button>
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors font-medium"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            管理画面へ
           </button>
         </div>
       </header>

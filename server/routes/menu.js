@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { query } = require('../db/database');
+const { pool, query } = require('../db/database');
 const { broadcast } = require('../services/socketService');
 
 const ITEM_SELECT = `
@@ -8,6 +8,7 @@ const ITEM_SELECT = `
     m.base_price::float, m.current_price::float,
     m.min_price::float, m.max_price::float,
     m.price_step_up::float, m.price_step_down::float,
+    m.sort_order,
     COALESCE((
       SELECT SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0))
       FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id
@@ -16,7 +17,7 @@ const ITEM_SELECT = `
     m.recipe_notes,
     m.is_drink, m.is_active, m.crash_enabled, m.is_crashed,
     m.image_url, m.tax_category, m.is_staff_only, m.price_editable,
-    c.name  AS category_name,  c.sort_order,
+    c.name  AS category_name,  c.sort_order AS category_sort_order,
     sc.name AS subcategory_name, sc.sort_order AS subcategory_sort_order
   FROM menu_items m
   JOIN categories c ON m.category_id = c.id
@@ -171,7 +172,7 @@ router.get('/', async (req, res, next) => {
     const includeStaff = req.query.staff === 'true';
     const staffFilter  = includeStaff ? '' : 'AND m.is_staff_only = FALSE';
     const { rows } = await query(
-      `${ITEM_SELECT} WHERE m.is_active = TRUE ${staffFilter} ORDER BY c.sort_order, sc.sort_order NULLS LAST, m.name`
+      `${ITEM_SELECT} WHERE m.is_active = TRUE ${staffFilter} ORDER BY c.sort_order, sc.sort_order NULLS LAST, m.sort_order, m.name`
     );
     res.json(rows);
   } catch (err) { next(err); }
@@ -181,7 +182,7 @@ router.get('/', async (req, res, next) => {
 router.get('/all', async (req, res, next) => {
   try {
     const { rows } = await query(
-      `${ITEM_SELECT} ORDER BY c.sort_order, sc.sort_order NULLS LAST, m.name`
+      `${ITEM_SELECT} ORDER BY c.sort_order, sc.sort_order NULLS LAST, m.sort_order, m.name`
     );
     res.json(rows);
   } catch (err) { next(err); }
@@ -219,8 +220,9 @@ router.post('/', async (req, res, next) => {
     const stepDn = price_step_down ?? 25;
     const { rows } = await query(
       `INSERT INTO menu_items
-         (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, image_url, tax_category, is_staff_only, price_editable)
-       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, image_url, tax_category, is_staff_only, price_editable, sort_order)
+       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+         COALESCE((SELECT MAX(sort_order) FROM menu_items WHERE category_id = $1 AND subcategory_id IS NOT DISTINCT FROM $2), -1) + 1)
        RETURNING id`,
       [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink, image_url || null, effectiveTaxCategory, Boolean(is_staff_only), Boolean(price_editable)]
     );
@@ -229,6 +231,52 @@ router.post('/', async (req, res, next) => {
   } catch (err) {
     if (err.code === '23503') return res.status(400).json({ error: 'category_id does not exist' });
     next(err);
+  }
+});
+
+// POST /api/menu/reorder — 商品の並び順を一括更新（同一カテゴリ/サブカテゴリ内のドラッグ&ドロップ用）
+// body: { items: [{ id, sort_order }, ...] } — 全アイテムは同一 category_id + subcategory_id に属すること
+router.post('/reorder', async (req, res, next) => {
+  const { items = [] } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items array is required' });
+  }
+  for (const it of items) {
+    if (it.id == null || it.sort_order == null || isNaN(Number(it.sort_order))) {
+      return res.status(400).json({ error: 'each item requires id and sort_order' });
+    }
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const ids = items.map((it) => it.id);
+    const { rows: existing } = await client.query(
+      'SELECT id, category_id, subcategory_id FROM menu_items WHERE id = ANY($1::int[])', [ids]
+    );
+    if (existing.length !== ids.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'One or more items not found' });
+    }
+    const groups = new Set(existing.map((r) => `${r.category_id}:${r.subcategory_id ?? 'null'}`));
+    if (groups.size > 1) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'All items must belong to the same category and subcategory' });
+    }
+
+    const results = [];
+    for (const it of items) {
+      await client.query('UPDATE menu_items SET sort_order = $1 WHERE id = $2', [Number(it.sort_order), it.id]);
+      results.push({ id: it.id, sort_order: Number(it.sort_order) });
+    }
+
+    await client.query('COMMIT');
+    res.json({ updated: results.length, items: results });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(err);
+  } finally {
+    client.release();
   }
 });
 
@@ -336,7 +384,7 @@ router.patch('/:id', async (req, res, next) => {
 
     const { name, base_price, min_price, max_price, price_step_up, price_step_down,
             is_drink, is_active, subcategory_id, crash_enabled, is_crashed,
-            image_url, tax_category, is_staff_only, price_editable } = req.body;
+            image_url, tax_category, is_staff_only, price_editable, sort_order } = req.body;
     const updates = [];
     const values = [];
     let idx = 1;
@@ -362,6 +410,7 @@ router.patch('/:id', async (req, res, next) => {
     }
     if (is_staff_only !== undefined)   { updates.push(`is_staff_only = $${idx++}`);   values.push(Boolean(is_staff_only)); }
     if (price_editable !== undefined)  { updates.push(`price_editable = $${idx++}`);  values.push(Boolean(price_editable)); }
+    if (sort_order !== undefined)      { updates.push(`sort_order = $${idx++}`);      values.push(sort_order); }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 

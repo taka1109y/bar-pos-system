@@ -27,8 +27,7 @@ function TickerItem({ item }) {
 }
 
 export default function TickerBar() {
-  const pricesMap = usePriceStore((s) => s.prices);
-  const prices    = Object.values(pricesMap);
+  const prices = usePriceStore((s) => s.getAllPrices());
 
   if (prices.length === 0) return null;
 

@@ -2,6 +2,9 @@ import { useState, useRef, useMemo } from 'react';
 import { yen, num } from '../../utils/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // 保存済みファイル名 → 表示用 URL に変換
 function toImageSrc(filename) {
@@ -370,6 +373,117 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
   );
 }
 
+// ─── 並び替え可能な商品行 ─────────────────────────────
+function SortableMenuItemRow({ item, idx, dragDisabled, onEdit, onDelete }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    disabled: dragDisabled,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-4 px-6 py-5 ${item.is_active ? '' : 'opacity-40'} ${idx !== 0 ? 'border-t border-slate-50' : ''}`}
+    >
+      {!dragDisabled && (
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="w-6 h-6 flex items-center justify-center text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
+          aria-label="ドラッグして並び替え"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/>
+            <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
+            <circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/>
+          </svg>
+        </button>
+      )}
+      {toImageSrc(item.image_url) ? (
+        <img
+          src={toImageSrc(item.image_url)}
+          alt={item.name}
+          className="w-10 h-10 object-cover rounded-lg border border-slate-100 flex-shrink-0"
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+        />
+      ) : (
+        <div className="w-10 h-10 bg-slate-100 rounded-lg flex-shrink-0" />
+      )}
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-semibold text-slate-900 block truncate">{item.name}</span>
+        <span className="text-xs text-slate-400 mt-1 block">
+          ¥{yen(item.base_price)}
+          {item.cost_price > 0 && (
+            <span className="ml-2 text-amber-500">
+              原価¥{yen(item.cost_price)} ({Math.round(item.cost_price / item.base_price * 100)}%)
+            </span>
+          )}
+          {item.subcategory_name && (
+            <span className="ml-2 text-primary-400">{item.subcategory_name}</span>
+          )}
+        </span>
+      </div>
+      <span className={`text-xs px-3 py-1.5 rounded-full font-medium flex-shrink-0 ${
+        item.is_drink ? 'bg-primary-50 text-primary-600' : 'bg-slate-100 text-slate-600'
+      }`}>
+        {item.is_drink ? 'ドリンク' : 'フード'}
+      </span>
+      <span className={`text-xs px-2.5 py-1.5 rounded-full font-medium flex-shrink-0 ${
+        item.tax_category === 'reduced'
+          ? 'bg-green-50 text-green-700'
+          : 'bg-slate-50 text-slate-500'
+      }`}>
+        {item.tax_category === 'reduced' ? '軽減8%' : '標準10%'}
+      </span>
+      {item.is_staff_only && (
+        <span className="text-xs px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 font-medium flex-shrink-0">
+          従業員専用
+        </span>
+      )}
+      {item.price_editable && (
+        <span className="text-xs px-2.5 py-1.5 rounded-full bg-amber-50 text-amber-700 font-medium flex-shrink-0">
+          時価
+        </span>
+      )}
+      {!item.is_active && (
+        <span className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-400 flex-shrink-0">
+          無効
+        </span>
+      )}
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <button
+          onClick={onEdit}
+          className="w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer"
+          title="編集"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
+        <button
+          onClick={onDelete}
+          className="w-9 h-9 flex items-center justify-center border border-red-200 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer"
+          title="削除"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6"/><path d="M14 11v6"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── メインコンポーネント ────────────────────────────
 export default function MenuManager() {
   const queryClient = useQueryClient();
@@ -387,21 +501,87 @@ export default function MenuManager() {
   const updateMutation = useMutation({ mutationFn: ({ id, data }) => api.updateMenuItem(id, data), onSuccess: () => { invalidate(); setEditItem(null); } });
   const deleteMutation = useMutation({ mutationFn: api.deleteMenuItem, onSuccess: invalidate });
 
-  const grouped = categories.reduce((acc, cat) => {
-    acc[cat.id] = { ...cat, items: items.filter((i) => i.category_id === cat.id) };
-    return acc;
-  }, {});
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  const displayGrouped = useMemo(() => {
+  // カテゴリ→サブカテゴリ（+ サブカテゴリなしバケット）の階層グルーピング。
+  // 実際の注文画面（MenuGrid.jsx）が category_id → subcategory_id の順でフィルタする構造と揃える。
+  const groupedByCat = useMemo(() => categories.map((cat) => {
+    const catItems   = items.filter((i) => i.category_id === cat.id);
+    const catSubcats = subcategories.filter((s) => s.category_id === cat.id);
+
+    let subGroups;
+    if (catSubcats.length === 0) {
+      subGroups = [{ id: `cat-${cat.id}-all`, label: null, items: catItems }];
+    } else {
+      subGroups = catSubcats.map((sub) => ({
+        id: `sub-${sub.id}`,
+        label: sub.name,
+        items: catItems.filter((i) => i.subcategory_id === sub.id),
+      }));
+      const noSubItems = catItems.filter((i) => i.subcategory_id == null);
+      if (noSubItems.length > 0) {
+        subGroups.push({ id: `cat-${cat.id}-nosub`, label: 'サブカテゴリなし', items: noSubItems });
+      }
+    }
+
+    return { category: cat, subGroups };
+  }), [categories, subcategories, items]);
+
+  const displayGroupedByCat = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return grouped;
-    const result = {};
-    Object.values(grouped).forEach((cat) => {
-      const matched = cat.items.filter((item) => item.name.toLowerCase().includes(q));
-      if (matched.length > 0) result[cat.id] = { ...cat, items: matched };
+    if (!q) return groupedByCat;
+    return groupedByCat
+      .map((catGroup) => ({
+        ...catGroup,
+        subGroups: catGroup.subGroups
+          .map((sg) => ({ ...sg, items: sg.items.filter((item) => item.name.toLowerCase().includes(q)) }))
+          .filter((sg) => sg.items.length > 0),
+      }))
+      .filter((catGroup) => catGroup.subGroups.length > 0);
+  }, [groupedByCat, search]);
+
+  const dragDisabled = Boolean(search.trim());
+
+  // ドラッグ&ドロップの並び替え。楽観的更新: 対象グループの商品を ['menu-all'] キャッシュ内の
+  // 元の位置にドラッグ後の順で差し込み直す（サーバーの複合ORDER BYはクライアントで再現しない）。
+  const reorderMutation = useMutation({
+    mutationFn: (payload) => api.reorderMenuItems(payload.items),
+    onMutate: async (payload) => {
+      await queryClient.cancelQueries({ queryKey: ['menu-all'] });
+      const previous = queryClient.getQueryData(['menu-all']);
+      queryClient.setQueryData(['menu-all'], (old) => {
+        if (!old) return old;
+        const idSet = new Set(payload.orderedIds);
+        const sortOrderById = new Map(payload.items.map((it) => [it.id, it.sort_order]));
+        const firstPos = old.findIndex((item) => idSet.has(item.id));
+        const reorderedGroup = payload.orderedIds.map((id) => old.find((item) => item.id === id));
+        const rest = old.filter((item) => !idSet.has(item.id));
+        const result = [...rest];
+        result.splice(firstPos, 0, ...reorderedGroup);
+        return result.map((item) => (idSet.has(item.id) ? { ...item, sort_order: sortOrderById.get(item.id) } : item));
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(['menu-all'], context.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['menu-all'] }),
+  });
+
+  // 1つのSortableContext（同一サブカテゴリグループ）内でのドロップのみ扱う。
+  // listItemsはドロップが発生したグループの商品配列（DndContextごとに固定）。
+  const handleDragEnd = (event, listItems) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = listItems.findIndex((i) => i.id === active.id);
+    const newIndex = listItems.findIndex((i) => i.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(listItems, oldIndex, newIndex);
+    reorderMutation.mutate({
+      items: reordered.map((item, idx) => ({ id: item.id, sort_order: idx })),
+      orderedIds: reordered.map((item) => item.id),
     });
-    return result;
-  }, [grouped, search]);
+  };
 
   return (
     <div className="px-8 py-12 max-w-7xl mx-auto">
@@ -424,7 +604,8 @@ export default function MenuManager() {
         </div>
         {search.trim() && (
           <span className="text-xs text-slate-400 flex-shrink-0">
-            {Object.values(displayGrouped).reduce((n, c) => n + c.items.length, 0)} 件
+            {displayGroupedByCat.reduce((n, c) => n + c.subGroups.reduce((m, sg) => m + sg.items.length, 0), 0)} 件
+            ・検索中は並び替えできません
           </span>
         )}
         <button
@@ -436,103 +617,52 @@ export default function MenuManager() {
       </div>
 
       {/* カテゴリ別商品一覧 */}
-      {search.trim() && Object.values(displayGrouped).length === 0 && (
+      {search.trim() && displayGroupedByCat.length === 0 && (
         <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
           <p className="text-slate-400 text-sm">「{search}」に一致する商品がありません</p>
         </div>
       )}
       <div className="space-y-10">
-        {Object.values(displayGrouped).map((cat) => (
-          <div key={cat.id}>
+        {displayGroupedByCat.map((catGroup) => (
+          <div key={catGroup.category.id}>
             <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-200">
-              <h3 className="text-sm font-bold text-slate-700 tracking-wide">{cat.name}</h3>
-              <span className="text-xs text-slate-400">({cat.items.length}件)</span>
+              <h3 className="text-sm font-bold text-slate-700 tracking-wide">{catGroup.category.name}</h3>
+              <span className="text-xs text-slate-400">
+                ({catGroup.subGroups.reduce((n, sg) => n + sg.items.length, 0)}件)
+              </span>
             </div>
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              {cat.items.length === 0 ? (
-                <p className="px-6 py-5 text-sm text-slate-400">商品がありません</p>
-              ) : (
-                cat.items.map((item, idx) => (
-                  <div
-                    key={item.id}
-                    className={`flex items-center gap-4 px-6 py-5 ${item.is_active ? '' : 'opacity-40'} ${idx !== 0 ? 'border-t border-slate-50' : ''}`}
-                  >
-                    {toImageSrc(item.image_url) ? (
-                      <img
-                        src={toImageSrc(item.image_url)}
-                        alt={item.name}
-                        className="w-10 h-10 object-cover rounded-lg border border-slate-100 flex-shrink-0"
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                      />
+            <div className="space-y-5">
+              {catGroup.subGroups.map((sg) => (
+                <div key={sg.id}>
+                  {sg.label && (
+                    <p className="text-xs font-semibold text-slate-500 mb-2 ml-1">{sg.label}</p>
+                  )}
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    {sg.items.length === 0 ? (
+                      <p className="px-6 py-5 text-sm text-slate-400">商品がありません</p>
                     ) : (
-                      <div className="w-10 h-10 bg-slate-100 rounded-lg flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-semibold text-slate-900 block truncate">{item.name}</span>
-                      <span className="text-xs text-slate-400 mt-1 block">
-                        ¥{yen(item.base_price)}
-                        {item.cost_price > 0 && (
-                          <span className="ml-2 text-amber-500">
-                            原価¥{yen(item.cost_price)} ({Math.round(item.cost_price / item.base_price * 100)}%)
-                          </span>
-                        )}
-                        {item.subcategory_name && (
-                          <span className="ml-2 text-primary-400">{item.subcategory_name}</span>
-                        )}
-                      </span>
-                    </div>
-                    <span className={`text-xs px-3 py-1.5 rounded-full font-medium flex-shrink-0 ${
-                      item.is_drink ? 'bg-primary-50 text-primary-600' : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {item.is_drink ? 'ドリンク' : 'フード'}
-                    </span>
-                    <span className={`text-xs px-2.5 py-1.5 rounded-full font-medium flex-shrink-0 ${
-                      item.tax_category === 'reduced'
-                        ? 'bg-green-50 text-green-700'
-                        : 'bg-slate-50 text-slate-500'
-                    }`}>
-                      {item.tax_category === 'reduced' ? '軽減8%' : '標準10%'}
-                    </span>
-                    {item.is_staff_only && (
-                      <span className="text-xs px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 font-medium flex-shrink-0">
-                        従業員専用
-                      </span>
-                    )}
-                    {item.price_editable && (
-                      <span className="text-xs px-2.5 py-1.5 rounded-full bg-amber-50 text-amber-700 font-medium flex-shrink-0">
-                        時価
-                      </span>
-                    )}
-                    {!item.is_active && (
-                      <span className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-400 flex-shrink-0">
-                        無効
-                      </span>
-                    )}
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <button
-                        onClick={() => setEditItem(item)}
-                        className="w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer"
-                        title="編集"
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={(event) => handleDragEnd(event, sg.items)}
                       >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => { if (confirm(`「${item.name}」を削除しますか？`)) deleteMutation.mutate(item.id); }}
-                        className="w-9 h-9 flex items-center justify-center border border-red-200 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer"
-                        title="削除"
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                          <path d="M10 11v6"/><path d="M14 11v6"/>
-                        </svg>
-                      </button>
-                    </div>
+                        <SortableContext items={sg.items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                          {sg.items.map((item, idx) => (
+                            <SortableMenuItemRow
+                              key={item.id}
+                              item={item}
+                              idx={idx}
+                              dragDisabled={dragDisabled}
+                              onEdit={() => setEditItem(item)}
+                              onDelete={() => { if (confirm(`「${item.name}」を削除しますか？`)) deleteMutation.mutate(item.id); }}
+                            />
+                          ))}
+                        </SortableContext>
+                      </DndContext>
+                    )}
                   </div>
-                ))
-              )}
+                </div>
+              ))}
             </div>
           </div>
         ))}

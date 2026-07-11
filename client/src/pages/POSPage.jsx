@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import socket from '../socket';
@@ -89,6 +90,7 @@ const NAV_GROUPS = [
 ];
 
 export default function POSPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [view, setView] = useState('pos');
   const [selectedTable, setSelectedTable] = useState(null);
@@ -270,32 +272,55 @@ export default function POSPage() {
             </div>
           ))}
 
-          {/* 外部リンク: 価格ボード・キッチン */}
+          {/* リンク: 価格ボード・キッチン・テーブル選択 */}
           <div className="mt-4 pt-4 border-t border-slate-100 space-y-0.5">
             {[
               {
                 href: '/board',
                 label: '価格ボード',
                 icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>,
+                external: true,
               },
               {
                 href: '/kitchen',
                 label: 'キッチン',
                 icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>,
+                external: true,
               },
-            ].map(({ href, label, icon }) => (
-              <a
-                key={href}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2.5 w-full rounded-lg text-slate-400 hover:bg-gray-50 hover:text-slate-600 transition-colors min-h-[44px] px-2.5"
-              >
-                <span className="flex-shrink-0 [&>svg]:w-full [&>svg]:h-full w-4 h-4">{icon}</span>
-                <span className="text-sm font-semibold block flex-1">{label}</span>
-                <span className="text-[10px] text-slate-300">↗</span>
-              </a>
-            ))}
+              {
+                href: '/table',
+                label: 'テーブル選択',
+                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/></svg>,
+                external: false,
+              },
+            ].map(({ href, label, icon, external }) => {
+              const content = (
+                <>
+                  <span className="flex-shrink-0 [&>svg]:w-full [&>svg]:h-full w-4 h-4">{icon}</span>
+                  <span className="text-sm font-semibold block flex-1">{label}</span>
+                  {external && <span className="text-[10px] text-slate-300">↗</span>}
+                </>
+              );
+              return external ? (
+                <a
+                  key={href}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2.5 w-full rounded-lg text-slate-400 hover:bg-gray-50 hover:text-slate-600 transition-colors min-h-[44px] px-2.5"
+                >
+                  {content}
+                </a>
+              ) : (
+                <button
+                  key={href}
+                  onClick={() => navigate(href)}
+                  className="flex items-center gap-2.5 w-full text-left rounded-lg text-slate-400 hover:bg-gray-50 hover:text-slate-600 transition-colors min-h-[44px] px-2.5"
+                >
+                  {content}
+                </button>
+              );
+            })}
           </div>
         </nav>
 

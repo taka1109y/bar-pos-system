@@ -16,6 +16,8 @@ router.get('/', async (req, res, next) => {
         COALESCE(dh.day_high, m.current_price)::float AS day_high,
         COALESCE(dh.day_low,  m.current_price)::float AS day_low
       FROM menu_items m
+      JOIN categories c ON m.category_id = c.id
+      LEFT JOIN subcategories sc ON m.subcategory_id = sc.id
       LEFT JOIN (
         SELECT menu_item_id,
           MAX(price)::float AS day_high,
@@ -25,7 +27,7 @@ router.get('/', async (req, res, next) => {
         GROUP BY menu_item_id
       ) dh ON dh.menu_item_id = m.id
       WHERE m.is_drink = TRUE AND m.is_active = TRUE
-      ORDER BY m.id
+      ORDER BY c.sort_order, sc.sort_order NULLS LAST, m.sort_order, m.name
     `, [TZ]);
 
     const withDirection = rows.map((item) => ({

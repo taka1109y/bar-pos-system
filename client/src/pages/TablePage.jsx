@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import socket from '../socket';
@@ -334,6 +334,7 @@ function OrderHistoryPanel({ order, chargeAmt, total, itemCount }) {
 // メインページ
 // ───────────────────────────────────────────
 export default function TablePage() {
+  const navigate     = useNavigate();
   const { tableId }  = useParams();
   const tableIdNum   = Number(tableId);
   const queryClient  = useQueryClient();
@@ -365,12 +366,6 @@ export default function TablePage() {
   useEffect(() => {
     if (order != null && guestCount === null) setGuestCount(order.guest_count ?? 1);
   }, [order]);
-
-  const resetToWelcome = useCallback(() => {
-    setGuestCount(null);
-    setConfirmItem(null);
-    queryClient.removeQueries({ queryKey: orderKey });
-  }, [tableIdNum]);
 
   useEffect(() => { api.getPrices().then(initPrices).catch(console.error); }, []);
 
@@ -407,7 +402,10 @@ export default function TablePage() {
       }
     };
     const handleTableStatus = (data) => {
-      if (data.tableId === tableIdNum && data.status === 'available') resetToWelcome();
+      if (data.tableId === tableIdNum && data.status === 'available') {
+        queryClient.removeQueries({ queryKey: orderKey });
+        navigate('/table');
+      }
     };
     const handleCrashStarted = ({ category_ids, subcategory_ids }) => {
       setCrashState({ category_ids, subcategory_ids });
@@ -431,7 +429,7 @@ export default function TablePage() {
       socket.off('crash:started',        handleCrashStarted);
       socket.off('crash:ended',          handleCrashEnded);
     };
-  }, [tableIdNum, resetToWelcome]);
+  }, [tableIdNum, navigate]);
 
   const showToast = (name, price) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);

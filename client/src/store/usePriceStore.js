@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 const usePriceStore = create((set, get) => ({
   prices: {}, // { [itemId]: { id, name, current_price, base_price, pct_change, direction, previous_price } }
+  order: [],  // サーバーから届いた順番のitem ID配列（Object.values()は整数キーを昇順で列挙してしまうため別管理）
 
   initPrices: (items) => {
     if (!Array.isArray(items)) return;
@@ -13,7 +14,7 @@ const usePriceStore = create((set, get) => ({
         flash: null,
       };
     }
-    set({ prices });
+    set({ prices, order: items.map((item) => item.id) });
   },
 
   updatePrices: (items) => {
@@ -46,7 +47,7 @@ const usePriceStore = create((set, get) => ({
   },
 
   getPriceById: (id) => get().prices[id],
-  getAllPrices: () => Object.values(get().prices),
+  getAllPrices: () => get().order.map((id) => get().prices[id]).filter(Boolean),
 }));
 
 export default usePriceStore;

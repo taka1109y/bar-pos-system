@@ -28,3 +28,4 @@ yarn-error.log*
 
 # 開発ツールの生成物
 .superpowers/
+raspberrypi.txt

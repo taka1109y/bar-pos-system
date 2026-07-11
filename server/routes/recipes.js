@@ -45,8 +45,9 @@ router.get('/', async (req, res, next) => {
         c.name AS category_name
        FROM menu_items m
        JOIN categories c ON m.category_id = c.id
+       LEFT JOIN subcategories sc ON m.subcategory_id = sc.id
        WHERE m.is_active = TRUE
-       ORDER BY c.sort_order, m.name`
+       ORDER BY c.sort_order, sc.sort_order NULLS LAST, m.sort_order, m.name`
     );
     res.json(items);
   } catch (err) { next(err); }

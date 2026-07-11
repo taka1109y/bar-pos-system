@@ -111,9 +111,6 @@ export default function TableSelectPage() {
       </div>
 
       <div className="text-center mb-8 flex-shrink-0">
-        <p style={{ color: '#3a3a50', fontSize: 12, letterSpacing: '3px', fontFamily: "'Bebas Neue', sans-serif", marginBottom: 4 }}>
-          STAFF — SELECT TABLE
-        </p>
         <p style={{ color: '#f0f0f5', fontSize: 24, fontFamily: "'Noto Sans JP', sans-serif", fontWeight: 900 }}>
           テーブルを選択してください
         </p>
