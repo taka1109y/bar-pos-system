@@ -108,6 +108,7 @@ export const api = {
   // Kitchen
   getKitchenOrders: () => req('/kitchen/orders'),
   serveKitchenItem: (itemId) => req(`/kitchen/items/${itemId}/serve`, { method: 'PATCH' }),
+  getKitchenHistory: (date, since) => req(`/kitchen/history?date=${date}${since ? '&since=' + encodeURIComponent(since) : ''}`),
 
   // ログ検索
   getLogs: ({ from, to, receipt_type = 'all', payment_method = 'all', limit = 50, offset = 0 } = {}) => {

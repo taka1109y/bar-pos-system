@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import socket from '../socket';
+import KitchenHistoryModal from './kitchen/KitchenHistoryModal';
 
 function elapsed(orderedAt) {
   const diff = Math.floor((Date.now() - new Date(orderedAt).getTime()) / 1000);
@@ -18,20 +19,26 @@ function getAudioCtx() {
   return _audioCtx;
 }
 
+function playBeep(ctx) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.frequency.value = 880;
+  gain.gain.setValueAtTime(0.3, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.4);
+}
+
 function playNotification() {
   try {
     const ctx = getAudioCtx();
-    ctx.resume().then(() => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.value = 880;
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.4);
-    });
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(() => playBeep(ctx));
+    } else {
+      playBeep(ctx);
+    }
   } catch (_) {}
 }
 
@@ -101,11 +108,11 @@ function RecipeModal({ menuItemId, itemName, onClose }) {
   );
 }
 
-function CancelConfirmModal({ item, onConfirm, onClose }) {
+function ConfirmModal({ item, title, confirmLabel, confirmClass, onConfirm, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in">
       <div className="bg-white border border-slate-200 rounded-xl p-6 w-80 shadow-xl pop-in">
-        <h3 className="text-base font-bold text-slate-900 mb-2">注文をキャンセルしますか？</h3>
+        <h3 className="text-base font-bold text-slate-900 mb-2">{title}</h3>
         <p className="text-sm text-slate-500 mb-1">
           <span className="text-slate-900 font-semibold">{item.tableName}</span>
         </p>
@@ -121,9 +128,9 @@ function CancelConfirmModal({ item, onConfirm, onClose }) {
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-lg transition-colors"
+            className={`flex-1 py-2.5 text-white text-sm font-bold rounded-lg transition-colors ${confirmClass}`}
           >
-            キャンセルする
+            {confirmLabel}
           </button>
         </div>
       </div>
@@ -136,6 +143,8 @@ export default function KitchenPage() {
   const queryClient = useQueryClient();
   const [cancelTarget, setCancelTarget] = useState(null);
   const [recipeTarget, setRecipeTarget] = useState(null);
+  const [serveTarget, setServeTarget] = useState(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['kitchenOrders'],
@@ -161,9 +170,26 @@ export default function KitchenPage() {
     };
   }, [refetch]);
 
+  // 初回のユーザー操作でAudioContextを早期アンロックし、バックグラウンドタブでの通知音再生を確実にする
+  useEffect(() => {
+    const unlock = () => {
+      const ctx = getAudioCtx();
+      ctx.resume().catch(() => {});
+    };
+    document.addEventListener('pointerdown', unlock, { once: true });
+    document.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      document.removeEventListener('pointerdown', unlock);
+      document.removeEventListener('keydown', unlock);
+    };
+  }, []);
+
   const serveMutation = useMutation({
     mutationFn: (itemId) => api.serveKitchenItem(itemId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['kitchenOrders'] }),
+    onSuccess: () => {
+      setServeTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['kitchenOrders'] });
+    },
   });
 
   const cancelMutation = useMutation({
@@ -205,6 +231,12 @@ export default function KitchenPage() {
             className="text-xs text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors font-medium"
           >
             更新
+          </button>
+          <button
+            onClick={() => setIsHistoryOpen(true)}
+            className="text-xs text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors font-medium"
+          >
+            履歴
           </button>
           <button
             onClick={() => navigate('/')}
@@ -290,7 +322,7 @@ export default function KitchenPage() {
                     {/* 提供完了ボタン */}
                     <div className="flex justify-center">
                       <button
-                        onClick={() => serveMutation.mutate(row.itemId)}
+                        onClick={() => setServeTarget(row)}
                         disabled={isServePending || isCancelPending}
                         className="px-3 py-1.5 bg-primary-500 hover:bg-primary-700 disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-colors"
                       >
@@ -325,13 +357,31 @@ export default function KitchenPage() {
       )}
 
       {cancelTarget && (
-        <CancelConfirmModal
+        <ConfirmModal
           item={cancelTarget}
+          title="注文をキャンセルしますか？"
+          confirmLabel="キャンセルする"
+          confirmClass="bg-red-500 hover:bg-red-600"
           onConfirm={() =>
             cancelMutation.mutate({ orderId: cancelTarget.orderId, itemId: cancelTarget.itemId })
           }
           onClose={() => setCancelTarget(null)}
         />
+      )}
+
+      {serveTarget && (
+        <ConfirmModal
+          item={serveTarget}
+          title="提供完了にしますか？"
+          confirmLabel="提供完了にする"
+          confirmClass="bg-primary-500 hover:bg-primary-700"
+          onConfirm={() => serveMutation.mutate(serveTarget.itemId)}
+          onClose={() => setServeTarget(null)}
+        />
+      )}
+
+      {isHistoryOpen && (
+        <KitchenHistoryModal onClose={() => setIsHistoryOpen(false)} />
       )}
     </div>
   );
