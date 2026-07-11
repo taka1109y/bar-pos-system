@@ -200,3 +200,8 @@ CREATE INDEX IF NOT EXISTS idx_menu_items_category ON menu_items(category_id);
 -- 商品の並び順（カテゴリ／サブカテゴリ内でのドラッグ&ドロップ用）
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_menu_items_sort ON menu_items(category_id, subcategory_id, sort_order);
+
+-- 注文時の質問（ソースの種類・割り方など）: question_textが未設定の商品は質問なし
+ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_text TEXT;
+ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_choices JSONB;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS selected_option TEXT;

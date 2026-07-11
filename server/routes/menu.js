@@ -17,12 +17,38 @@ const ITEM_SELECT = `
     m.recipe_notes,
     m.is_drink, m.is_active, m.crash_enabled, m.is_crashed,
     m.image_url, m.tax_category, m.is_staff_only, m.price_editable,
+    m.question_text, m.question_choices,
     c.name  AS category_name,  c.sort_order AS category_sort_order,
     sc.name AS subcategory_name, sc.sort_order AS subcategory_sort_order
   FROM menu_items m
   JOIN categories c ON m.category_id = c.id
   LEFT JOIN subcategories sc ON m.subcategory_id = sc.id
 `;
+
+// 注文時の質問設定（question_text/question_choices）のバリデーション・正規化
+// question_text が空なら質問なし（qText=null, qChoices=null）を返す
+// 戻り値: { qText, qChoices } または throw { status: 400, error: string }
+function resolveQuestionConfig(question_text, question_choices) {
+  const trimmedText = typeof question_text === 'string' ? question_text.trim() : '';
+  if (!trimmedText) return { qText: null, qChoices: null };
+
+  if (trimmedText.length > 200) {
+    throw { status: 400, error: 'question_text must be 200 characters or fewer' };
+  }
+  if (!Array.isArray(question_choices)) {
+    throw { status: 400, error: 'question_choices must be an array when question_text is set' };
+  }
+  const cleaned = [...new Set(
+    question_choices.map((c) => String(c).trim()).filter((c) => c.length > 0)
+  )];
+  if (cleaned.length < 2) {
+    throw { status: 400, error: 'question_choices must contain at least 2 unique non-empty options' };
+  }
+  if (cleaned.some((c) => c.length > 50)) {
+    throw { status: 400, error: 'each choice must be 50 characters or fewer' };
+  }
+  return { qText: trimmedText, qChoices: cleaned };
+}
 
 // ─── カテゴリ ────────────────────────────────────────
 
@@ -193,7 +219,8 @@ router.post('/', async (req, res, next) => {
   try {
     const { category_id, subcategory_id, name, base_price, min_price, max_price,
             price_step_up, price_step_down, is_drink = true, image_url = null,
-            tax_category, is_staff_only = false, price_editable = false } = req.body;
+            tax_category, is_staff_only = false, price_editable = false,
+            question_text = null, question_choices = null } = req.body;
     if (!category_id || !name || base_price == null) {
       return res.status(400).json({ error: 'category_id, name, base_price are required' });
     }
@@ -214,17 +241,24 @@ router.post('/', async (req, res, next) => {
     if (!['standard', 'reduced'].includes(effectiveTaxCategory)) {
       return res.status(400).json({ error: 'tax_category must be standard or reduced' });
     }
+    let qText, qChoices;
+    try {
+      ({ qText, qChoices } = resolveQuestionConfig(question_text, question_choices));
+    } catch (e) {
+      if (e.status) return res.status(e.status).json({ error: e.error });
+      throw e;
+    }
     const minP   = min_price        ?? base_price * 0.7;
     const maxP   = max_price        ?? base_price * 2.0;
     const stepUp = price_step_up   ?? 50;
     const stepDn = price_step_down ?? 25;
     const { rows } = await query(
       `INSERT INTO menu_items
-         (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, image_url, tax_category, is_staff_only, price_editable, sort_order)
-       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+         (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, image_url, tax_category, is_staff_only, price_editable, question_text, question_choices, sort_order)
+       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
          COALESCE((SELECT MAX(sort_order) FROM menu_items WHERE category_id = $1 AND subcategory_id IS NOT DISTINCT FROM $2), -1) + 1)
        RETURNING id`,
-      [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink, image_url || null, effectiveTaxCategory, Boolean(is_staff_only), Boolean(price_editable)]
+      [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink, image_url || null, effectiveTaxCategory, Boolean(is_staff_only), Boolean(price_editable), qText, qChoices ? JSON.stringify(qChoices) : null]
     );
     const { rows: result } = await query(`${ITEM_SELECT} WHERE m.id = $1`, [rows[0].id]);
     res.status(201).json(result[0]);
@@ -384,7 +418,8 @@ router.patch('/:id', async (req, res, next) => {
 
     const { name, base_price, min_price, max_price, price_step_up, price_step_down,
             is_drink, is_active, subcategory_id, crash_enabled, is_crashed,
-            image_url, tax_category, is_staff_only, price_editable, sort_order } = req.body;
+            image_url, tax_category, is_staff_only, price_editable, sort_order,
+            question_text, question_choices } = req.body;
     const updates = [];
     const values = [];
     let idx = 1;
@@ -411,6 +446,17 @@ router.patch('/:id', async (req, res, next) => {
     if (is_staff_only !== undefined)   { updates.push(`is_staff_only = $${idx++}`);   values.push(Boolean(is_staff_only)); }
     if (price_editable !== undefined)  { updates.push(`price_editable = $${idx++}`);  values.push(Boolean(price_editable)); }
     if (sort_order !== undefined)      { updates.push(`sort_order = $${idx++}`);      values.push(sort_order); }
+    if (question_text !== undefined || question_choices !== undefined) {
+      let qText, qChoices;
+      try {
+        ({ qText, qChoices } = resolveQuestionConfig(question_text, question_choices));
+      } catch (e) {
+        if (e.status) return res.status(e.status).json({ error: e.error });
+        throw e;
+      }
+      updates.push(`question_text = $${idx++}`);     values.push(qText);
+      updates.push(`question_choices = $${idx++}`);  values.push(qChoices ? JSON.stringify(qChoices) : null);
+    }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 

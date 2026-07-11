@@ -144,6 +144,60 @@ function CrashBanner({ crashState, categories, subcategories, onSelectCategory, 
 }
 
 // ───────────────────────────────────────────
+// 質問選択モーダル（ソース種類・割り方など、中央表示）
+// ───────────────────────────────────────────
+function ChoiceModal({ item, onSelect, onCancel }) {
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-40 fade-in"
+        style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)' }}
+        onClick={onCancel}
+      />
+      <div className="fixed z-50 modal-slide-up" style={{ top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 360 }}>
+        <div style={{ background: '#14141a', border: '1px solid #e52233', borderRadius: 20, boxShadow: '0 0 48px rgba(229,34,51,0.35)', padding: '32px 28px 28px' }}>
+          <h3 className="text-center mb-2" style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 19, fontWeight: 700, color: '#ffc531' }}>
+            {item.name}
+          </h3>
+          <p className="text-center mb-6" style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 15, color: '#f0f0f5' }}>
+            {item.question_text}
+          </p>
+          <div className="space-y-3 mb-3">
+            {(item.question_choices || []).map((choice) => (
+              <button
+                key={choice}
+                onClick={() => onSelect(choice)}
+                className="w-full active:scale-[0.98]"
+                style={{
+                  background: 'rgba(255,255,255,0.06)', border: '1px solid #252532', borderRadius: 12,
+                  padding: '14px 0', color: '#f0f0f5', fontFamily: "'Noto Sans JP', sans-serif",
+                  fontSize: 16, fontWeight: 700, cursor: 'pointer', transition: 'all 0.12s',
+                }}
+              >
+                {choice}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={onCancel}
+            className="w-full"
+            style={{
+              background: 'transparent', border: 'none', padding: '12px 0',
+              color: '#7a7a90', fontSize: 15, cursor: 'pointer',
+              fontFamily: "'Noto Sans JP', sans-serif", transition: 'color 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = '#f0f0f5'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = '#7a7a90'; }}
+          >
+            キャンセル
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ───────────────────────────────────────────
 // 注文確認モーダル（中央表示）
 // ───────────────────────────────────────────
 function ConfirmModal({ item, livePrice, onConfirm, onCancel }) {
@@ -166,6 +220,11 @@ function ConfirmModal({ item, livePrice, onConfirm, onCancel }) {
           <h3 className="text-center mb-2" style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 19, fontWeight: 700, color: '#ffc531' }}>
             {item.name}
           </h3>
+          {item.selected_option && (
+            <p className="text-center mb-2" style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 14, color: '#7a7a90' }}>
+              選択: {item.selected_option}
+            </p>
+          )}
           <div className="flex items-baseline justify-center gap-3 mb-8">
             <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 40, fontWeight: 700, color: '#f0f0f5' }}>
               ¥{yen(price)}
@@ -313,6 +372,9 @@ function OrderHistoryPanel({ order, chargeAmt, total, itemCount }) {
                   ¥{(item.quantity * item.unit_price).toLocaleString()}
                 </span>
               </div>
+              {item.selected_option && (
+                <p style={{ fontSize: 12, color: '#ffc531', fontFamily: "'Noto Sans JP', sans-serif", marginTop: 2 }}>{item.selected_option}</p>
+              )}
               <p style={{ fontSize: 13, color: '#7a7a90', fontFamily: "'Barlow Condensed', sans-serif", marginTop: 2 }}>× {item.quantity}</p>
             </div>
           ))
@@ -341,6 +403,7 @@ export default function TablePage() {
   const { initPrices, updatePrices, prices } = usePriceStore();
 
   const [confirmItem,       setConfirmItem]       = useState(null);
+  const [choiceItem,        setChoiceItem]        = useState(null);
   const [guestCount,        setGuestCount]        = useState(null);
   const [toast,             setToast]             = useState(null);
   const [activeCategory,    setActiveCategory]    = useState(null);
@@ -457,16 +520,17 @@ export default function TablePage() {
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menu_item_id, quantity }) => api.addOrderItem(orderId, { menu_item_id, quantity }),
-    onMutate: async ({ menu_item_id, quantity, price, name }) => {
+    mutationFn: ({ orderId, menu_item_id, quantity, selected_option }) =>
+      api.addOrderItem(orderId, { menu_item_id, quantity, selected_option }),
+    onMutate: async ({ menu_item_id, quantity, price, name, selected_option }) => {
       await queryClient.cancelQueries({ queryKey: orderKey });
       const previous = queryClient.getQueryData(orderKey);
       queryClient.setQueryData(orderKey, (old) => {
         if (!old) return old;
-        const existing = old.items?.find((i) => i.menu_item_id === menu_item_id);
+        const existing = old.items?.find((i) => i.menu_item_id === menu_item_id && i.selected_option === (selected_option ?? null));
         const newItems = existing
-          ? old.items.map((i) => i.menu_item_id === menu_item_id ? { ...i, quantity: i.quantity + quantity } : i)
-          : [...(old.items ?? []), { id: `temp-${Date.now()}`, menu_item_id, item_name: name, unit_price: price, quantity }];
+          ? old.items.map((i) => i === existing ? { ...i, quantity: i.quantity + quantity } : i)
+          : [...(old.items ?? []), { id: `temp-${Date.now()}`, menu_item_id, item_name: name, unit_price: price, quantity, selected_option: selected_option ?? null }];
         return { ...old, items: newItems };
       });
       return { previous };
@@ -479,7 +543,13 @@ export default function TablePage() {
   });
 
   const handleSelectGuests = (count) => { setGuestCount(count); openOrderMutation.mutate(count); };
-  const handleTapItem      = (menuItem) => setConfirmItem(menuItem);
+  const handleTapItem      = (menuItem) => {
+    if (menuItem.question_text) {
+      setChoiceItem(menuItem);
+    } else {
+      setConfirmItem(menuItem);
+    }
+  };
 
   const handleCrashSelectCategory = (catId) => {
     setActiveCategory(catId);
@@ -505,7 +575,7 @@ export default function TablePage() {
         if (!currentOrder) return;
       }
     }
-    addItemMutation.mutate({ orderId: currentOrder.id, menu_item_id: item.id, quantity: qty, price, name: item.name });
+    addItemMutation.mutate({ orderId: currentOrder.id, menu_item_id: item.id, quantity: qty, price, name: item.name, selected_option: item.selected_option ?? null });
   };
 
   const chargeAmt  = parseFloat(order?.charge_amount) || 0;
@@ -598,6 +668,16 @@ export default function TablePage() {
         </div>
         <OrderHistoryPanel order={order} chargeAmt={chargeAmt} total={total} itemCount={itemCount} />
       </div>
+      {choiceItem && (
+        <ChoiceModal
+          item={choiceItem}
+          onSelect={(choice) => {
+            setConfirmItem({ ...choiceItem, selected_option: choice });
+            setChoiceItem(null);
+          }}
+          onCancel={() => setChoiceItem(null)}
+        />
+      )}
       {confirmItem && (
         <ConfirmModal
           item={confirmItem}

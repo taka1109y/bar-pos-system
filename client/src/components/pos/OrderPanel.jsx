@@ -69,6 +69,36 @@ function GuestCountModal({ currentCount, onSelect, onClose, isPending }) {
   );
 }
 
+// ── 質問選択モーダル（ソース種類・割り方など） ────────────────
+function ChoiceModal({ title, choices, onSelect, onClose }) {
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in">
+      <div className="bg-white rounded-xl p-5 w-80 shadow-xl pop-in border border-slate-200">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold text-slate-900">{title}</h3>
+          <button onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div className="space-y-2">
+          {choices.map((choice) => (
+            <button
+              key={choice}
+              onClick={() => onSelect(choice)}
+              className="w-full text-left px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-primary-50 hover:border-primary-300 text-sm font-medium text-slate-800 transition-all active:scale-[0.98]"
+            >
+              {choice}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 価格・商品名編集モーダル（時価商品用） ──────────────────
 function CustomPriceModal({ defaultName, defaultPrice, onConfirm, onClose, isPending }) {
   const [name, setName]   = useState(defaultName ?? '');
@@ -155,6 +185,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   const [pendingAction,  setPendingAction]  = useState(null);
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [priceEditItem,  setPriceEditItem]  = useState(null);
+  const [choiceItem,     setChoiceItem]     = useState(null);
 
   const orderKey = ['order', table.id];
 
@@ -198,8 +229,8 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menu_item_id, unit_price, item_name }) =>
-      api.addOrderItem(orderId, { menu_item_id, quantity: 1, unit_price, item_name }),
+    mutationFn: ({ orderId, menu_item_id, unit_price, item_name, selected_option }) =>
+      api.addOrderItem(orderId, { menu_item_id, quantity: 1, unit_price, item_name, selected_option }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
@@ -232,6 +263,15 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
       });
       return;
     }
+    // 質問が設定された商品はタップ時に選択肢を選ばせる
+    if (menuItem.question_text) {
+      setChoiceItem({
+        menu_item_id: menuItem.id,
+        title:        menuItem.question_text,
+        choices:      menuItem.question_choices || [],
+      });
+      return;
+    }
     setPendingAction({
       label:        '追加する',
       confirmClass: 'bg-primary-500 hover:bg-primary-700',
@@ -251,6 +291,15 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
         menu_item_id: item.menu_item_id,
         defaultName:  item.item_name,
         defaultPrice: Math.round(item.unit_price),
+      });
+      return;
+    }
+    // 質問が設定された商品はもう1品追加するときも選び直させる
+    if (menuItem?.question_text) {
+      setChoiceItem({
+        menu_item_id: item.menu_item_id,
+        title:        menuItem.question_text,
+        choices:      menuItem.question_choices || [],
       });
       return;
     }
@@ -428,6 +477,11 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
                       <span className="text-sm text-slate-800 font-medium block truncate">
                         {item.item_name}
                       </span>
+                      {item.selected_option && (
+                        <span className="text-[11px] text-primary-600 font-medium mt-0.5 block">
+                          → {item.selected_option}
+                        </span>
+                      )}
                       {hasPriceVariants && (
                         <span className="text-[11px] text-slate-400 mt-0.5 block">
                           注文時 ¥{yen(item.unit_price)}
@@ -508,6 +562,22 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
             setPriceEditItem(null);
           }}
           onClose={() => setPriceEditItem(null)}
+        />
+      )}
+
+      {choiceItem && (
+        <ChoiceModal
+          title={choiceItem.title}
+          choices={choiceItem.choices}
+          onSelect={(choice) => {
+            addItemMutation.mutate({
+              orderId: order.id,
+              menu_item_id: choiceItem.menu_item_id,
+              selected_option: choice,
+            });
+            setChoiceItem(null);
+          }}
+          onClose={() => setChoiceItem(null)}
         />
       )}
 

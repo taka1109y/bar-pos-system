@@ -118,6 +118,9 @@ function ConfirmModal({ item, title, confirmLabel, confirmClass, onConfirm, onCl
         </p>
         <p className="text-sm text-slate-700 mb-5">
           {item.itemName} × {item.quantity}
+          {item.selectedOption && (
+            <span className="block text-xs text-slate-500 mt-0.5">選択: {item.selectedOption}</span>
+          )}
         </p>
         <div className="flex gap-3">
           <button
@@ -308,10 +311,13 @@ export default function KitchenPage() {
                       <button
                         onClick={() => row.menuItemId && setRecipeTarget({ menuItemId: row.menuItemId, itemName: row.itemName })}
                         disabled={!row.menuItemId}
-                        className="-my-4 py-4 w-full text-left text-sm text-slate-700 font-medium hover:text-primary-600 cursor-pointer disabled:cursor-default"
+                        className="-mt-4 pt-4 w-full text-left text-sm text-slate-700 font-medium hover:text-primary-600 cursor-pointer disabled:cursor-default"
                       >
                         {row.itemName}
                       </button>
+                      {row.selectedOption && (
+                        <p className="text-xs text-primary-600 font-semibold mt-0.5">→ {row.selectedOption}</p>
+                      )}
                     </div>
 
                     {/* 数量 */}

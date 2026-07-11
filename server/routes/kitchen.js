@@ -17,6 +17,7 @@ router.get('/orders', async (req, res, next) => {
         oi.quantity,
         oi.status         AS item_status,
         oi.created_at     AS ordered_at,
+        oi.selected_option,
         o.table_id,
         t.name            AS table_name
       FROM order_items oi
@@ -27,15 +28,16 @@ router.get('/orders', async (req, res, next) => {
     `);
 
     res.json(rows.map((r) => ({
-      itemId:      r.item_id,
-      orderId:     r.order_id,
-      menuItemId:  r.menu_item_id,
-      tableId:     r.table_id,
-      tableName:   r.table_name,
-      itemName:    r.item_name,
-      quantity:    r.quantity,
-      status:      r.item_status,
-      orderedAt:   r.ordered_at,
+      itemId:         r.item_id,
+      orderId:        r.order_id,
+      menuItemId:     r.menu_item_id,
+      tableId:        r.table_id,
+      tableName:      r.table_name,
+      itemName:       r.item_name,
+      quantity:       r.quantity,
+      status:         r.item_status,
+      orderedAt:      r.ordered_at,
+      selectedOption: r.selected_option,
     })));
   } catch (err) {
     next(err);
@@ -63,6 +65,7 @@ router.get('/history', async (req, res, next) => {
         oi.quantity,
         oi.status         AS item_status,
         oi.created_at     AS ordered_at,
+        oi.selected_option,
         o.table_id,
         t.name            AS table_name
       FROM order_items oi
@@ -73,15 +76,16 @@ router.get('/history', async (req, res, next) => {
     `, params);
 
     res.json(rows.map((r) => ({
-      itemId:      r.item_id,
-      orderId:     r.order_id,
-      menuItemId:  r.menu_item_id,
-      tableId:     r.table_id,
-      tableName:   r.table_name,
-      itemName:    r.item_name,
-      quantity:    r.quantity,
-      status:      r.item_status,
-      orderedAt:   r.ordered_at,
+      itemId:         r.item_id,
+      orderId:        r.order_id,
+      menuItemId:     r.menu_item_id,
+      tableId:        r.table_id,
+      tableName:      r.table_name,
+      itemName:       r.item_name,
+      quantity:       r.quantity,
+      status:         r.item_status,
+      orderedAt:      r.ordered_at,
+      selectedOption: r.selected_option,
     })));
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.error });

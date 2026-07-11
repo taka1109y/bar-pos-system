@@ -54,7 +54,10 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     tax_category:    item?.tax_category || 'standard',
     is_staff_only:   item?.is_staff_only ?? false,
     price_editable:  item?.price_editable ?? false,
+    question_text:    item?.question_text || '',
+    question_choices: item?.question_choices || [],
   });
+  const [questionError, setQuestionError] = useState('');
 
   // 新たに選択した画像ファイルとプレビューURL
   const [pendingFile, setPendingFile]       = useState(null);
@@ -94,6 +97,16 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
   const handleSubmit = async (e) => {
     e.preventDefault();
     setUploadError('');
+    setQuestionError('');
+
+    const qText = form.question_text.trim();
+    const qChoices = qText
+      ? [...new Set(form.question_choices.map((c) => c.trim()).filter((c) => c.length > 0))]
+      : [];
+    if (qText && qChoices.length < 2) {
+      setQuestionError('選択肢を2つ以上入力してください');
+      return;
+    }
 
     let imageFilename = form.image_url;
 
@@ -129,6 +142,8 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
       tax_category:    form.tax_category,
       is_staff_only:   Boolean(form.is_staff_only),
       price_editable:  Boolean(form.price_editable),
+      question_text:    qText || null,
+      question_choices: qText ? qChoices : null,
     });
   };
 
@@ -361,6 +376,52 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
           <p className="text-xs text-amber-600 mt-1 ml-6">スタッフ注文画面でタップ時に価格・商品名の入力画面が表示されます</p>
         )}
       </div>
+      <div className="border-t border-slate-100 pt-3">
+        <label className={lbl}>追加質問（任意）</label>
+        <input
+          className={inp}
+          value={form.question_text}
+          onChange={(e) => set('question_text', e.target.value)}
+          placeholder="例: ソースの種類をお選びください（空欄なら質問なし）"
+          maxLength={200}
+        />
+        {form.question_text.trim() && (
+          <div className="mt-2 space-y-2">
+            <p className="text-xs text-slate-500">選択肢（2つ以上）</p>
+            {form.question_choices.map((choice, i) => (
+              <div key={i} className="flex gap-2">
+                <input
+                  className={inp}
+                  value={choice}
+                  onChange={(e) => {
+                    const next = [...form.question_choices];
+                    next[i] = e.target.value;
+                    set('question_choices', next);
+                  }}
+                  maxLength={50}
+                  placeholder={`選択肢 ${i + 1}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => set('question_choices', form.question_choices.filter((_, idx) => idx !== i))}
+                  className="w-11 h-11 flex-shrink-0 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-lg"
+                  title="削除"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => set('question_choices', [...form.question_choices, ''])}
+              className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+            >
+              ＋ 選択肢を追加
+            </button>
+            {questionError && <p className="text-xs text-red-600">{questionError}</p>}
+          </div>
+        )}
+      </div>
       <div className="flex gap-3 pt-1">
         <button type="button" onClick={onCancel} disabled={isBusy} className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
           キャンセル
@@ -451,6 +512,11 @@ function SortableMenuItemRow({ item, idx, dragDisabled, onEdit, onDelete }) {
       {item.price_editable && (
         <span className="text-xs px-2.5 py-1.5 rounded-full bg-amber-50 text-amber-700 font-medium flex-shrink-0">
           時価
+        </span>
+      )}
+      {item.question_text && (
+        <span className="text-xs px-2.5 py-1.5 rounded-full bg-primary-50 text-primary-700 font-medium flex-shrink-0">
+          質問あり
         </span>
       )}
       {!item.is_active && (

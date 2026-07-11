@@ -65,7 +65,12 @@ export default function KitchenHistoryModal({ onClose }) {
                       })}
                     </td>
                     <td className="py-3 px-4 text-sm font-bold text-slate-900">{row.tableName}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700">{row.itemName}</td>
+                    <td className="py-3 px-4 text-sm text-slate-700">
+                      {row.itemName}
+                      {row.selectedOption && (
+                        <span className="block text-xs text-slate-400 mt-0.5">{row.selectedOption}</span>
+                      )}
+                    </td>
                     <td className="py-3 px-4 text-sm text-slate-900 text-right font-semibold">× {row.quantity}</td>
                   </tr>
                 ))}

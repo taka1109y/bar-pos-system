@@ -21,7 +21,7 @@ async function getOrderWithItems(orderId) {
 
   const { rows: items } = await query(
     `SELECT oi.id, oi.order_id, oi.menu_item_id, oi.quantity,
-       oi.unit_price::float, oi.item_name, oi.status
+       oi.unit_price::float, oi.item_name, oi.status, oi.selected_option
      FROM order_items oi
      WHERE oi.order_id = $1`,
     [orderId]
@@ -79,7 +79,7 @@ router.get('/table/:tableId', async (req, res, next) => {
     const order = rows[0];
     const { rows: items } = await query(
       `SELECT oi.id, oi.order_id, oi.menu_item_id, oi.quantity,
-         oi.unit_price::float, oi.item_name, oi.status
+         oi.unit_price::float, oi.item_name, oi.status, oi.selected_option
        FROM order_items oi
        WHERE oi.order_id = $1`,
       [order.id]
@@ -164,7 +164,7 @@ router.post('/', async (req, res, next) => {
 router.post('/:id/items', async (req, res, next) => {
   const client = await pool.connect();
   try {
-    const { menu_item_id, quantity = 1, unit_price, item_name } = req.body;
+    const { menu_item_id, quantity = 1, unit_price, item_name, selected_option } = req.body;
     if (!menu_item_id) return res.status(400).json({ error: 'menu_item_id is required' });
 
     const { rows: orderRows } = await client.query(
@@ -175,7 +175,7 @@ router.post('/:id/items', async (req, res, next) => {
     if (!order) return res.status(404).json({ error: 'Order not found or already closed' });
 
     const { rows: menuRows } = await client.query(
-      'SELECT id, name, current_price::float, is_drink, price_editable FROM menu_items WHERE id = $1 AND is_active = TRUE',
+      'SELECT id, name, current_price::float, is_drink, price_editable, question_text, question_choices FROM menu_items WHERE id = $1 AND is_active = TRUE',
       [menu_item_id]
     );
     const menuItem = menuRows[0];
@@ -200,13 +200,26 @@ router.post('/:id/items', async (req, res, next) => {
       }
     }
 
+    // 質問が設定された商品は、選択肢の中から回答必須
+    let finalSelectedOption = null;
+    if (menuItem.question_text) {
+      if (typeof selected_option !== 'string' || selected_option.trim().length === 0) {
+        return res.status(400).json({ error: '回答を選択してください' });
+      }
+      const trimmed = selected_option.trim();
+      if (!(menuItem.question_choices || []).includes(trimmed)) {
+        return res.status(400).json({ error: '無効な選択肢です' });
+      }
+      finalSelectedOption = trimmed;
+    }
+
     await client.query('BEGIN');
 
     // 注文アクションごとに必ず新しい行を追加する（マージしない）
     await client.query(
-      `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, item_name)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [order.id, menu_item_id, quantity, finalPrice, finalName]
+      `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, item_name, selected_option)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [order.id, menu_item_id, quantity, finalPrice, finalName, finalSelectedOption]
     );
 
     await recalcTotal(client, order.id);
