@@ -93,6 +93,7 @@ async function runTick() {
 
     newPrice = Math.max(item.min_price, Math.min(item.max_price, newPrice));
     newPrice = roundToNearest(newPrice, 25);
+    newPrice = Math.max(item.min_price, Math.min(item.max_price, newPrice));
 
     if (newPrice !== item.current_price) {
       await query('UPDATE menu_items SET current_price = $1 WHERE id = $2', [newPrice, item.id]);
@@ -149,13 +150,14 @@ async function runTick() {
     logger.info({ count: updates.length }, 'PricingEngine price updated');
   }
 
-  // 全アイテムの最新価格をブロードキャスト（暴落中アイテムは除外）
+  // 全アイテムの最新価格をブロードキャスト（暴落中アイテムも現在価格のまま含める。
+  // 除外すると prices:sync を全置換で受け取るクライアントの価格リストから暴落中商品が消えてしまうため）
   const { rows: allPrices } = await query(`
     SELECT id, name,
       base_price::float, current_price::float,
       COALESCE(ROUND((current_price - base_price) * 100.0 / NULLIF(base_price, 0), 1), 0)::float AS pct_change
     FROM menu_items
-    WHERE is_drink = TRUE AND is_active = TRUE AND is_crashed = FALSE
+    WHERE is_drink = TRUE AND is_active = TRUE
   `);
   const syncItems = allPrices.map((r) => ({
     ...r,

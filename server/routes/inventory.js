@@ -54,11 +54,13 @@ router.post('/adjust', async (req, res, next) => {
   try {
     await client.query('BEGIN');
     const results = [];
-    for (const adj of adjustments) {
+    // ingredient_id昇順で処理（他エンドポイントとロック順序を統一し、デッドロックを防ぐ）
+    const sortedAdjustments = [...adjustments].sort((a, b) => (a.ingredient_id ?? 0) - (b.ingredient_id ?? 0));
+    for (const adj of sortedAdjustments) {
       const { ingredient_id, actual_quantity, note = null } = adj;
       if (ingredient_id == null || actual_quantity == null) continue;
       const { rows: stock } = await client.query(
-        'SELECT id, quantity_current FROM ingredient_stock WHERE ingredient_id = $1',
+        'SELECT id, quantity_current FROM ingredient_stock WHERE ingredient_id = $1 FOR UPDATE',
         [ingredient_id]
       );
       if (stock.length === 0) continue;
@@ -95,13 +97,16 @@ router.post('/purchase', async (req, res, next) => {
   }
   const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     const { rows: stock } = await client.query(
-      'SELECT id, quantity_current FROM ingredient_stock WHERE ingredient_id = $1',
+      'SELECT id, quantity_current FROM ingredient_stock WHERE ingredient_id = $1 FOR UPDATE',
       [ingredient_id]
     );
-    if (stock.length === 0) return res.status(404).json({ error: 'Inventory record not found. Initialize first.' });
+    if (stock.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Inventory record not found. Initialize first.' });
+    }
 
-    await client.query('BEGIN');
     const before = parseFloat(stock[0].quantity_current);
     const after  = before + Number(quantity);
     await client.query(

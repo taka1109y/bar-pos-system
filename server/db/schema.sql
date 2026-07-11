@@ -205,3 +205,19 @@ CREATE INDEX IF NOT EXISTS idx_menu_items_sort ON menu_items(category_id, subcat
 ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_text TEXT;
 ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_choices JSONB;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS selected_option TEXT;
+
+-- テーブルごとにオープン注文は1件のみ（二重オープン防止）
+-- 注意: 既存データにテーブルごとの複数オープン注文があると本文の適用に失敗する
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_one_open_per_table ON orders(table_id) WHERE status = 'open';
+
+-- アーカイブ機能（古い会計済みデータの削除）が外部キー制約で失敗しないよう、
+-- 監査証跡テーブルからの参照は削除時にNULLへ（参照先の注文が消えても証跡行自体は残す）
+ALTER TABLE ingredient_stock_logs DROP CONSTRAINT IF EXISTS ingredient_stock_logs_related_order_id_fkey;
+ALTER TABLE ingredient_stock_logs ADD CONSTRAINT ingredient_stock_logs_related_order_id_fkey
+  FOREIGN KEY (related_order_id) REFERENCES orders(id) ON DELETE SET NULL NOT VALID;
+ALTER TABLE ingredient_stock_logs VALIDATE CONSTRAINT ingredient_stock_logs_related_order_id_fkey;
+
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_original_order_id_fkey;
+ALTER TABLE orders ADD CONSTRAINT orders_original_order_id_fkey
+  FOREIGN KEY (original_order_id) REFERENCES orders(id) ON DELETE SET NULL NOT VALID;
+ALTER TABLE orders VALIDATE CONSTRAINT orders_original_order_id_fkey;

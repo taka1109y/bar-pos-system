@@ -31,12 +31,15 @@ router.get('/', async (req, res, next) => {
          o.charge_amount::float,
          o.guest_count,
          t.name AS table_name,
-         json_agg(
-           json_build_object(
-             'item_name', oi.item_name,
-             'quantity',  oi.quantity,
-             'unit_price', oi.unit_price::float
-           ) ORDER BY oi.id
+         COALESCE(
+           json_agg(
+             json_build_object(
+               'item_name', oi.item_name,
+               'quantity',  oi.quantity,
+               'unit_price', oi.unit_price::float
+             ) ORDER BY oi.id
+           ) FILTER (WHERE oi.id IS NOT NULL),
+           '[]'::json
          ) AS items
        FROM orders o
        JOIN tables t ON o.table_id = t.id

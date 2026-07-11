@@ -58,6 +58,18 @@ export default function BoardPage() {
     return () => socket.off('prices:updated', handle);
   }, []);
 
+  // 初回取得の失敗やソケット切断に対する自己修復（TablePage.jsxと同じパターン）
+  useEffect(() => {
+    const handlePricesSync = ({ items }) => initPrices(items);
+    const handleReconnect  = () => { api.getPrices().then(initPrices).catch(console.error); };
+    socket.on('prices:sync', handlePricesSync);
+    socket.on('connect',     handleReconnect);
+    return () => {
+      socket.off('prices:sync', handlePricesSync);
+      socket.off('connect',     handleReconnect);
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-950 text-white p-8 pb-16">
       {/* ヘッダー */}

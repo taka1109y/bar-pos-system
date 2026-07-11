@@ -5,21 +5,40 @@ const { broadcast } = require('../services/socketService');
 const { TZ, todayJST } = require('../utils/time');
 const { assertDateFormat } = require('../utils/validate');
 
+// order_items + orders + tables の共通カラムリストとレスポンス整形（GET /orders, GET /history で共用）
+const KITCHEN_ITEM_COLUMNS = `
+  oi.id             AS item_id,
+  oi.order_id,
+  oi.menu_item_id,
+  oi.item_name,
+  oi.quantity,
+  oi.status         AS item_status,
+  oi.created_at     AS ordered_at,
+  oi.selected_option,
+  o.table_id,
+  t.name            AS table_name
+`;
+
+function mapKitchenRow(r) {
+  return {
+    itemId:         r.item_id,
+    orderId:        r.order_id,
+    menuItemId:     r.menu_item_id,
+    tableId:        r.table_id,
+    tableName:      r.table_name,
+    itemName:       r.item_name,
+    quantity:       r.quantity,
+    status:         r.item_status,
+    orderedAt:      r.ordered_at,
+    selectedOption: r.selected_option,
+  };
+}
+
 // GET /api/kitchen/orders — pending なアイテムを行リストで返す
 router.get('/orders', async (req, res, next) => {
   try {
     const { rows } = await query(`
-      SELECT
-        oi.id             AS item_id,
-        oi.order_id,
-        oi.menu_item_id,
-        oi.item_name,
-        oi.quantity,
-        oi.status         AS item_status,
-        oi.created_at     AS ordered_at,
-        oi.selected_option,
-        o.table_id,
-        t.name            AS table_name
+      SELECT ${KITCHEN_ITEM_COLUMNS}
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
       JOIN tables t ON t.id = o.table_id
@@ -27,18 +46,7 @@ router.get('/orders', async (req, res, next) => {
       ORDER BY oi.created_at ASC, oi.id ASC
     `);
 
-    res.json(rows.map((r) => ({
-      itemId:         r.item_id,
-      orderId:        r.order_id,
-      menuItemId:     r.menu_item_id,
-      tableId:        r.table_id,
-      tableName:      r.table_name,
-      itemName:       r.item_name,
-      quantity:       r.quantity,
-      status:         r.item_status,
-      orderedAt:      r.ordered_at,
-      selectedOption: r.selected_option,
-    })));
+    res.json(rows.map(mapKitchenRow));
   } catch (err) {
     next(err);
   }
@@ -57,17 +65,7 @@ router.get('/history', async (req, res, next) => {
     const params = since ? [date, TZ, since] : [date, TZ];
 
     const { rows } = await query(`
-      SELECT
-        oi.id             AS item_id,
-        oi.order_id,
-        oi.menu_item_id,
-        oi.item_name,
-        oi.quantity,
-        oi.status         AS item_status,
-        oi.created_at     AS ordered_at,
-        oi.selected_option,
-        o.table_id,
-        t.name            AS table_name
+      SELECT ${KITCHEN_ITEM_COLUMNS}
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
       JOIN tables t ON t.id = o.table_id
@@ -75,18 +73,7 @@ router.get('/history', async (req, res, next) => {
       ORDER BY oi.created_at DESC
     `, params);
 
-    res.json(rows.map((r) => ({
-      itemId:         r.item_id,
-      orderId:        r.order_id,
-      menuItemId:     r.menu_item_id,
-      tableId:        r.table_id,
-      tableName:      r.table_name,
-      itemName:       r.item_name,
-      quantity:       r.quantity,
-      status:         r.item_status,
-      orderedAt:      r.ordered_at,
-      selectedOption: r.selected_option,
-    })));
+    res.json(rows.map(mapKitchenRow));
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.error });
     next(err);
