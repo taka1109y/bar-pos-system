@@ -433,7 +433,7 @@ router.patch('/:id', async (req, res, next) => {
     const { rows: existing } = await query('SELECT id FROM menu_items WHERE id = $1', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ error: 'Item not found' });
 
-    const { name, base_price, min_price, max_price, price_step_up, price_step_down,
+    const { category_id, name, base_price, min_price, max_price, price_step_up, price_step_down,
             is_drink, is_active, subcategory_id, crash_enabled, is_crashed,
             image_url, tax_category, is_staff_only, price_editable, sort_order,
             question_text, question_choices } = req.body;
@@ -441,6 +441,10 @@ router.patch('/:id', async (req, res, next) => {
     const values = [];
     let idx = 1;
 
+    if (category_id !== undefined) {
+      if (!category_id) return res.status(400).json({ error: 'category_id must not be empty' });
+      updates.push(`category_id = $${idx++}`); values.push(category_id);
+    }
     if (name !== undefined)             { updates.push(`name = $${idx++}`);             values.push(name); }
     if (base_price !== undefined)       { updates.push(`base_price = $${idx++}`);       values.push(base_price); }
     if (min_price !== undefined)        { updates.push(`min_price = $${idx++}`);        values.push(min_price); }
@@ -482,7 +486,10 @@ router.patch('/:id', async (req, res, next) => {
 
     const { rows: result } = await query(`${ITEM_SELECT} WHERE m.id = $1`, [req.params.id]);
     res.json(result[0]);
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.code === '23503') return res.status(400).json({ error: 'category_id does not exist' });
+    next(err);
+  }
 });
 
 // DELETE /api/menu/:id (soft delete)
