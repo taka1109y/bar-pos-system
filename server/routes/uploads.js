@@ -2,8 +2,12 @@ const express = require('express');
 const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
+const sharp   = require('sharp');
+const logger  = require('../utils/logger');
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+const MAX_DIMENSION = 1600; // この長辺(px)を超える画像のみリサイズ・再圧縮する
+const RESIZE_QUALITY = 80;
 
 // アップロードディレクトリが存在しない場合は作成
 if (!fs.existsSync(UPLOAD_DIR)) {
@@ -48,11 +52,46 @@ const upload = multer({
   },
 });
 
+// 長辺がMAX_DIMENSIONを超える画像のみ、アスペクト比を保ったまま縮小し再圧縮する
+// GIFはアニメーションが壊れるため対象外。処理に失敗してもアップロード自体は失敗させない（fail-open）
+async function shrinkIfTooLarge(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.gif') return;
+
+  const image = sharp(filePath);
+  const { width, height } = await image.metadata();
+  if (!width || !height || Math.max(width, height) <= MAX_DIMENSION) return;
+
+  let pipeline = image.rotate().resize({
+    width: MAX_DIMENSION,
+    height: MAX_DIMENSION,
+    fit: 'inside',
+    withoutEnlargement: true,
+  });
+
+  if (ext === '.jpg' || ext === '.jpeg') {
+    pipeline = pipeline.jpeg({ quality: RESIZE_QUALITY, mozjpeg: true });
+  } else if (ext === '.webp') {
+    pipeline = pipeline.webp({ quality: RESIZE_QUALITY });
+  } else if (ext === '.png') {
+    pipeline = pipeline.png({ quality: RESIZE_QUALITY, compressionLevel: 9 });
+  }
+
+  const tmpPath = `${filePath}.tmp`;
+  await pipeline.toFile(tmpPath);
+  fs.renameSync(tmpPath, filePath);
+}
+
 const router = express.Router();
 
 // POST /api/uploads/menu-images
-router.post('/menu-images', upload.single('image'), (req, res) => {
+router.post('/menu-images', upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: '画像ファイルが必要です' });
+  try {
+    await shrinkIfTooLarge(req.file.path);
+  } catch (err) {
+    logger.warn({ err }, 'image resize failed, keeping original upload');
+  }
   res.json({ filename: req.file.filename });
 });
 
