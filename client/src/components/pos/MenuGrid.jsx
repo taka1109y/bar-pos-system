@@ -107,7 +107,7 @@ function CustomerMenuItem({ item, onAdd, categories, subcategories }) {
       {/* 画像エリア */}
       <div
         className="relative flex-shrink-0 flex items-center justify-center overflow-hidden"
-        style={{ height: 90, background: style.gradient }}
+        style={{ height: 130, background: style.gradient }}
       >
         <div
           className="absolute inset-0"
