@@ -27,7 +27,8 @@ const ITEM_SELECT = `
 
 // 注文時の質問設定（question_text/question_choices）のバリデーション・正規化
 // question_text が空なら質問なし（qText=null, qChoices=null）を返す
-// 戻り値: { qText, qChoices } または throw { status: 400, error: string }
+// question_choices の各要素は {label, priceDelta} オブジェクト、または後方互換のため文字列（priceDelta=0扱い）を受け付ける
+// 戻り値: { qText, qChoices: [{label, priceDelta}] } または throw { status: 400, error: string }
 function resolveQuestionConfig(question_text, question_choices) {
   const trimmedText = typeof question_text === 'string' ? question_text.trim() : '';
   if (!trimmedText) return { qText: null, qChoices: null };
@@ -38,13 +39,29 @@ function resolveQuestionConfig(question_text, question_choices) {
   if (!Array.isArray(question_choices)) {
     throw { status: 400, error: 'question_choices must be an array when question_text is set' };
   }
-  const cleaned = [...new Set(
-    question_choices.map((c) => String(c).trim()).filter((c) => c.length > 0)
-  )];
+
+  const normalized = question_choices.map((c) => {
+    if (typeof c === 'string') return { label: c.trim(), priceDelta: 0 };
+    if (c && typeof c === 'object') {
+      const label = String(c.label ?? '').trim();
+      const priceDelta = Number(c.priceDelta);
+      return { label, priceDelta: Number.isFinite(priceDelta) ? Math.round(priceDelta) : 0 };
+    }
+    return { label: '', priceDelta: 0 };
+  }).filter((c) => c.label.length > 0);
+
+  const seen = new Set();
+  const cleaned = [];
+  for (const c of normalized) {
+    if (seen.has(c.label)) continue;
+    seen.add(c.label);
+    cleaned.push(c);
+  }
+
   if (cleaned.length < 2) {
     throw { status: 400, error: 'question_choices must contain at least 2 unique non-empty options' };
   }
-  if (cleaned.some((c) => c.length > 50)) {
+  if (cleaned.some((c) => c.label.length > 50)) {
     throw { status: 400, error: 'each choice must be 50 characters or fewer' };
   }
   return { qText: trimmedText, qChoices: cleaned };

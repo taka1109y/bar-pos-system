@@ -165,7 +165,7 @@ function ChoiceModal({ item, onSelect, onCancel }) {
           <div className="space-y-3 mb-3">
             {(item.question_choices || []).map((choice) => (
               <button
-                key={choice}
+                key={choice.label}
                 onClick={() => onSelect(choice)}
                 className="w-full active:scale-[0.98]"
                 style={{
@@ -174,7 +174,12 @@ function ChoiceModal({ item, onSelect, onCancel }) {
                   fontSize: 16, fontWeight: 700, cursor: 'pointer', transition: 'all 0.12s',
                 }}
               >
-                {choice}
+                {choice.label}
+                {choice.priceDelta > 0 && (
+                  <span style={{ color: '#ffc531', fontSize: 14, marginLeft: 8 }}>
+                    (+¥{choice.priceDelta.toLocaleString()})
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -201,7 +206,7 @@ function ChoiceModal({ item, onSelect, onCancel }) {
 // 注文確認モーダル（中央表示）
 // ───────────────────────────────────────────
 function ConfirmModal({ item, livePrice, onConfirm, onCancel }) {
-  const price     = livePrice?.current_price ?? item.current_price;
+  const price     = (livePrice?.current_price ?? item.current_price) + (item.selectedPriceDelta ?? 0);
   const pctChange = livePrice?.pct_change ?? 0;
   const isUp      = pctChange > 0;
 
@@ -564,7 +569,7 @@ export default function TablePage() {
     const item       = confirmItem;
     setConfirmItem(null);
     const livePrice  = prices[item.id];
-    const price      = livePrice?.current_price ?? item.current_price;
+    const price      = (livePrice?.current_price ?? item.current_price) + (item.selectedPriceDelta ?? 0);
     let currentOrder = order;
     if (!currentOrder) {
       try {
@@ -672,7 +677,7 @@ export default function TablePage() {
         <ChoiceModal
           item={choiceItem}
           onSelect={(choice) => {
-            setConfirmItem({ ...choiceItem, selected_option: choice });
+            setConfirmItem({ ...choiceItem, selected_option: choice.label, selectedPriceDelta: choice.priceDelta ?? 0 });
             setChoiceItem(null);
           }}
           onCancel={() => setChoiceItem(null)}

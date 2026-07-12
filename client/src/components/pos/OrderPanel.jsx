@@ -86,11 +86,14 @@ function ChoiceModal({ title, choices, onSelect, onClose }) {
         <div className="space-y-2">
           {choices.map((choice) => (
             <button
-              key={choice}
+              key={choice.label}
               onClick={() => onSelect(choice)}
               className="w-full text-left px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-primary-50 hover:border-primary-300 text-sm font-medium text-slate-800 transition-all active:scale-[0.98]"
             >
-              {choice}
+              {choice.label}
+              {choice.priceDelta > 0 && (
+                <span className="ml-2 text-xs font-semibold text-primary-600">+¥{choice.priceDelta.toLocaleString()}</span>
+              )}
             </button>
           ))}
         </div>
@@ -573,7 +576,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
             addItemMutation.mutate({
               orderId: order.id,
               menu_item_id: choiceItem.menu_item_id,
-              selected_option: choice,
+              selected_option: choice.label,
             });
             setChoiceItem(null);
           }}

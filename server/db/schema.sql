@@ -206,6 +206,18 @@ ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_text TEXT;
 ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_choices JSONB;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS selected_option TEXT;
 
+-- question_choices を文字列配列からオブジェクト配列 {label, priceDelta} へ移行（選択肢ごとの追加料金対応）
+-- 冪等: 既にオブジェクト配列（priceDelta設定済み）の行は jsonb_typeof が'object'になるためスキップされる
+UPDATE menu_items
+SET question_choices = (
+  SELECT jsonb_agg(jsonb_build_object('label', elem, 'priceDelta', 0))
+  FROM jsonb_array_elements_text(question_choices) AS elem
+)
+WHERE question_choices IS NOT NULL
+  AND jsonb_typeof(question_choices) = 'array'
+  AND jsonb_array_length(question_choices) > 0
+  AND jsonb_typeof(question_choices -> 0) = 'string';
+
 -- テーブルごとにオープン注文は1件のみ（二重オープン防止）
 -- 注意: 既存データにテーブルごとの複数オープン注文があると本文の適用に失敗する
 CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_one_open_per_table ON orders(table_id) WHERE status = 'open';

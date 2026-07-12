@@ -218,7 +218,7 @@ router.post('/:id/items', async (req, res, next) => {
       }
     }
 
-    // 質問が設定された商品は、選択肢の中から回答必須
+    // 質問が設定された商品は、選択肢の中から回答必須。選択肢ごとの追加料金(priceDelta)があれば単価に加算する
     let finalSelectedOption = null;
     if (menuItem.question_text) {
       if (typeof selected_option !== 'string' || selected_option.trim().length === 0) {
@@ -226,11 +226,13 @@ router.post('/:id/items', async (req, res, next) => {
         return res.status(400).json({ error: '回答を選択してください' });
       }
       const trimmed = selected_option.trim();
-      if (!(menuItem.question_choices || []).includes(trimmed)) {
+      const matchedChoice = (menuItem.question_choices || []).find((c) => c.label === trimmed);
+      if (!matchedChoice) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: '無効な選択肢です' });
       }
       finalSelectedOption = trimmed;
+      finalPrice += Number(matchedChoice.priceDelta) || 0;
     }
 
     // 注文アクションごとに必ず新しい行を追加する（マージしない）

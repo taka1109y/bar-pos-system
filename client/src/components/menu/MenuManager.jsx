@@ -55,7 +55,9 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     is_staff_only:   item?.is_staff_only ?? false,
     price_editable:  item?.price_editable ?? false,
     question_text:    item?.question_text || '',
-    question_choices: item?.question_choices || [],
+    question_choices: (item?.question_choices || []).map((c) =>
+      typeof c === 'string' ? { label: c, priceDelta: 0 } : { label: c.label ?? '', priceDelta: c.priceDelta ?? 0 }
+    ),
   });
   const [questionError, setQuestionError] = useState('');
 
@@ -100,9 +102,17 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     setQuestionError('');
 
     const qText = form.question_text.trim();
-    const qChoices = qText
-      ? [...new Set(form.question_choices.map((c) => c.trim()).filter((c) => c.length > 0))]
-      : [];
+    let qChoices = [];
+    if (qText) {
+      const seen = new Set();
+      for (const c of form.question_choices) {
+        const label = c.label.trim();
+        if (!label || seen.has(label)) continue;
+        seen.add(label);
+        const priceDelta = Number(c.priceDelta);
+        qChoices.push({ label, priceDelta: Number.isFinite(priceDelta) ? Math.round(priceDelta) : 0 });
+      }
+    }
     if (qText && qChoices.length < 2) {
       setQuestionError('選択肢を2つ以上入力してください');
       return;
@@ -387,20 +397,36 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
         />
         {form.question_text.trim() && (
           <div className="mt-2 space-y-2">
-            <p className="text-xs text-slate-500">選択肢（2つ以上）</p>
+            <p className="text-xs text-slate-500">選択肢（2つ以上）・追加料金は0円可</p>
             {form.question_choices.map((choice, i) => (
               <div key={i} className="flex gap-2">
                 <input
                   className={inp}
-                  value={choice}
+                  value={choice.label}
                   onChange={(e) => {
                     const next = [...form.question_choices];
-                    next[i] = e.target.value;
+                    next[i] = { ...next[i], label: e.target.value };
                     set('question_choices', next);
                   }}
                   maxLength={50}
                   placeholder={`選択肢 ${i + 1}`}
                 />
+                <div className="flex items-center bg-white border border-slate-300 rounded-lg overflow-hidden flex-shrink-0 focus-within:ring-2 focus-within:ring-primary-500/50 focus-within:border-primary-500" style={{ width: 110 }}>
+                  <span className="pl-2 pr-1 text-slate-400 text-sm">+¥</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    step={1}
+                    value={choice.priceDelta}
+                    onChange={(e) => {
+                      const next = [...form.question_choices];
+                      next[i] = { ...next[i], priceDelta: e.target.value };
+                      set('question_choices', next);
+                    }}
+                    placeholder="0"
+                    className="flex-1 w-0 bg-transparent px-1 py-2 text-slate-900 text-sm focus:outline-none caret-primary-500"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => set('question_choices', form.question_choices.filter((_, idx) => idx !== i))}
@@ -413,7 +439,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
             ))}
             <button
               type="button"
-              onClick={() => set('question_choices', [...form.question_choices, ''])}
+              onClick={() => set('question_choices', [...form.question_choices, { label: '', priceDelta: 0 }])}
               className="text-sm text-primary-600 hover:text-primary-700 font-medium"
             >
               ＋ 選択肢を追加
