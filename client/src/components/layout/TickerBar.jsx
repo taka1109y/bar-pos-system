@@ -1,5 +1,12 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import usePriceStore from '../../store/usePriceStore';
 import { yen, num } from '../../utils/format';
+
+// 商品数(=コンテンツ幅)が増えても体感速度が変わらないよう、px/秒を固定して秒数を逆算する
+// (旧実装は60秒固定で、商品数が多いほど実質的に速くなっていた。現在の想定商品数では
+//  旧実装の速度が概ね35〜40px/秒程度だったため、それより明確に遅い値を採用する)
+const PX_PER_SECOND = 28;
+const MIN_DURATION_SECONDS = 25;
 
 function TickerItem({ item }) {
   const pct    = Number(item.pct_change) || 0;
@@ -33,6 +40,17 @@ export default function TickerBar() {
   const { order, prices: priceMap } = usePriceStore();
   const prices = order.map((id) => priceMap[id]).filter(Boolean);
 
+  const trackRef = useRef(null);
+  const [duration, setDuration] = useState(null);
+
+  // 複製前(1セット分)の実際のコンテンツ幅を計測し、px/秒が一定になるよう秒数を逆算する
+  useLayoutEffect(() => {
+    if (!trackRef.current) return;
+    const singleSetWidth = trackRef.current.scrollWidth / 2;
+    if (!singleSetWidth) return;
+    setDuration(Math.max(singleSetWidth / PX_PER_SECOND, MIN_DURATION_SECONDS));
+  }, [prices.length]);
+
   if (prices.length === 0) return null;
 
   const tickerItems = [...prices, ...prices];
@@ -48,7 +66,11 @@ export default function TickerBar() {
         alignItems: 'center',
       }}
     >
-      <div className="flex ticker-animate whitespace-nowrap items-center">
+      <div
+        ref={trackRef}
+        className="flex ticker-animate whitespace-nowrap items-center"
+        style={duration ? { animationDuration: `${duration}s` } : undefined}
+      >
         {tickerItems.map((item, i) => (
           <TickerItem key={`${item.id}-${i}`} item={item} />
         ))}

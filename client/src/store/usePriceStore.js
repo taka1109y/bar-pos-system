@@ -6,15 +6,21 @@ const usePriceStore = create((set, get) => ({
 
   initPrices: (items) => {
     if (!Array.isArray(items)) return;
-    const prices = {};
-    for (const item of items) {
-      prices[item.id] = {
-        ...item,
-        previous_price: item.current_price,
-        flash: null,
-      };
-    }
-    set({ prices, order: items.map((item) => item.id) });
+    set((state) => {
+      const prices = {};
+      for (const item of items) {
+        // prices:sync は category_id/category_name 等の一部フィールドを含まないため、
+        // 既存エントリにマージして(全置換せず)過去に取得済みの情報を保持する
+        const prev = state.prices[item.id];
+        prices[item.id] = {
+          ...prev,
+          ...item,
+          previous_price: item.current_price,
+          flash: null,
+        };
+      }
+      return { prices, order: items.map((item) => item.id) };
+    });
   },
 
   updatePrices: (items) => {
@@ -23,7 +29,9 @@ const usePriceStore = create((set, get) => ({
       const updated = { ...state.prices };
       for (const item of items) {
         const prev = updated[item.id];
+        // prices:updated も価格関連フィールドのみのため、既存エントリにマージする
         updated[item.id] = {
+          ...prev,
           ...item,
           previous_price: prev?.current_price ?? item.current_price,
           flash: item.direction,

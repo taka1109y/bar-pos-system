@@ -15,6 +15,7 @@ export default function PriceRow({ item }) {
 
   return (
     <tr className={`${rowBg} border-b border-slate-700/50 transition-colors duration-700`}>
+      <td className="px-4 py-3 text-slate-500">{item.category_name}</td>
       <td className="px-4 py-3 text-slate-400 font-semibold">{item.name}</td>
       <td className="px-4 py-3 text-slate-400 text-right tabular-nums">
         ¥{yen(item.base_price)}

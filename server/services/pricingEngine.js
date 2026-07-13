@@ -153,11 +153,16 @@ async function runTick() {
   // 全アイテムの最新価格をブロードキャスト（暴落中アイテムも現在価格のまま含める。
   // 除外すると prices:sync を全置換で受け取るクライアントの価格リストから暴落中商品が消えてしまうため）
   const { rows: allPrices } = await query(`
-    SELECT id, name,
-      base_price::float, current_price::float,
-      COALESCE(ROUND((current_price - base_price) * 100.0 / NULLIF(base_price, 0), 1), 0)::float AS pct_change
-    FROM menu_items
-    WHERE is_drink = TRUE AND is_active = TRUE
+    SELECT m.id, m.name,
+      m.base_price::float, m.current_price::float,
+      COALESCE(ROUND((m.current_price - m.base_price) * 100.0 / NULLIF(m.base_price, 0), 1), 0)::float AS pct_change,
+      c.id AS category_id,
+      c.name AS category_name
+    FROM menu_items m
+    JOIN categories c ON m.category_id = c.id
+    LEFT JOIN subcategories sc ON m.subcategory_id = sc.id
+    WHERE m.is_drink = TRUE AND m.is_active = TRUE
+    ORDER BY c.sort_order, sc.sort_order NULLS LAST, m.sort_order, m.name
   `);
   const syncItems = allPrices.map((r) => ({
     ...r,

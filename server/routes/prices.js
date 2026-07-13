@@ -14,7 +14,9 @@ router.get('/', async (req, res, next) => {
         m.current_price::float,
         COALESCE(ROUND((m.current_price - m.base_price) * 100.0 / NULLIF(m.base_price, 0), 1), 0)::float AS pct_change,
         COALESCE(dh.day_high, m.current_price)::float AS day_high,
-        COALESCE(dh.day_low,  m.current_price)::float AS day_low
+        COALESCE(dh.day_low,  m.current_price)::float AS day_low,
+        c.id AS category_id,
+        c.name AS category_name
       FROM menu_items m
       JOIN categories c ON m.category_id = c.id
       LEFT JOIN subcategories sc ON m.subcategory_id = sc.id

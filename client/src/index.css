@@ -47,7 +47,10 @@ body {
 }
 
 .ticker-animate {
-  animation: ticker-scroll 60s linear infinite;
+  /* duration は TickerBar.jsx が商品数(コンテンツ幅)に応じてインラインで上書きする(速度を一定に保つため) */
+  animation-name: ticker-scroll;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
 }
 
 .ticker-animate:hover {
