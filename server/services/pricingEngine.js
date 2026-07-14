@@ -161,7 +161,7 @@ async function runTick() {
     FROM menu_items m
     JOIN categories c ON m.category_id = c.id
     LEFT JOIN subcategories sc ON m.subcategory_id = sc.id
-    WHERE m.is_drink = TRUE AND m.is_active = TRUE
+    WHERE m.is_drink = TRUE AND m.is_active = TRUE AND m.is_staff_only = FALSE
     ORDER BY c.sort_order, sc.sort_order NULLS LAST, m.sort_order, m.name
   `);
   const syncItems = allPrices.map((r) => ({

@@ -28,7 +28,7 @@ router.get('/', async (req, res, next) => {
         WHERE (recorded_at AT TIME ZONE $1)::date = (NOW() AT TIME ZONE $1)::date
         GROUP BY menu_item_id
       ) dh ON dh.menu_item_id = m.id
-      WHERE m.is_drink = TRUE AND m.is_active = TRUE
+      WHERE m.is_drink = TRUE AND m.is_active = TRUE AND m.is_staff_only = FALSE
       ORDER BY c.sort_order, sc.sort_order NULLS LAST, m.sort_order, m.name
     `, [TZ]);
 
