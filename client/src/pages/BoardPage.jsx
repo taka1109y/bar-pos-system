@@ -202,7 +202,6 @@ export default function BoardPage() {
             <table className="w-full">
               <thead>
                 <tr className="bg-slate-900 text-xs text-slate-500 uppercase tracking-widest border-b border-slate-700">
-                  <th className="px-4 py-3 text-left">カテゴリ</th>
                   <th className="px-4 py-3 text-left">商品名</th>
                   <th className="px-4 py-3 text-right">基準値</th>
                   <th className="px-4 py-3 text-right">現在値</th>
