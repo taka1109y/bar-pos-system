@@ -8,6 +8,7 @@ import TablePage from './pages/TablePage';
 import TableSelectPage from './pages/TableSelectPage';
 import KitchenPage from './pages/KitchenPage';
 import RegisterStartPage from './pages/RegisterStartPage';
+import { initAudioUnlock } from './utils/audioAlert';
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -110,6 +111,9 @@ function PublicGuard({ children }) {
 }
 
 export default function App() {
+  // アプリ全体のライフタイムで一度だけ、通知音のAudioContextアンロックを初期化する
+  useEffect(() => initAudioUnlock(), []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>

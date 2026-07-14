@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import socket from '../socket';
 import KitchenHistoryModal from './kitchen/KitchenHistoryModal';
+import { getAudioCtx, playNotification } from '../utils/audioAlert';
 
 function elapsed(orderedAt) {
   const diff = Math.floor((Date.now() - new Date(orderedAt).getTime()) / 1000);
@@ -11,35 +12,6 @@ function elapsed(orderedAt) {
   const m = Math.floor(diff / 60);
   const s = diff % 60;
   return `${m}分${s}秒`;
-}
-
-let _audioCtx = null;
-function getAudioCtx() {
-  if (!_audioCtx) _audioCtx = new AudioContext();
-  return _audioCtx;
-}
-
-function playBeep(ctx) {
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.frequency.value = 880;
-  gain.gain.setValueAtTime(0.3, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-  osc.start();
-  osc.stop(ctx.currentTime + 0.4);
-}
-
-function playNotification() {
-  try {
-    const ctx = getAudioCtx();
-    if (ctx.state === 'suspended') {
-      ctx.resume().then(() => playBeep(ctx));
-    } else {
-      playBeep(ctx);
-    }
-  } catch (_) {}
 }
 
 function RecipeModal({ menuItemId, itemName, onClose }) {
@@ -191,23 +163,11 @@ export default function KitchenPage() {
     if (hasNewItem) playNotification();
   }, [rows]);
 
-  // AudioContextのアンロック・可視化復帰時の再開・自動サスペンド防止(キープアライブ)
+  // AudioContextの自動サスペンド防止(キープアライブ)。
+  // アンロック・可視化復帰時の再開処理はアプリ起動時にApp.jsxで一度だけ初期化される
+  // (utils/audioAlert.js の initAudioUnlock)ため、ここではキッチン画面を開いている
+  // 間だけ有効にしたいキープアライブのみを行う。
   useEffect(() => {
-    const unlock = () => {
-      getAudioCtx().resume().catch(() => {});
-    };
-    document.addEventListener('pointerdown', unlock, { once: true });
-    document.addEventListener('keydown', unlock, { once: true });
-    document.addEventListener('touchend', unlock, { once: true });
-
-    // タブが非表示→可視化された際に、ブラウザ側でサスペンドされたAudioContextを再開する
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        getAudioCtx().resume().catch(() => {});
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     // iOS Safari等はタブ非表示中にAudioContextを自動サスペンドすることがあるため、
     // 人には聞こえない極小音量のビープを定期的に鳴らし続けてサスペンドを防ぐ
     const keepAliveId = setInterval(() => {
@@ -225,13 +185,7 @@ export default function KitchenPage() {
       } catch { /* noop */ }
     }, 15_000);
 
-    return () => {
-      document.removeEventListener('pointerdown', unlock);
-      document.removeEventListener('keydown', unlock);
-      document.removeEventListener('touchend', unlock);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      clearInterval(keepAliveId);
-    };
+    return () => clearInterval(keepAliveId);
   }, []);
 
   const serveMutation = useMutation({
