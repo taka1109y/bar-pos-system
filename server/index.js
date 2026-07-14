@@ -105,11 +105,13 @@ async function main() {
   const { initDb } = require('./db/database');
   const { seed, seedSubcategories, ensureImmediateTable } = require('./db/seed');
   const { startPricingEngine } = require('./services/pricingEngine');
+  const { loadPersistedPricingSettings } = require('./routes/settings');
 
   await initDb();
   await seed();
   await seedSubcategories();
   await ensureImmediateTable();
+  await loadPersistedPricingSettings();
   startPricingEngine();
 
   server.listen(PORT, () => {
