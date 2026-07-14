@@ -269,6 +269,9 @@ router.post('/', async (req, res, next) => {
     const maxP   = max_price        ?? base_price * 2.0;
     const stepUp = price_step_up   ?? 50;
     const stepDn = price_step_down ?? 25;
+    if (Number(minP) > Number(maxP)) {
+      return res.status(400).json({ error: 'min_price must be less than or equal to max_price' });
+    }
     const { rows } = await query(
       `INSERT INTO menu_items
          (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, image_url, tax_category, is_staff_only, price_editable, question_text, question_choices, sort_order)
@@ -430,7 +433,7 @@ router.post('/crash/reset', async (req, res, next) => {
 // PATCH /api/menu/:id
 router.patch('/:id', async (req, res, next) => {
   try {
-    const { rows: existing } = await query('SELECT id FROM menu_items WHERE id = $1', [req.params.id]);
+    const { rows: existing } = await query('SELECT id, min_price::float, max_price::float FROM menu_items WHERE id = $1', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ error: 'Item not found' });
 
     const { category_id, name, base_price, min_price, max_price, price_step_up, price_step_down,
@@ -447,6 +450,13 @@ router.patch('/:id', async (req, res, next) => {
     }
     if (name !== undefined)             { updates.push(`name = $${idx++}`);             values.push(name); }
     if (base_price !== undefined)       { updates.push(`base_price = $${idx++}`);       values.push(base_price); }
+    if (min_price !== undefined || max_price !== undefined) {
+      const effectiveMin = min_price !== undefined ? Number(min_price) : existing[0].min_price;
+      const effectiveMax = max_price !== undefined ? Number(max_price) : existing[0].max_price;
+      if (effectiveMin > effectiveMax) {
+        return res.status(400).json({ error: 'min_price must be less than or equal to max_price' });
+      }
+    }
     if (min_price !== undefined)        { updates.push(`min_price = $${idx++}`);        values.push(min_price); }
     if (max_price !== undefined)        { updates.push(`max_price = $${idx++}`);        values.push(max_price); }
     if (price_step_up !== undefined)    { updates.push(`price_step_up = $${idx++}`);    values.push(price_step_up); }
