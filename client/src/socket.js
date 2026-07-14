@@ -5,6 +5,8 @@ const socket = io('/', {
   autoConnect: true,
   reconnection: true,
   reconnectionDelay: 1000,
+  reconnectionAttempts: Infinity,
+  reconnectionDelayMax: 5000,
 });
 
 const setConnected = (v) => {

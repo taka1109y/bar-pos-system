@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
@@ -160,30 +160,77 @@ export default function KitchenPage() {
   }, [queryClient]);
 
   useEffect(() => {
-    const handleNewItem = () => { refetch(); playNotification(); };
+    // socket切断中に届いた注文を取りこぼさないよう、再接続の瞬間にも必ず最新データを取得する。
+    // 通知音そのものは下の「新規アイテム検知」useEffectがrowsの差分から一元的に鳴らす。
     socket.on('order:updated',         refetch);
     socket.on('table:status_changed',  refetch);
     socket.on('kitchen:item_served',   refetch);
-    socket.on('kitchen:new_item',      handleNewItem);
+    socket.on('kitchen:new_item',      refetch);
+    socket.on('connect',               refetch);
     return () => {
       socket.off('order:updated',        refetch);
       socket.off('table:status_changed', refetch);
       socket.off('kitchen:item_served',  refetch);
-      socket.off('kitchen:new_item',     handleNewItem);
+      socket.off('kitchen:new_item',     refetch);
+      socket.off('connect',              refetch);
     };
   }, [refetch]);
 
-  // 初回のユーザー操作でAudioContextを早期アンロックし、バックグラウンドタブでの通知音再生を確実にする
+  // rowsに新しいitemIdが現れたら通知音を鳴らす。ライブのsocketイベントだけでなく、
+  // 再接続後のcatch-up・30秒ポーリングいずれの経路で新規注文が反映された場合も同じ仕組みで検知する。
+  const seenItemIdsRef = useRef(null);
+  useEffect(() => {
+    const currentIds = new Set(rows.map((r) => r.itemId));
+    if (seenItemIdsRef.current === null) {
+      // 初回ロード時点で既に存在する未提供アイテムでは鳴らさない
+      seenItemIdsRef.current = currentIds;
+      return;
+    }
+    const hasNewItem = rows.some((r) => !seenItemIdsRef.current.has(r.itemId));
+    seenItemIdsRef.current = currentIds;
+    if (hasNewItem) playNotification();
+  }, [rows]);
+
+  // AudioContextのアンロック・可視化復帰時の再開・自動サスペンド防止(キープアライブ)
   useEffect(() => {
     const unlock = () => {
-      const ctx = getAudioCtx();
-      ctx.resume().catch(() => {});
+      getAudioCtx().resume().catch(() => {});
     };
     document.addEventListener('pointerdown', unlock, { once: true });
     document.addEventListener('keydown', unlock, { once: true });
+    document.addEventListener('touchend', unlock, { once: true });
+
+    // タブが非表示→可視化された際に、ブラウザ側でサスペンドされたAudioContextを再開する
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        getAudioCtx().resume().catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // iOS Safari等はタブ非表示中にAudioContextを自動サスペンドすることがあるため、
+    // 人には聞こえない極小音量のビープを定期的に鳴らし続けてサスペンドを防ぐ
+    const keepAliveId = setInterval(() => {
+      try {
+        const ctx = getAudioCtx();
+        if (ctx.state !== 'running') return;
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.value = 0.0001;
+        osc.frequency.value = 20;
+        osc.start();
+        osc.stop(ctx.currentTime + 0.05);
+      } catch { /* noop */ }
+    }, 15_000);
+
     return () => {
       document.removeEventListener('pointerdown', unlock);
       document.removeEventListener('keydown', unlock);
+      document.removeEventListener('touchend', unlock);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(keepAliveId);
     };
   }, []);
 
