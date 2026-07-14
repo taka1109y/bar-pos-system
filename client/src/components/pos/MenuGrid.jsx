@@ -264,7 +264,10 @@ export default function MenuGrid({
         </>
       )}
 
-      <div className={`grid gap-3 ${showImage ? 'grid-cols-3' : 'grid-cols-2'}`}>
+      <div
+        className={`grid gap-3 ${showImage ? 'grid-cols-3' : 'grid-cols-2'}`}
+        style={showImage ? { marginBottom: 32 } : undefined}
+      >
         {filteredItems.map((item) =>
           showImage ? (
             <CustomerMenuItem key={item.id} item={item} onAdd={onAddItem} categories={categories} subcategories={subcategories} />
