@@ -7,6 +7,7 @@ import usePriceStore from '../store/usePriceStore';
 import TickerBar from '../components/layout/TickerBar';
 import MenuGrid, { CategorySidebar } from '../components/pos/MenuGrid';
 import { yen } from '../utils/format';
+import { isLateNightNow } from '../utils/lateNight';
 import { useConnStore } from '../store/useConnStore';
 
 function useClock() {
@@ -45,7 +46,7 @@ function WelcomeScreen({ tableName, onSelectGuests }) {
         <div className="text-center">
           <p style={{ color: '#7a7a90', fontSize: 18, fontWeight: 500, marginBottom: 10 }}>いらっしゃいませ</p>
           <p style={{ fontFamily: "'Noto Sans JP', sans-serif", color: '#f0f0f5', fontSize: 36, fontWeight: 900, lineHeight: 1.4 }}>
-            何名様でいらっしゃいますか？
+            大人の方は何名様ですか？
           </p>
         </div>
 
@@ -75,7 +76,12 @@ function WelcomeScreen({ tableName, onSelectGuests }) {
           ))}
         </div>
 
-        <p style={{ color: '#3a3a50', fontSize: 16 }}>タップして人数をお選びください</p>
+        <div className="text-center flex flex-col gap-2">
+          <p style={{ color: '#ffc531', fontSize: 15, fontFamily: "'Noto Sans JP', sans-serif" }}>
+            ※ チャージは大人の人数分いただきます
+          </p>
+          <p style={{ color: '#3a3a50', fontSize: 16 }}>タップして人数をお選びください</p>
+        </div>
       </div>
     </div>
   );
@@ -332,7 +338,7 @@ function TopBar({ tableName, tableId, guestCount, timeStr }) {
 // ───────────────────────────────────────────
 // 注文履歴パネル（右側）
 // ───────────────────────────────────────────
-function OrderHistoryPanel({ order, chargeAmt, total, itemCount }) {
+function OrderHistoryPanel({ order, chargeAmt, subtotal, lateNightAmt, lnRate, total, itemCount }) {
   const items = order?.items ?? [];
   return (
     <div className="flex flex-col flex-shrink-0" style={{ width: 250, background: '#14141a', borderLeft: '1px solid #252532' }}>
@@ -387,6 +393,24 @@ function OrderHistoryPanel({ order, chargeAmt, total, itemCount }) {
       </div>
 
       <div className="flex-shrink-0 px-4 py-4" style={{ borderTop: '1px solid #252532', background: 'linear-gradient(180deg,#14141a,#150a0c)' }}>
+        {lateNightAmt > 0 && (
+          <div style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #252532' }}>
+            <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
+              <span style={{ fontSize: 13, color: '#7a7a90', fontFamily: "'Noto Sans JP', sans-serif" }}>小計</span>
+              <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700, color: '#7a7a90' }}>
+                ¥{subtotal.toLocaleString()}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span style={{ fontSize: 13, color: '#ffc531', fontFamily: "'Noto Sans JP', sans-serif" }}>
+                深夜料金 {Math.round(lnRate * 100)}%
+              </span>
+              <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700, color: '#ffc531' }}>
+                ¥{lateNightAmt.toLocaleString()}
+              </span>
+            </div>
+          </div>
+        )}
         <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 12, color: '#3a3a50', letterSpacing: '2px', marginBottom: 3 }}>合計金額</p>
         <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 34, fontWeight: 700, color: total > 0 ? '#ffc531' : '#3a3a50' }}>
           ¥{total.toLocaleString()}
@@ -427,6 +451,7 @@ export default function TablePage() {
   const { data: categories = [] }    = useQuery({ queryKey: ['categories'],    queryFn: api.getCategories,    staleTime: 60_000 });
   const { data: subcategories = [] } = useQuery({ queryKey: ['subcategories'], queryFn: api.getSubcategories, staleTime: 60_000 });
   const { data: order }              = useQuery({ queryKey: orderKey,          queryFn: () => api.getOrderByTable(tableIdNum), enabled: !!tableIdNum, refetchInterval: 10_000 });
+  const { data: sysSettings }        = useQuery({ queryKey: ['system-settings'], queryFn: api.getSystemSettings, staleTime: 60_000 });
 
   const table     = tables.find((t) => t.id === tableIdNum);
   const tableName = table?.name ?? `テーブル ${tableId}`;
@@ -583,10 +608,19 @@ export default function TablePage() {
     addItemMutation.mutate({ orderId: currentOrder.id, menu_item_id: item.id, quantity: qty, price, name: item.name, selected_option: item.selected_option ?? null });
   };
 
-  const chargeAmt  = parseFloat(order?.charge_amount) || 0;
-  const itemsTotal = order?.items?.reduce((s, i) => s + i.quantity * i.unit_price, 0) ?? 0;
-  const total      = itemsTotal + chargeAmt;
-  const itemCount  = order?.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
+  const lnRate  = sysSettings?.late_night_rate  ?? 0.10;
+  const lnStart = sysSettings?.late_night_start ?? 22;
+  const lnEnd   = sysSettings?.late_night_end   ?? 29;
+  // useClock() の毎秒再レンダリングで自動的に再評価される
+  const isLateNight = isLateNightNow(lnStart, lnEnd);
+
+  // 金額計算は payments.js の計算順に合わせる（深夜料金はアイテム小計のみが対象・チャージは含めない）
+  const chargeAmt    = parseFloat(order?.charge_amount) || 0;
+  const itemsTotal   = order?.items?.reduce((s, i) => s + i.quantity * i.unit_price, 0) ?? 0;
+  const subtotal     = itemsTotal + chargeAmt;
+  const lateNightAmt = isLateNight ? Math.round(itemsTotal * lnRate) : 0;
+  const total        = subtotal + lateNightAmt;
+  const itemCount    = order?.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
   const resolvedActiveCategory = activeCategory ?? categories[0]?.id;
   const subcatsForActiveCat    = subcategories.filter((s) => s.category_id === resolvedActiveCategory);
 
@@ -600,6 +634,20 @@ export default function TablePage() {
       {!connected && (
         <div style={{ background: '#ff4466', color: '#fff', textAlign: 'center', padding: '6px 0', fontSize: 13, fontWeight: 700, fontFamily: "'Noto Sans JP', sans-serif", flexShrink: 0 }}>
           接続が切れました・再接続中…
+        </div>
+      )}
+      {isLateNight && (
+        <div
+          className="flex items-center justify-center gap-2 flex-shrink-0"
+          style={{ background: 'rgba(255,197,49,0.1)', borderBottom: '1px solid rgba(255,197,49,0.3)', padding: '7px 0', fontFamily: "'Noto Sans JP', sans-serif" }}
+        >
+          <span style={{ fontSize: 14 }}>🌙</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#ffc531' }}>
+            ただいま深夜料金の時間帯です
+          </span>
+          <span style={{ fontSize: 13, color: '#7a7a90' }}>
+            お会計時に商品代金の{Math.round(lnRate * 100)}%が加算されます
+          </span>
         </div>
       )}
       {crashState && !bannerDismissed && (
@@ -671,7 +719,15 @@ export default function TablePage() {
             />
           </div>
         </div>
-        <OrderHistoryPanel order={order} chargeAmt={chargeAmt} total={total} itemCount={itemCount} />
+        <OrderHistoryPanel
+          order={order}
+          chargeAmt={chargeAmt}
+          subtotal={subtotal}
+          lateNightAmt={lateNightAmt}
+          lnRate={lnRate}
+          total={total}
+          itemCount={itemCount}
+        />
       </div>
       {choiceItem && (
         <ChoiceModal

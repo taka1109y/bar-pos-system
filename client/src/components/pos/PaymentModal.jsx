@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { yen, num } from '../../utils/format';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
+import { isLateNightNow } from '../../utils/lateNight';
 
 const PAYMENT_METHODS = [
   { id: 'cash',   label: '現金' },
@@ -348,12 +349,7 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
   const lnStart = sysSettings?.late_night_start ?? 22;
   const lnEnd   = sysSettings?.late_night_end   ?? 29;
 
-  const isLateNight = (() => {
-    const h = new Date().getHours();
-    if (lnStart < 24 && lnEnd > 24) return h >= lnStart || h < (lnEnd - 24);
-    if (lnStart >= 24) return h >= (lnStart - 24) && h < (lnEnd - 24);
-    return h >= lnStart && h < lnEnd;
-  })();
+  const isLateNight = isLateNightNow(lnStart, lnEnd);
 
   // ── 金額計算（全て税込み価格） ──
   const itemsSubtotal   = order.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
