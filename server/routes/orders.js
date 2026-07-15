@@ -391,15 +391,20 @@ router.patch('/:id/guest-count', async (req, res, next) => {
     const guestCountNum = Math.max(1, parseInt(guest_count) || 1);
 
     const { rows: orderRows } = await query(
-      `SELECT id FROM orders WHERE id = $1 AND status = 'open'`,
+      `SELECT o.id, o.table_id, t.table_type
+       FROM orders o JOIN tables t ON o.table_id = t.id
+       WHERE o.id = $1 AND o.status = 'open'`,
       [req.params.id]
     );
     const order = orderRows[0];
     if (!order) return res.status(404).json({ error: 'Order not found or already closed' });
 
+    // 即会計テーブルかどうか確認（即会計はチャージ不要）
+    const isImmediate = order.table_type === 'immediate';
+
     const { chargeEnabled, slots } = await loadChargeSettings();
 
-    const { charge_per_person, charge_amount } = chargeEnabled
+    const { charge_per_person, charge_amount } = (!isImmediate && chargeEnabled)
       ? resolveCharge(slots, guestCountNum)
       : { charge_per_person: 0, charge_amount: 0 };
 

@@ -54,8 +54,14 @@ router.post('/:orderId', async (req, res, next) => {
       [order.id]
     );
 
+    // 即会計は商品代金のみ（チャージ・深夜料金の対象外）
+    const { rows: tableRows } = await client.query(
+      `SELECT table_type FROM tables WHERE id = $1`, [order.table_id]
+    );
+    const isImmediate = tableRows[0]?.table_type === 'immediate';
+
     const itemsSubtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
-    const chargeAmount  = order.charge_amount || 0;
+    const chargeAmount  = isImmediate ? 0 : (order.charge_amount || 0);
     const subtotal = itemsSubtotal + chargeAmount;
     const discount = Math.max(0, Math.min(parseFloat(discount_amount) || 0, subtotal));
 
@@ -68,7 +74,7 @@ router.post('/:orderId', async (req, res, next) => {
     const late_night_start  = parseInt(  s.late_night_start  ?? '22', 10);
     const late_night_end    = parseInt(  s.late_night_end    ?? '29', 10);
 
-    const isLate            = checkLateNight(late_night_start, late_night_end);
+    const isLate            = !isImmediate && checkLateNight(late_night_start, late_night_end);
     const late_night_rate   = isLate ? late_night_rate_s : 0;
     // 深夜料金はアイテム小計のみに適用（チャージは固定料金のため除外）
     const late_night_amount = isLate ? Math.round(itemsSubtotal * late_night_rate) : 0;
