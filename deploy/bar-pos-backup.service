@@ -1,0 +1,8 @@
+[Unit]
+Description=bar-pos database backup (pg_dump with retention)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/bar-pos-backup.sh
