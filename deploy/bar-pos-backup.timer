@@ -3,9 +3,9 @@ Description=Run bar-pos database backup daily after closing
 
 [Timer]
 # 深夜営業は 29時（AM5:00）まで（system_settings.late_night_end=29）のため、
-# 営業終了後の 06:00 に取る。これで1営業日分がまるごと1ファイルに入る。
+# 営業終了後の 07:00 に取る。これで1営業日分がまるごと1ファイルに入る。
 # 時刻はホストのローカルタイム（JST）で解釈される。
-OnCalendar=*-*-* 06:00:00
+OnCalendar=*-*-* 07:00:00
 # Pi が停止していて実行時刻を逃した場合、次回起動時に取り返す
 Persistent=true
 Unit=bar-pos-backup.service

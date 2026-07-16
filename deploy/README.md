@@ -12,7 +12,7 @@
 | `bar-pos-healwatch.timer` | `/etc/systemd/system/` | 毎分ウォッチドッグを起動するタイマー |
 | `bar-pos-backup.sh` | `/usr/local/bin/bar-pos-backup.sh` | `pg_dump` を `backups/` に取得し、30日より古い自動分を削除 |
 | `bar-pos-backup.service` | `/etc/systemd/system/` | 上記スクリプトを実行する oneshot ユニット |
-| `bar-pos-backup.timer` | `/etc/systemd/system/` | 毎日 06:00（営業終了後）にバックアップを起動するタイマー |
+| `bar-pos-backup.timer` | `/etc/systemd/system/` | 毎日 07:00（営業終了後）にバックアップを起動するタイマー |
 
 > ハング復旧に `docker.sock` をコンテナへ公開する autoheal コンテナ方式は採らず、ホストの systemd で完結させている（セキュリティ方針）。
 
@@ -35,7 +35,7 @@ sudo cp deploy/bar-pos-healwatch.timer   /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now bar-pos-healwatch.timer
 
-# 4) DBバックアップ（毎日 06:00・30日保持）
+# 4) DBバックアップ（毎日 07:00・30日保持）
 sudo install -m 0755 deploy/bar-pos-backup.sh /usr/local/bin/bar-pos-backup.sh
 sudo cp deploy/bar-pos-backup.service /etc/systemd/system/
 sudo cp deploy/bar-pos-backup.timer   /etc/systemd/system/
