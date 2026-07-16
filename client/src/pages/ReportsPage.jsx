@@ -1,95 +1,74 @@
 import { useState } from 'react';
-import { yen, num } from '../utils/format';
 import { useQuery } from '@tanstack/react-query';
+import { yen } from '../utils/format';
 import { api } from '../api';
-import { TZ } from '../utils/tz';
-
-const inp = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
-const lbl = 'block text-xs font-semibold text-slate-500 mb-1.5';
-
-function StatCard({ label, value, sub, accent }) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{label}</p>
-      <p className={`text-2xl font-black leading-none ${accent ?? 'text-slate-900'}`}>{value}</p>
-      {sub && <p className="text-xs text-slate-400 mt-1.5">{sub}</p>}
-    </div>
-  );
-}
+import { todayJST } from '../utils/tz';
+import PeriodPicker from '../components/reports/PeriodPicker';
+import StatCard from '../components/reports/StatCard';
+import SummaryCards from '../components/reports/SummaryCards';
+import ComparisonCard from '../components/reports/ComparisonCard';
+import HourlyChart from '../components/reports/HourlyChart';
+import CategoryBreakdown from '../components/reports/CategoryBreakdown';
+import ItemRanking from '../components/reports/ItemRanking';
 
 export default function ReportsPage({ onClose, inline = false }) {
-  const today = new Date().toLocaleDateString('sv-SE', { timeZone: TZ });
-  const [date, setDate] = useState(today);
+  const today = todayJST();
+  const [range, setRange] = useState({ start: today, end: today });
 
-  const { data: report, isLoading } = useQuery({
-    queryKey: ['report-daily', date],
-    queryFn: () => api.getDailyReport(date),
+  const { data: report, isLoading, error } = useQuery({
+    queryKey: ['report-analytics', range.start, range.end],
+    queryFn: () => api.getAnalytics(range.start, range.end),
+    staleTime: 60_000,
   });
 
-  const topItems   = report?.items?.slice(0, 10) || [];
-  const maxRevenue = topItems[0]?.revenue || 1;
+  // 開始日を終了日より後にされたら範囲を潰す（サーバの400を待たずに整合させる）
+  const handleRangeChange = (start, end) => {
+    setRange(start > end ? { start, end: start } : { start, end });
+  };
 
-  const breakdown    = report?.payment_breakdown ?? [];
+  const breakdown = (report?.payment_breakdown ?? []).filter(b => b.count > 0);
   const maxBreakdown = Math.max(...breakdown.map(b => b.revenue), 1);
+  const s = report?.summary;
 
   const content = (
-    <div className={inline ? 'p-8 max-w-3xl mx-auto space-y-6' : 'flex-1 overflow-y-auto px-8 py-12 space-y-6'}>
+    <div className={inline ? 'p-8 max-w-5xl mx-auto space-y-6' : 'flex-1 overflow-y-auto px-8 py-12 space-y-6'}>
       {!inline && (
         <div className="mb-2">
           <h1 className="text-3xl font-bold text-slate-900">売上管理</h1>
-          <p className="text-base text-body leading-relaxed mt-2">日次の売上データを集計・確認できます</p>
+          <p className="text-base text-body leading-relaxed mt-2">売上・粗利・時間帯・カテゴリを期間で集計します</p>
         </div>
       )}
-      {/* 日付選択 */}
-      <div className="flex items-center gap-3">
-        <label className={lbl}>集計日</label>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className={inp}
-          style={{ width: 'auto' }}
-        />
-      </div>
+
+      <PeriodPicker start={range.start} end={range.end} onChange={handleRangeChange} />
 
       {isLoading ? (
         <div className="flex items-center justify-center h-40 text-slate-400 text-sm">
           読み込み中...
         </div>
+      ) : error ? (
+        <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg">
+          <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <p className="text-sm">売上データの取得に失敗しました。時間をおいて再度お試しください。</p>
+        </div>
       ) : (
         <>
-          {/* サマリーカード（上段） */}
-          <div className="grid grid-cols-3 gap-4">
-            <StatCard label="総売上" value={`¥${yen(Math.floor(report?.total_revenue ?? 0))}`} />
-            <StatCard label="会計件数" value={`${report?.order_count ?? 0}件`} />
-            <StatCard label="平均単価" value={`¥${yen(Math.floor(report?.avg_order_value ?? 0))}`} />
-          </div>
+          <SummaryCards summary={s} />
 
-          {/* サマリーカード（下段: 割引・金券・深夜） */}
-          <div className="grid grid-cols-3 gap-4">
-            <StatCard
-              label="割引合計"
-              value={report?.total_discount > 0 ? `−¥${yen(Math.floor(report.total_discount))}` : '¥0'}
-              accent={report?.total_discount > 0 ? 'text-red-500' : 'text-slate-400'}
-            />
-            <StatCard
-              label="金券合計"
-              value={report?.total_gift_cert > 0 ? `¥${yen(Math.floor(report.total_gift_cert))}` : '¥0'}
-              accent={report?.total_gift_cert > 0 ? 'text-emerald-600' : 'text-slate-400'}
-            />
-            <StatCard
-              label="深夜料金合計"
-              value={report?.total_late_night > 0 ? `¥${yen(Math.floor(report.total_late_night))}` : '¥0'}
-              accent={report?.total_late_night > 0 ? 'text-amber-600' : 'text-slate-400'}
-            />
-          </div>
+          <ComparisonCard comparison={report?.comparison} isSingleDay={report?.is_single_day} />
 
-          {/* 支払い方法内訳 */}
-          {(report?.order_count ?? 0) > 0 && (
+          <HourlyChart hourly={report?.hourly} />
+
+          <CategoryBreakdown categories={report?.categories} />
+
+          {breakdown.length > 0 && (
             <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
               <h3 className="text-sm font-bold text-slate-700 mb-5">支払い方法内訳</h3>
               <div className="space-y-4">
-                {breakdown.filter(b => b.count > 0).map((b) => (
+                {breakdown.map(b => (
                   <div key={b.method} className="flex items-center gap-3">
                     <span className="w-20 text-sm font-medium text-slate-700 flex-shrink-0">{b.label}</span>
                     <div className="flex-1 bg-slate-100 rounded-full h-2.5">
@@ -99,8 +78,8 @@ export default function ReportsPage({ onClose, inline = false }) {
                       />
                     </div>
                     <span className="text-xs text-slate-400 w-8 text-right flex-shrink-0">{b.count}件</span>
-                    <span className="text-sm font-bold text-slate-900 w-24 text-right flex-shrink-0">
-                      ¥{yen(Math.floor(b.revenue))}
+                    <span className="text-sm font-bold text-slate-900 w-24 text-right flex-shrink-0 tabular-nums">
+                      ¥{yen(b.revenue)}
                     </span>
                   </div>
                 ))}
@@ -108,51 +87,30 @@ export default function ReportsPage({ onClose, inline = false }) {
             </div>
           )}
 
-          {/* 商品別ランキング */}
-          {topItems.length > 0 ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-              <h3 className="text-sm font-bold text-slate-700 mb-5">
-                商品別売上ランキング（Top {topItems.length}）
-              </h3>
-              <div className="space-y-4">
-                {topItems.map((item, i) => (
-                  <div key={item.name} className="flex items-center gap-3">
-                    <span className={`w-6 text-center text-xs font-bold flex-shrink-0 ${
-                      i === 0 ? 'text-slate-900' : i === 1 ? 'text-slate-400' : i === 2 ? 'text-slate-500' : 'text-slate-300'
-                    }`}>
-                      {i + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm text-slate-800 font-medium truncate block">
-                        {item.name}
-                      </span>
-                      {item.cost_per_unit > 0 && (
-                        <span className="text-xs text-amber-500">
-                          原価率 {item.cost_rate}% ／ 粗利 ¥{yen(Math.floor(item.gross_profit))}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs text-slate-400 flex-shrink-0">
-                      {item.quantity_sold}杯
-                    </span>
-                    <div className="w-28 bg-slate-100 rounded-full h-2 flex-shrink-0">
-                      <div
-                        className="bg-primary-400 h-2 rounded-full transition-all"
-                        style={{ width: `${(item.revenue / maxRevenue) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-sm font-bold text-slate-900 w-20 text-right flex-shrink-0">
-                      ¥{yen(item.revenue)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white border border-slate-200 rounded-xl p-12 text-center shadow-sm">
-              <p className="text-slate-400 text-sm">この日の売上データはありません</p>
-            </div>
-          )}
+          <div className="grid grid-cols-4 gap-4">
+            <StatCard
+              label="チャージ合計"
+              value={`¥${yen(s?.total_charge)}`}
+              accent={s?.total_charge > 0 ? 'text-slate-900' : 'text-slate-400'}
+            />
+            <StatCard
+              label="割引合計"
+              value={s?.total_discount > 0 ? `−¥${yen(s.total_discount)}` : '¥0'}
+              accent={s?.total_discount > 0 ? 'text-red-500' : 'text-slate-400'}
+            />
+            <StatCard
+              label="金券合計"
+              value={`¥${yen(s?.total_gift_cert)}`}
+              accent={s?.total_gift_cert > 0 ? 'text-emerald-600' : 'text-slate-400'}
+            />
+            <StatCard
+              label="深夜料金合計"
+              value={`¥${yen(s?.total_late_night)}`}
+              accent={s?.total_late_night > 0 ? 'text-amber-600' : 'text-slate-400'}
+            />
+          </div>
+
+          <ItemRanking items={report?.items} />
         </>
       )}
     </div>
@@ -162,7 +120,7 @@ export default function ReportsPage({ onClose, inline = false }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in">
-      <div className="bg-white rounded-xl p-6 w-full max-w-3xl mx-4 shadow-xl max-h-[90vh] flex flex-col border border-slate-200 pop-in">
+      <div className="bg-white rounded-xl p-6 w-full max-w-5xl mx-4 shadow-xl max-h-[90vh] flex flex-col border border-slate-200 pop-in">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold text-slate-900">売上レポート</h2>
           <button
