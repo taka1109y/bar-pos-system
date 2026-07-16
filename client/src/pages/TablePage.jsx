@@ -183,7 +183,7 @@ function ChoiceModal({ item, onSelect, onCancel }) {
                 {choice.label}
                 {choice.priceDelta > 0 && (
                   <span style={{ color: '#ffc531', fontSize: 14, marginLeft: 8 }}>
-                    (+¥{choice.priceDelta.toLocaleString()})
+                    (+¥{yen(choice.priceDelta)})
                   </span>
                 )}
               </button>
@@ -358,11 +358,11 @@ function OrderHistoryPanel({ order, chargeAmt, subtotal, lateNightAmt, lnRate, t
               <div>
                 <p style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 14, fontWeight: 700, color: '#ffc531' }}>チャージ</p>
                 <p style={{ fontSize: 12, color: '#7a7a90', fontFamily: "'Noto Sans JP', sans-serif" }}>
-                  {order.guest_count}名 × ¥{Math.floor(order.charge_per_person).toLocaleString()}
+                  {order.guest_count}名 × ¥{yen(order.charge_per_person)}
                 </p>
               </div>
               <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 17, fontWeight: 700, color: '#ffc531' }}>
-                ¥{Math.floor(chargeAmt).toLocaleString()}
+                ¥{yen(chargeAmt)}
               </span>
             </div>
           </div>
@@ -380,7 +380,7 @@ function OrderHistoryPanel({ order, chargeAmt, subtotal, lateNightAmt, lnRate, t
                   {item.item_name}
                 </p>
                 <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700, color: '#ffc531', flexShrink: 0 }}>
-                  ¥{(item.quantity * item.unit_price).toLocaleString()}
+                  ¥{yen(item.quantity * item.unit_price)}
                 </span>
               </div>
               {item.selected_option && (
@@ -398,7 +398,7 @@ function OrderHistoryPanel({ order, chargeAmt, subtotal, lateNightAmt, lnRate, t
             <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
               <span style={{ fontSize: 13, color: '#7a7a90', fontFamily: "'Noto Sans JP', sans-serif" }}>小計</span>
               <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700, color: '#7a7a90' }}>
-                ¥{subtotal.toLocaleString()}
+                ¥{yen(subtotal)}
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -406,14 +406,14 @@ function OrderHistoryPanel({ order, chargeAmt, subtotal, lateNightAmt, lnRate, t
                 深夜料金 {Math.round(lnRate * 100)}%
               </span>
               <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700, color: '#ffc531' }}>
-                ¥{lateNightAmt.toLocaleString()}
+                ¥{yen(lateNightAmt)}
               </span>
             </div>
           </div>
         )}
         <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 12, color: '#3a3a50', letterSpacing: '2px', marginBottom: 3 }}>合計金額</p>
         <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 34, fontWeight: 700, color: total > 0 ? '#ffc531' : '#3a3a50' }}>
-          ¥{total.toLocaleString()}
+          ¥{yen(total)}
         </p>
         <p style={{ fontSize: 11, color: '#3a3a50', fontFamily: "'Noto Sans JP', sans-serif", marginTop: 3 }}>※ 税込表示</p>
       </div>

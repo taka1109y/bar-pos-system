@@ -4,7 +4,12 @@ const { pool, query } = require('../db/database');
 const { broadcastToRoom, broadcast } = require('../services/socketService');
 const { triggerTick } = require('../services/pricingEngine');
 const { nowInTZ, isHourInRange } = require('../utils/time');
+const { clampInt } = require('../utils/validate');
 const logger = require('../utils/logger');
+
+// 1テーブルあたりの人数上限。charge_amount = 単価 × 人数 が
+// orders.charge_amount の NUMERIC(10,2) を溢れて500になるのを防ぐ
+const MAX_GUEST_COUNT = 99;
 
 async function getOrderWithItems(orderId) {
   const { rows: orderRows } = await query(
@@ -115,8 +120,12 @@ router.post('/', async (req, res, next) => {
     const { table_id, guest_count = 1 } = req.body;
     if (!table_id) return res.status(400).json({ error: 'table_id is required' });
 
+    // 赤伝票は席を使わない会計書類なので卓の占有判定から除外する
+    // （idx_orders_one_open_per_table と GET /open も同条件）
     const { rows: existing } = await query(
-      `SELECT id FROM orders WHERE table_id = $1 AND status = 'open'`,
+      `SELECT id FROM orders
+       WHERE table_id = $1 AND status = 'open'
+         AND (receipt_type = 'normal' OR receipt_type IS NULL)`,
       [table_id]
     );
     if (existing[0]) {
@@ -154,7 +163,9 @@ router.post('/', async (req, res, next) => {
     // 二重オープン競合 (idx_orders_one_open_per_table) → 409
     if (err.code === '23505') {
       const { rows: existing } = await query(
-        `SELECT id FROM orders WHERE table_id = $1 AND status = 'open'`,
+        `SELECT id FROM orders
+         WHERE table_id = $1 AND status = 'open'
+           AND (receipt_type = 'normal' OR receipt_type IS NULL)`,
         [req.body.table_id]
       );
       return res.status(409).json({ error: 'Table already has an open order', orderId: existing[0]?.id });
@@ -386,18 +397,27 @@ router.delete('/:id/items/:itemId', async (req, res, next) => {
 
 // PATCH /api/orders/:id/guest-count — 人数変更・チャージ再計算
 router.patch('/:id/guest-count', async (req, res, next) => {
+  const client = await pool.connect();
   try {
     const { guest_count } = req.body;
-    const guestCountNum = Math.max(1, parseInt(guest_count) || 1);
+    const guestCountNum = clampInt(guest_count, 1, MAX_GUEST_COUNT, 1);
 
-    const { rows: orderRows } = await query(
+    await client.query('BEGIN');
+
+    // FOR UPDATE で行ロックを取得してから status 確認（会計処理との競合防止）。
+    // ロックを取らないと、会計処理が status='paid' にコミットした後に
+    // 会計済みオーダーの人数・チャージを書き換えてしまう
+    const { rows: orderRows } = await client.query(
       `SELECT o.id, o.table_id, t.table_type
        FROM orders o JOIN tables t ON o.table_id = t.id
-       WHERE o.id = $1 AND o.status = 'open'`,
+       WHERE o.id = $1 AND o.status = 'open' FOR UPDATE OF o`,
       [req.params.id]
     );
     const order = orderRows[0];
-    if (!order) return res.status(404).json({ error: 'Order not found or already closed' });
+    if (!order) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Order not found or already closed' });
+    }
 
     // 即会計テーブルかどうか確認（即会計はチャージ不要）
     const isImmediate = order.table_type === 'immediate';
@@ -408,10 +428,18 @@ router.patch('/:id/guest-count', async (req, res, next) => {
       ? resolveCharge(slots, guestCountNum)
       : { charge_per_person: 0, charge_amount: 0 };
 
-    await query(
-      `UPDATE orders SET guest_count = $1, charge_per_person = $2, charge_amount = $3 WHERE id = $4`,
+    // status を再確認して、ロック待ちの間に会計されていた場合に上書きしない
+    const { rowCount } = await client.query(
+      `UPDATE orders SET guest_count = $1, charge_per_person = $2, charge_amount = $3
+       WHERE id = $4 AND status = 'open'`,
       [guestCountNum, charge_per_person, charge_amount, order.id]
     );
+    if (rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Order not found or already closed' });
+    }
+
+    await client.query('COMMIT');
 
     const updated = await getOrderWithItems(order.id);
     broadcastToRoom(`table:${order.table_id}`, 'order:updated', {
@@ -427,7 +455,10 @@ router.patch('/:id/guest-count', async (req, res, next) => {
 
     res.json(updated);
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     next(err);
+  } finally {
+    client.release();
   }
 });
 

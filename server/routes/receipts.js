@@ -1,12 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const { pool, query } = require('../db/database');
+const { broadcast } = require('../services/socketService');
 const { TZ, todayJST } = require('../utils/time');
+const { assertDateFormat } = require('../utils/validate');
 
 // GET /api/receipts?date=YYYY-MM-DD
 router.get('/', async (req, res, next) => {
   try {
     const date = req.query.date || todayJST();
+    try { assertDateFormat(date, 'date'); } catch (e) { return res.status(e.status).json({ error: e.error }); }
 
     const { rows } = await query(
       `SELECT
@@ -188,6 +191,10 @@ router.post('/:orderId/void-and-reissue', async (req, res, next) => {
     }
 
     await client.query('COMMIT');
+
+    // 赤伝票は status='open' で作られるため、他端末の一覧に即座に現れる必要がある。
+    // 通知しないと、伝票を取消した端末以外は画面を移動するまで気付けない
+    broadcast('orders:changed', { tableId: order.table_id });
 
     res.json({ voidOrderId, redOrderId });
   } catch (err) {

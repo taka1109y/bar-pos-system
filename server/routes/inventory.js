@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool, query } = require('../db/database');
+const { clampInt, assertDateFormat } = require('../utils/validate');
 
 // GET /api/inventory — 材料在庫一覧
 router.get('/', async (req, res, next) => {
@@ -132,6 +133,10 @@ router.post('/purchase', async (req, res, next) => {
 router.get('/logs', async (req, res, next) => {
   try {
     const { ingredient_id, from, to, reason, limit = 100 } = req.query;
+    try {
+      if (from) assertDateFormat(from, 'from');
+      if (to)   assertDateFormat(to,   'to');
+    } catch (e) { return res.status(e.status).json({ error: e.error }); }
     const conditions = [];
     const params = [];
     let idx = 1;
@@ -140,7 +145,8 @@ router.get('/logs', async (req, res, next) => {
     if (from)          { conditions.push(`l.log_date >= $${idx++}`);     params.push(from); }
     if (to)            { conditions.push(`l.log_date < ($${idx++}::date + interval '1 day')`); params.push(to); }
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    params.push(Math.min(parseInt(limit, 10) || 100, 500));
+    // 下限クランプが無いと limit=-5 が LIMIT -5 として SQL に渡り Postgres エラーになる
+    params.push(clampInt(limit, 1, 500, 100));
     const { rows } = await query(`
       SELECT l.id, l.ingredient_id, i.name AS ingredient_name, i.quantity_unit,
         l.quantity_before::float, l.quantity_after::float, l.quantity_change::float,

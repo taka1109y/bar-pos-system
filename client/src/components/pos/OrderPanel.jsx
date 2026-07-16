@@ -92,7 +92,7 @@ function ChoiceModal({ title, choices, onSelect, onClose }) {
             >
               {choice.label}
               {choice.priceDelta > 0 && (
-                <span className="ml-2 text-xs font-semibold text-primary-600">+¥{choice.priceDelta.toLocaleString()}</span>
+                <span className="ml-2 text-xs font-semibold text-primary-600">+¥{yen(choice.priceDelta)}</span>
               )}
             </button>
           ))}

@@ -428,7 +428,7 @@ export default function InventoryPage() {
                         <td className="py-3 px-4 text-sm font-medium text-slate-900">{item.name}</td>
                         <td className="py-3 px-4 text-sm text-slate-600 text-right">{item.purchase_unit}</td>
                         <td className="py-3 px-4 text-sm text-slate-600 text-right">{item.purchase_quantity}{item.quantity_unit}</td>
-                        <td className="py-3 px-4 text-sm text-slate-600 text-right">¥{item.cost_per_purchase_unit?.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-sm text-slate-600 text-right">¥{yen(item.cost_per_purchase_unit)}</td>
                         <td className="py-3 px-4 text-sm text-amber-600 text-right">¥{unitCost}/{item.quantity_unit}</td>
                         <td className="py-3 px-4">
                           <div className="flex items-center justify-end gap-1">

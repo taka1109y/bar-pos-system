@@ -218,9 +218,15 @@ WHERE question_choices IS NOT NULL
   AND jsonb_array_length(question_choices) > 0
   AND jsonb_typeof(question_choices -> 0) = 'string';
 
--- テーブルごとにオープン注文は1件のみ（二重オープン防止）
+-- テーブルごとにオープン注文は1件のみ（二重オープン防止）。
+-- 赤伝票は会計書類であって席を使わないため対象外にする（GET /api/orders/open も同条件で除外）。
+-- 含めると、会計後に再着席された卓の伝票を訂正できず UNIQUE 制約違反で 500 になる。
 -- 注意: 既存データにテーブルごとの複数オープン注文があると本文の適用に失敗する
-CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_one_open_per_table ON orders(table_id) WHERE status = 'open';
+-- 注意: CREATE UNIQUE INDEX IF NOT EXISTS は同名の索引が既にあると述語が違っても
+--       スキップするため、述語を変えるときは DROP してから作り直す必要がある
+DROP INDEX IF EXISTS idx_orders_one_open_per_table;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_one_open_per_table ON orders(table_id)
+  WHERE status = 'open' AND (receipt_type = 'normal' OR receipt_type IS NULL);
 
 -- アーカイブ機能（古い会計済みデータの削除）が外部キー制約で失敗しないよう、
 -- 監査証跡テーブルからの参照は削除時にNULLへ（参照先の注文が消えても証跡行自体は残す）
