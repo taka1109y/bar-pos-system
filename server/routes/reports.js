@@ -65,10 +65,12 @@ router.get('/daily', async (req, res, next) => {
 
     try { assertDateFormat(date, 'date'); } catch (e) { return res.status(e.status).json({ error: e.error }); }
 
+    // since（レジオープン時刻）がある場合は暦日ではなく「オープン以降の全会計」で集計する。
+    // これによりレジオープン〜クローズが0時をまたいでも1営業日としてまとまる。
     const baseWhere = since
       ? `status = 'paid'
          AND (receipt_type IS NULL OR receipt_type NOT IN ('void', 'black_cancelled'))
-         AND (closed_at AT TIME ZONE $2)::date = $1 AND closed_at >= $3`
+         AND closed_at >= $3`
       : `status = 'paid'
          AND (receipt_type IS NULL OR receipt_type NOT IN ('void', 'black_cancelled'))
          AND (closed_at AT TIME ZONE $2)::date = $1`;
@@ -153,7 +155,7 @@ router.get('/daily', async (req, res, next) => {
 
     const voidWhere = since
       ? `status = 'paid' AND receipt_type = 'void'
-         AND (closed_at AT TIME ZONE $2)::date = $1 AND closed_at >= $3`
+         AND closed_at >= $3`
       : `status = 'paid' AND receipt_type = 'void'
          AND (closed_at AT TIME ZONE $2)::date = $1`;
     const { rows: cancelRows } = await query(
@@ -165,7 +167,7 @@ router.get('/daily', async (req, res, next) => {
 
     const redPaidWhere = since
       ? `status = 'paid' AND receipt_type = 'red'
-         AND (closed_at AT TIME ZONE $2)::date = $1 AND closed_at >= $3`
+         AND closed_at >= $3`
       : `status = 'paid' AND receipt_type = 'red'
          AND (closed_at AT TIME ZONE $2)::date = $1`;
     const { rows: correctionRows } = await query(
