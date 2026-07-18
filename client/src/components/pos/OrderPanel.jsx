@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { yen, num } from '../../utils/format';
+import { isLateNightNow } from '../../utils/lateNight';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 import socket from '../../socket';
@@ -182,13 +183,20 @@ function CustomPriceModal({ defaultName, defaultPrice, onConfirm, onClose, isPen
 }
 
 // ── メインコンポーネント ──────────────────────────────────
-export default function OrderPanel({ table, menuItems, categories, subcategories = [], onClose }) {
+export default function OrderPanel({ table, menuItems, categories, subcategories = [], onClose, settings }) {
   const queryClient = useQueryClient();
   const [showPayment,    setShowPayment]    = useState(false);
   const [pendingAction,  setPendingAction]  = useState(null);
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [priceEditItem,  setPriceEditItem]  = useState(null);
   const [choiceItem,     setChoiceItem]     = useState(null);
+
+  // 深夜境界（例22:00）をまたいでも合計金額を追従させるための1分ごとの再レンダー
+  const [, setMinuteTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setMinuteTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const orderKey = ['order', table.id];
 
@@ -337,7 +345,14 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   };
 
   const chargeAmt = parseFloat(order?.charge_amount) || 0;
-  const total = (order?.items?.reduce((s, i) => s + i.quantity * i.unit_price, 0) ?? 0) + chargeAmt;
+  const itemsSubtotal = order?.items?.reduce((s, i) => s + i.quantity * i.unit_price, 0) ?? 0;
+  // 深夜料金は会計画面(PaymentModal)と同じ式: items小計のみ×深夜率、チャージ除外、即会計テーブルは対象外
+  const lnRate  = settings?.late_night_rate  ?? 0.10;
+  const lnStart = settings?.late_night_start ?? 22;
+  const lnEnd   = settings?.late_night_end   ?? 29;
+  const lateNightAmt = (table.table_type !== 'immediate' && isLateNightNow(lnStart, lnEnd))
+    ? Math.round(itemsSubtotal * lnRate) : 0;
+  const total = itemsSubtotal + chargeAmt + lateNightAmt;
 
   // 注文なし（ローディング完了後）は人数選択画面を表示
   if (!isLoading && !order) {

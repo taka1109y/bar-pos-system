@@ -360,6 +360,7 @@ export default function POSPage() {
                 openOrders={openOrders}
                 selectedTableId={currentTable?.id}
                 onSelectTable={handleSelectTable}
+                settings={settings}
               />
             </div>
             {currentTable && (
@@ -370,6 +371,7 @@ export default function POSPage() {
                   categories={categories}
                   subcategories={subcategories}
                   onClose={() => setSelectedTable(null)}
+                  settings={settings}
                 />
               </div>
             )}

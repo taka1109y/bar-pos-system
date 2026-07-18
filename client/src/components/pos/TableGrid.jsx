@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { yen, num } from '../../utils/format';
+import { isLateNightNow } from '../../utils/lateNight';
 
 function useNow() {
   const [now, setNow] = useState(() => Date.now());
@@ -18,10 +19,16 @@ function elapsed(openedAt, now) {
   return `${hh}:${mm}`;
 }
 
-export default function TableGrid({ tables, openOrders = [], selectedTableId, onSelectTable }) {
+export default function TableGrid({ tables, openOrders = [], selectedTableId, onSelectTable, settings }) {
   const now = useNow();
 
   const orderByTable = openOrders.reduce((acc, o) => { acc[o.table_id] = o; return acc; }, {});
+
+  // 深夜料金判定（会計画面 PaymentModal と同一ロジック）。useNow の60秒再レンダーで深夜境界も自動追従
+  const lnRate    = settings?.late_night_rate  ?? 0.10;
+  const lnStart   = settings?.late_night_start ?? 22;
+  const lnEnd     = settings?.late_night_end   ?? 29;
+  const lateNight = isLateNightNow(lnStart, lnEnd);
 
   if (tables.length === 0) {
     return (
@@ -38,6 +45,9 @@ export default function TableGrid({ tables, openOrders = [], selectedTableId, on
         const order      = orderByTable[table.id];
         const isOccupied = !!order;
         const isSelected = selectedTableId === table.id;
+        // 深夜料金（items小計 = order.total_amount のみ×率、即会計テーブルは除外）
+        const lateNightAmt = (order && lateNight && table.table_type !== 'immediate')
+          ? Math.round(order.total_amount * lnRate) : 0;
 
         return (
           <button
@@ -72,7 +82,7 @@ export default function TableGrid({ tables, openOrders = [], selectedTableId, on
 
               <div className={`mt-2 space-y-0.5 ${isOccupied ? '' : 'invisible'}`}>
                 <p className="text-base font-black text-primary-600">
-                  {order ? `¥${yen(Math.floor(order.total_amount + (order.charge_amount ?? 0)))}` : '¥0'}
+                  {order ? `¥${yen(Math.floor(order.total_amount + (order.charge_amount ?? 0) + lateNightAmt))}` : '¥0'}
                 </p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <p className="text-xs text-slate-400 flex items-center gap-1">
