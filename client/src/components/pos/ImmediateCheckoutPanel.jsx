@@ -5,6 +5,7 @@ import { api } from '../../api';
 import socket from '../../socket';
 import MenuGrid from './MenuGrid';
 import { DiscountModal, GiftCertModal, PaymentResultModal } from './PaymentModal';
+import CustomPriceModal from './CustomPriceModal';
 
 // ── テンキー ─────────────────────────────────────────────────
 function Numpad({ value, onChange, onConfirm, exactAmount }) {
@@ -72,6 +73,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
   const [tempGiftCertTotal,     setTempGiftCertTotal]     = useState(0);
   const [tempGiftCertNoChange,  setTempGiftCertNoChange]  = useState(false);
   const [payResult,          setPayResult]          = useState(null);
+  const [priceEditItem,      setPriceEditItem]      = useState(null);
 
   // 即会計専用テーブル取得（起動後は変わらないので staleTime: Infinity）
   const { data: immediateTable } = useQuery({
@@ -115,8 +117,8 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menuItemId }) =>
-      api.addOrderItem(orderId, { menu_item_id: menuItemId, quantity: 1 }),
+    mutationFn: ({ orderId, menuItemId, unit_price, item_name }) =>
+      api.addOrderItem(orderId, { menu_item_id: menuItemId, quantity: 1, unit_price, item_name }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
@@ -145,25 +147,58 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
     },
   });
 
-  // メニュータップ → 確認なしで即追加（注文がなければ先に作成）
-  const handleAddItem = async (menuItem) => {
-    if (!tableId) return;
+  // 注文が無ければ遅延作成して order id を返す（無ければ null）
+  const ensureOrderId = async () => {
     let orderId = order?.id;
     if (!orderId) {
-      if (createOrderMutation.isPending) return;
+      if (createOrderMutation.isPending) return null;
       try {
         const newOrder = await createOrderMutation.mutateAsync();
         queryClient.setQueryData(orderKey, newOrder);
         orderId = newOrder.id;
       } catch {
-        return;
+        return null;
       }
     }
+    return orderId;
+  };
+
+  // メニュータップ → 時価商品は価格入力モーダル、それ以外は確認なしで即追加
+  const handleAddItem = async (menuItem) => {
+    if (!tableId) return;
+    if (menuItem.price_editable) {
+      setPriceEditItem({
+        menu_item_id: menuItem.id,
+        defaultName:  menuItem.name,
+        defaultPrice: Math.round(menuItem.current_price ?? menuItem.base_price ?? 0),
+      });
+      return;
+    }
+    const orderId = await ensureOrderId();
+    if (!orderId) return;
     addItemMutation.mutate({ orderId, menuItemId: menuItem.id });
+  };
+
+  // 時価商品の価格・商品名を確定して追加
+  const handlePriceConfirm = async (name, price) => {
+    const orderId = await ensureOrderId();
+    if (!orderId) return;
+    addItemMutation.mutate({ orderId, menuItemId: priceEditItem.menu_item_id, unit_price: price, item_name: name });
+    setPriceEditItem(null);
   };
 
   const handleQtyIncrease = (item) => {
     if (!order) return;
+    const mi = menuItems.find((m) => m.id === item.menu_item_id);
+    if (mi?.price_editable) {
+      // 時価商品は1点ごとに価格が異なり得るため、追加のたびに価格を入力させる
+      setPriceEditItem({
+        menu_item_id: item.menu_item_id,
+        defaultName:  item.item_name,
+        defaultPrice: Math.round(item.unit_price),
+      });
+      return;
+    }
     addItemMutation.mutate({ orderId: order.id, menuItemId: item.menu_item_id });
   };
 
@@ -476,6 +511,15 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
 
         </div>
       </div>
+      {priceEditItem && (
+        <CustomPriceModal
+          defaultName={priceEditItem.defaultName}
+          defaultPrice={priceEditItem.defaultPrice}
+          onConfirm={handlePriceConfirm}
+          onClose={() => setPriceEditItem(null)}
+          isPending={addItemMutation.isPending || createOrderMutation.isPending}
+        />
+      )}
     </>
   );
 }
