@@ -66,6 +66,7 @@ export const api = {
   updateOrderItem: (orderId, itemId, data) => req(`/orders/${orderId}/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteOrderItem: (orderId, itemId) => req(`/orders/${orderId}/items/${itemId}`, { method: 'DELETE' }),
   updateGuestCount: (orderId, guestCount) => req(`/orders/${orderId}/guest-count`, { method: 'PATCH', body: JSON.stringify({ guest_count: guestCount }) }),
+  updateOrderTable: (orderId, tableId) => req(`/orders/${orderId}/table`, { method: 'PATCH', body: JSON.stringify({ table_id: tableId }) }),
 
   // Payments
   pay: (orderId, paymentMethod = 'cash', discountAmount = 0, memo = null, giftCertAmount = 0, giftCertNoChange = false) =>

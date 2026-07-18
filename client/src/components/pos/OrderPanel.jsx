@@ -70,6 +70,46 @@ function GuestCountModal({ currentCount, onSelect, onClose, isPending }) {
   );
 }
 
+function TableMoveModal({ currentTableId, tables, openOrders, onSelect, onClose, isPending }) {
+  const occupiedIds = new Set(openOrders.map((o) => o.table_id));
+  const available = tables.filter((t) => t.id !== currentTableId && !occupiedIds.has(t.id));
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in">
+      <div className="bg-white rounded-xl p-5 w-96 shadow-xl border border-slate-200">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold text-slate-900">テーブル変更（移動先を選択）</h3>
+          <button onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        {available.length === 0 ? (
+          <p className="text-sm text-slate-500 text-center py-8">空きテーブルがありません</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-2 max-h-72 overflow-y-auto">
+            {available.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => onSelect(t.id)}
+                disabled={isPending}
+                className="flex flex-col items-center justify-center gap-1 px-2 py-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-primary-50 hover:border-primary-300 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  {t.table_type === 'counter' ? 'カウンター' : 'テーブル'}
+                </span>
+                <span className="text-sm font-bold text-slate-900 text-center leading-tight">{t.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {isPending && <p className="text-xs text-slate-400 text-center mt-3">移動中...</p>}
+      </div>
+    </div>
+  );
+}
+
 // ── 質問選択モーダル（ソース種類・割り方など） ────────────────
 function ChoiceModal({ title, choices, onSelect, onClose }) {
   return (
@@ -183,11 +223,12 @@ function CustomPriceModal({ defaultName, defaultPrice, onConfirm, onClose, isPen
 }
 
 // ── メインコンポーネント ──────────────────────────────────
-export default function OrderPanel({ table, menuItems, categories, subcategories = [], onClose, settings }) {
+export default function OrderPanel({ table, menuItems, categories, subcategories = [], onClose, settings, tables = [], openOrders = [], onMoved }) {
   const queryClient = useQueryClient();
   const [showPayment,    setShowPayment]    = useState(false);
   const [pendingAction,  setPendingAction]  = useState(null);
   const [showGuestModal, setShowGuestModal] = useState(false);
+  const [showTableModal, setShowTableModal] = useState(false);
   const [priceEditItem,  setPriceEditItem]  = useState(null);
   const [choiceItem,     setChoiceItem]     = useState(null);
 
@@ -256,6 +297,17 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orderKey });
       setShowGuestModal(false);
+    },
+  });
+
+  const updateTableMutation = useMutation({
+    mutationFn: (tableId) => api.updateOrderTable(order.id, tableId),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['orders-open'] });
+      queryClient.invalidateQueries({ queryKey: orderKey });
+      setShowTableModal(false);
+      const newTable = tables.find((t) => t.id === updated.table_id);
+      if (newTable && onMoved) onMoved(newTable);
     },
   });
 
@@ -423,6 +475,18 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
               <span className="px-1.5 py-0.5 rounded bg-white text-primary-700 text-xs font-bold">{order.guest_count}名</span>
             </button>
           )}
+          {order && (
+            <button
+              onClick={() => setShowTableModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary-50 border border-primary-200 hover:bg-primary-100 transition-colors text-sm font-semibold text-primary-700 cursor-pointer"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+              </svg>
+              テーブル変更
+            </button>
+          )}
           <button
             onClick={onClose}
             className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
@@ -441,6 +505,17 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
           onSelect={(n) => updateGuestCountMutation.mutate(n)}
           onClose={() => setShowGuestModal(false)}
           isPending={updateGuestCountMutation.isPending}
+        />
+      )}
+
+      {showTableModal && (
+        <TableMoveModal
+          currentTableId={table.id}
+          tables={tables}
+          openOrders={openOrders}
+          onSelect={(tid) => updateTableMutation.mutate(tid)}
+          onClose={() => setShowTableModal(false)}
+          isPending={updateTableMutation.isPending}
         />
       )}
 

@@ -372,6 +372,9 @@ export default function POSPage() {
                   subcategories={subcategories}
                   onClose={() => setSelectedTable(null)}
                   settings={settings}
+                  tables={tables}
+                  openOrders={openOrders}
+                  onMoved={(newTable) => setSelectedTable(newTable)}
                 />
               </div>
             )}

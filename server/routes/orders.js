@@ -463,6 +463,109 @@ router.patch('/:id/guest-count', async (req, res, next) => {
   }
 });
 
+// PATCH /api/orders/:id/table — テーブル移動（開いている注文を別の空きテーブルへ移す）
+router.patch('/:id/table', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const newTableId = parseInt(req.body.table_id, 10);
+    if (!Number.isInteger(newTableId)) {
+      return res.status(400).json({ error: 'table_id is required' });
+    }
+
+    await client.query('BEGIN');
+
+    // 対象注文を行ロックして status='open' を確認（会計処理との競合防止）
+    const { rows: orderRows } = await client.query(
+      `SELECT id, table_id FROM orders WHERE id = $1 AND status = 'open' FOR UPDATE`,
+      [req.params.id]
+    );
+    const order = orderRows[0];
+    if (!order) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Order not found or already closed' });
+    }
+    const oldTableId = order.table_id;
+    if (oldTableId === newTableId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Same table' });
+    }
+
+    // 移動先テーブルの存在・種別確認（即会計テーブルへは移動不可）
+    const { rows: tableRows } = await client.query(
+      `SELECT id, table_type FROM tables WHERE id = $1`,
+      [newTableId]
+    );
+    const target = tableRows[0];
+    if (!target) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Target table not found' });
+    }
+    if (target.table_type === 'immediate') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Cannot move to immediate table' });
+    }
+
+    // 移動先の空き確認（通常openが既にあれば移動不可）。部分ユニークIndexと同条件
+    const { rows: occupied } = await client.query(
+      `SELECT id FROM orders
+       WHERE table_id = $1 AND status = 'open'
+         AND (receipt_type = 'normal' OR receipt_type IS NULL)`,
+      [newTableId]
+    );
+    if (occupied.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Target table already has an open order' });
+    }
+
+    // 移動（status を再確認し、ロック待ち中に会計された場合は上書きしない）
+    const { rowCount } = await client.query(
+      `UPDATE orders SET table_id = $1 WHERE id = $2 AND status = 'open'`,
+      [newTableId, order.id]
+    );
+    if (rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Order not found or already closed' });
+    }
+
+    // テーブル状態: 新席を occupied、旧席は残 open が無ければ available に戻す
+    await client.query(`UPDATE tables SET status = 'occupied' WHERE id = $1`, [newTableId]);
+    const { rows: remaining } = await client.query(
+      `SELECT id FROM orders WHERE table_id = $1 AND status = 'open'`,
+      [oldTableId]
+    );
+    if (remaining.length === 0) {
+      await client.query(`UPDATE tables SET status = 'available' WHERE id = $1`, [oldTableId]);
+    }
+
+    await client.query('COMMIT');
+
+    const updated = await getOrderWithItems(order.id);
+    // 旧席→available / 新席→occupied を全体へ通知
+    broadcast('table:status_changed', { tableId: oldTableId, status: 'available' });
+    broadcast('table:status_changed', { tableId: newTableId, status: 'occupied' });
+    // 新席 room に注文本体を届ける（顧客タブレットが移動後の注文を自動表示する）
+    broadcastToRoom(`table:${newTableId}`, 'order:updated', {
+      tableId: newTableId,
+      orderId: updated.id,
+      items: updated.items,
+      total: updated.total_amount,
+      chargeAmount: updated.charge_amount,
+      chargePerPerson: updated.charge_per_person,
+      guestCount: updated.guest_count,
+    });
+    broadcast('orders:changed', { tableId: newTableId });
+
+    res.json(updated);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    if (err.code === '23505') return res.status(409).json({ error: 'Target table already has an open order' });
+    if (err.code === '23503') return res.status(400).json({ error: 'Target table not found' });
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
 // GET /api/orders/:orderId — 単一オーダー取得（赤伝票会計モーダル用）
 router.get('/:orderId', async (req, res, next) => {
   try {
