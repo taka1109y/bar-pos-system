@@ -408,7 +408,7 @@ router.patch('/:id/guest-count', async (req, res, next) => {
     // ロックを取らないと、会計処理が status='paid' にコミットした後に
     // 会計済みオーダーの人数・チャージを書き換えてしまう
     const { rows: orderRows } = await client.query(
-      `SELECT o.id, o.table_id, t.table_type
+      `SELECT o.id, o.table_id, o.charge_per_person, t.table_type
        FROM orders o JOIN tables t ON o.table_id = t.id
        WHERE o.id = $1 AND o.status = 'open' FOR UPDATE OF o`,
       [req.params.id]
@@ -422,11 +422,12 @@ router.patch('/:id/guest-count', async (req, res, next) => {
     // 即会計テーブルかどうか確認（即会計はチャージ不要）
     const isImmediate = order.table_type === 'immediate';
 
-    const { chargeEnabled, slots } = await loadChargeSettings();
-
-    const { charge_per_person, charge_amount } = (!isImmediate && chargeEnabled)
-      ? resolveCharge(slots, guestCountNum)
-      : { charge_per_person: 0, charge_amount: 0 };
+    // 着席時に確定した単価(charge_per_person)を保持し、人数分だけ再計算する。
+    // 時間帯スロットを現在時刻で再解決すると、時間帯境界（例 22:00 で ¥600→¥900）を
+    // またいだ後の人数訂正で単価まで変わってしまうため、保存済みの単価をそのまま使う。
+    const perPerson = isImmediate ? 0 : (parseFloat(order.charge_per_person) || 0);
+    const charge_per_person = perPerson;
+    const charge_amount = perPerson * guestCountNum;
 
     // status を再確認して、ロック待ちの間に会計されていた場合に上書きしない
     const { rowCount } = await client.query(
