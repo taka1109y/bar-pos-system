@@ -120,6 +120,8 @@ export default function KitchenPage() {
   const [recipeTarget, setRecipeTarget] = useState(null);
   const [serveTarget, setServeTarget] = useState(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const listRef = useRef(null);
+  const [showScroll, setShowScroll] = useState(false);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['kitchenOrders'],
@@ -206,10 +208,31 @@ export default function KitchenPage() {
 
   const now = Date.now();
 
+  // リスト部がスクロール可能（内容が領域を超える）かどうかを判定し、
+  // 画面内スクロールボタンの表示要否を更新する。
+  const updateScrollState = useCallback(() => {
+    const el = listRef.current;
+    if (!el) return;
+    setShowScroll(el.scrollHeight > el.clientHeight + 1);
+  }, []);
+
+  // rows変化・ウィンドウリサイズのたびにスクロール可否を再判定する。
+  useEffect(() => {
+    updateScrollState();
+    window.addEventListener('resize', updateScrollState);
+    return () => window.removeEventListener('resize', updateScrollState);
+  }, [rows, updateScrollState]);
+
+  const scrollList = useCallback((dir) => {
+    const el = listRef.current;
+    if (!el) return;
+    el.scrollBy({ top: dir * el.clientHeight * 0.8, behavior: 'smooth' });
+  }, []);
+
   return (
-    <div className="min-h-screen bg-gray-50 text-slate-900">
+    <div className="h-screen flex flex-col bg-gray-50 text-slate-900 overflow-hidden">
       {/* ヘッダー */}
-      <header className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between sticky top-0 z-10">
+      <header className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between flex-shrink-0 z-10">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2">
@@ -255,7 +278,7 @@ export default function KitchenPage() {
         </div>
       </header>
 
-      <main className="p-6">
+      <main className="flex-1 min-h-0 p-6">
         {isLoading ? (
           <div className="flex items-center justify-center h-48 text-slate-400 text-sm">
             読み込み中...
@@ -266,9 +289,9 @@ export default function KitchenPage() {
             <p className="text-lg font-semibold text-slate-600">すべての注文が完了しています</p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+          <div className="h-full bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm flex flex-col">
             {/* テーブルヘッダー */}
-            <div className="grid grid-cols-[120px_140px_1fr_64px_100px_100px] gap-0 bg-gray-50 border-b border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <div className="grid grid-cols-[120px_140px_1fr_64px_100px_100px] gap-0 bg-gray-50 border-b border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider flex-shrink-0">
               <span>受注時刻</span>
               <span>テーブル</span>
               <span>商品名</span>
@@ -277,8 +300,12 @@ export default function KitchenPage() {
               <span className="text-center">キャンセル</span>
             </div>
 
-            {/* 行リスト */}
-            <div className="divide-y divide-slate-100">
+            {/* 行リスト（この領域だけ内部スクロール） */}
+            <div
+              ref={listRef}
+              onScroll={updateScrollState}
+              className="divide-y divide-slate-100 overflow-y-auto flex-1 min-h-0"
+            >
               {rows.map((row) => {
                 const diffSec = Math.floor((now - new Date(row.orderedAt).getTime()) / 1000);
                 const isOld = diffSec > 600;
@@ -354,6 +381,30 @@ export default function KitchenPage() {
           </div>
         )}
       </main>
+
+      {/* 画面内スクロールボタン（タッチ端末用・内容が領域を超える時のみ表示） */}
+      {showScroll && (
+        <div className="fixed bottom-6 right-6 z-20 flex flex-col gap-3">
+          <button
+            onClick={() => scrollList(-1)}
+            aria-label="上にスクロール"
+            className="w-14 h-14 rounded-full bg-primary-500 hover:bg-primary-700 text-white shadow-md flex items-center justify-center transition-colors"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="18 15 12 9 6 15"/>
+            </svg>
+          </button>
+          <button
+            onClick={() => scrollList(1)}
+            aria-label="下にスクロール"
+            className="w-14 h-14 rounded-full bg-primary-500 hover:bg-primary-700 text-white shadow-md flex items-center justify-center transition-colors"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+        </div>
+      )}
 
       {recipeTarget && (
         <RecipeModal
