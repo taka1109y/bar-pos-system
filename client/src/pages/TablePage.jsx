@@ -25,6 +25,12 @@ function useClock() {
 function WelcomeScreen({ tableName, onSelectGuests }) {
   const now     = useClock();
   const timeStr = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const [manual, setManual] = useState(false);
+  const [manualVal, setManualVal] = useState('');
+  const submitManual = () => {
+    const n = Math.min(99, Math.max(1, parseInt(manualVal, 10) || 0));
+    if (n >= 1) onSelectGuests(n);
+  };
 
   return (
     <div className="flex flex-col h-screen overflow-hidden select-none" style={{ background: '#0b0b0f' }}>
@@ -50,6 +56,33 @@ function WelcomeScreen({ tableName, onSelectGuests }) {
           </p>
         </div>
 
+        {manual ? (
+          <div className="w-full max-w-xl flex flex-col items-center gap-6">
+            <input
+              type="number" min="1" max="99" autoFocus
+              value={manualVal}
+              onChange={(e) => setManualVal(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') submitManual(); }}
+              placeholder="人数"
+              className="tabular-nums text-center"
+              style={{ width: 220, background: '#1e1e28', border: '1px solid #252532', borderRadius: 18, color: '#f0f0f5', fontSize: 44, fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, padding: '12px 0', outline: 'none' }}
+            />
+            <div className="flex gap-4">
+              <button
+                onClick={() => { setManual(false); setManualVal(''); }}
+                style={{ background: '#1e1e28', border: '1px solid #252532', borderRadius: 14, color: '#9a9ab0', fontSize: 18, fontWeight: 600, padding: '14px 28px', cursor: 'pointer' }}
+              >
+                戻る
+              </button>
+              <button
+                onClick={submitManual}
+                style={{ background: '#e52233', border: '1px solid #e52233', borderRadius: 14, color: '#fff', fontSize: 18, fontWeight: 700, padding: '14px 40px', cursor: 'pointer' }}
+              >
+                決定
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="grid grid-cols-5 gap-4 w-full max-w-xl">
           {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
             <button
@@ -74,7 +107,16 @@ function WelcomeScreen({ tableName, onSelectGuests }) {
               <span style={{ fontSize: 14, fontWeight: 600, color: '#7a7a90', marginTop: 3 }}>名</span>
             </button>
           ))}
+          <button
+            onClick={() => setManual(true)}
+            className="aspect-square flex flex-col items-center justify-center active:scale-95"
+            style={{ background: '#141420', border: '1px dashed #3a3a50', borderRadius: 18, cursor: 'pointer', transition: 'all 0.15s' }}
+          >
+            <span style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 17, fontWeight: 700, color: '#c0c0d0', lineHeight: 1.1 }}>その他</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#7a7a90', marginTop: 4 }}>11名〜</span>
+          </button>
         </div>
+        )}
 
         <div className="text-center flex flex-col gap-2">
           <p style={{ color: '#ffc531', fontSize: 15, fontFamily: "'Noto Sans JP', sans-serif" }}>

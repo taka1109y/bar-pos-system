@@ -566,6 +566,147 @@ router.patch('/:id/table', async (req, res, next) => {
   }
 });
 
+// POST /api/orders/:id/merge — テーブル合算（統合元Bの注文を統合先Aへまとめ、Bを解放）
+router.post('/:id/merge', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const sourceTableId = parseInt(req.body.source_table_id, 10);
+    if (!Number.isInteger(sourceTableId)) {
+      return res.status(400).json({ error: 'source_table_id is required' });
+    }
+
+    await client.query('BEGIN');
+
+    // 統合先A（:id）を行ロックして open 確認
+    const { rows: aRows } = await client.query(
+      `SELECT id, table_id, guest_count, charge_per_person FROM orders
+       WHERE id = $1 AND status = 'open' FOR UPDATE`,
+      [req.params.id]
+    );
+    const target = aRows[0];
+    if (!target) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Target order not found or already closed' });
+    }
+    if (target.table_id === sourceTableId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Same table' });
+    }
+
+    // 統合元B（source_table_id の通常openオーダー）を行ロックして取得
+    const { rows: bRows } = await client.query(
+      `SELECT id, table_id, guest_count FROM orders
+       WHERE table_id = $1 AND status = 'open'
+         AND (receipt_type = 'normal' OR receipt_type IS NULL)
+       FOR UPDATE`,
+      [sourceTableId]
+    );
+    const source = bRows[0];
+    if (!source) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Source order not found' });
+    }
+
+    // Bの明細をAへ移動
+    await client.query('UPDATE order_items SET order_id = $1 WHERE order_id = $2', [target.id, source.id]);
+
+    // 人数を合算し、Aの着席時単価でチャージを再計算（時間帯は再解決しない）
+    const perPerson = parseFloat(target.charge_per_person) || 0;
+    const newGuestCount = clampInt((target.guest_count || 0) + (source.guest_count || 0), 1, MAX_GUEST_COUNT, 1);
+    const newChargeAmount = perPerson * newGuestCount;
+    await client.query(
+      `UPDATE orders SET guest_count = $1, charge_amount = $2 WHERE id = $3`,
+      [newGuestCount, newChargeAmount, target.id]
+    );
+
+    // Bの注文を削除（明細は移動済みで空）
+    await client.query('DELETE FROM orders WHERE id = $1', [source.id]);
+
+    // 総額再計算
+    await recalcTotal(client, target.id);
+
+    // Bテーブルは残openが無ければ available に戻す
+    const { rows: remaining } = await client.query(
+      `SELECT id FROM orders WHERE table_id = $1 AND status = 'open'`,
+      [sourceTableId]
+    );
+    if (remaining.length === 0) {
+      await client.query(`UPDATE tables SET status = 'available' WHERE id = $1`, [sourceTableId]);
+    }
+
+    await client.query('COMMIT');
+
+    const updated = await getOrderWithItems(target.id);
+    broadcast('table:status_changed', { tableId: sourceTableId, status: 'available' });
+    broadcastToRoom(`table:${target.table_id}`, 'order:updated', {
+      tableId: target.table_id,
+      orderId: updated.id,
+      items: updated.items,
+      total: updated.total_amount,
+      chargeAmount: updated.charge_amount,
+      chargePerPerson: updated.charge_per_person,
+      guestCount: updated.guest_count,
+    });
+    broadcast('orders:changed', { tableId: target.table_id });
+
+    res.json(updated);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
+// DELETE /api/orders/:id — 空オープンの取消（明細が無い誤オープンのみ。会計せずテーブル解放）
+router.delete('/:id', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: orderRows } = await client.query(
+      `SELECT id, table_id FROM orders WHERE id = $1 AND status = 'open' FOR UPDATE`,
+      [req.params.id]
+    );
+    const order = orderRows[0];
+    if (!order) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Order not found or already closed' });
+    }
+
+    // 明細が1件でもあれば取消不可（誤オープンの空注文のみ対象）
+    const { rows: itemRows } = await client.query(
+      'SELECT id FROM order_items WHERE order_id = $1 LIMIT 1',
+      [order.id]
+    );
+    if (itemRows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Cannot cancel order with items' });
+    }
+
+    await client.query('DELETE FROM orders WHERE id = $1', [order.id]);
+
+    const { rows: remaining } = await client.query(
+      `SELECT id FROM orders WHERE table_id = $1 AND status = 'open'`,
+      [order.table_id]
+    );
+    if (remaining.length === 0) {
+      await client.query(`UPDATE tables SET status = 'available' WHERE id = $1`, [order.table_id]);
+    }
+
+    await client.query('COMMIT');
+
+    broadcast('table:status_changed', { tableId: order.table_id, status: 'available' });
+    broadcast('orders:changed', { tableId: order.table_id });
+    res.json({ ok: true });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
 // GET /api/orders/:orderId — 単一オーダー取得（赤伝票会計モーダル用）
 router.get('/:orderId', async (req, res, next) => {
   try {

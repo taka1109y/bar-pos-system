@@ -67,6 +67,8 @@ export const api = {
   deleteOrderItem: (orderId, itemId) => req(`/orders/${orderId}/items/${itemId}`, { method: 'DELETE' }),
   updateGuestCount: (orderId, guestCount) => req(`/orders/${orderId}/guest-count`, { method: 'PATCH', body: JSON.stringify({ guest_count: guestCount }) }),
   updateOrderTable: (orderId, tableId) => req(`/orders/${orderId}/table`, { method: 'PATCH', body: JSON.stringify({ table_id: tableId }) }),
+  mergeOrders: (orderId, sourceTableId) => req(`/orders/${orderId}/merge`, { method: 'POST', body: JSON.stringify({ source_table_id: sourceTableId }) }),
+  cancelEmptyOrder: (orderId) => req(`/orders/${orderId}`, { method: 'DELETE' }),
 
   // Payments
   pay: (orderId, paymentMethod = 'cash', discountAmount = 0, memo = null, giftCertAmount = 0, giftCertNoChange = false) =>

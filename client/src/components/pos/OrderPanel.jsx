@@ -7,6 +7,7 @@ import socket from '../../socket';
 import MenuGrid from './MenuGrid';
 import PaymentModal from './PaymentModal';
 import CustomPriceModal from './CustomPriceModal';
+import GuestCountPicker from './GuestCountPicker';
 
 // ── 確認モーダル ──────────────────────────────────────────
 function ConfirmModal({ title, description, confirmLabel, confirmClass, onConfirm, onClose }) {
@@ -48,23 +49,7 @@ function GuestCountModal({ currentCount, onSelect, onClose, isPending }) {
             </svg>
           </button>
         </div>
-        <div className="grid grid-cols-5 gap-2">
-          {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-            <button
-              key={n}
-              onClick={() => onSelect(n)}
-              disabled={isPending}
-              className={`aspect-square flex flex-col items-center justify-center rounded-xl border transition-all active:scale-95 disabled:opacity-50 ${
-                n === currentCount
-                  ? 'bg-primary-50 border-primary-300 text-primary-700'
-                  : 'bg-slate-50 border-slate-200 hover:bg-primary-50 hover:border-primary-300'
-              }`}
-            >
-              <span className="text-lg font-black text-slate-900">{n}</span>
-              <span className="text-[10px] text-slate-400">名</span>
-            </button>
-          ))}
-        </div>
+        <GuestCountPicker currentCount={currentCount} onSelect={onSelect} disabled={isPending} />
         {isPending && <p className="text-xs text-slate-400 text-center mt-3">更新中...</p>}
       </div>
     </div>
@@ -111,6 +96,51 @@ function TableMoveModal({ currentTableId, tables, openOrders, onSelect, onClose,
   );
 }
 
+// ── テーブル合算モーダル（統合元＝別の使用中テーブルを選ぶ） ──────
+function TableMergeModal({ currentTableId, tables, openOrders, onSelect, onClose, isPending }) {
+  // 自テーブル以外の使用中（openあり・即会計以外）テーブルを統合元候補として列挙
+  const sources = openOrders
+    .filter((o) => o.table_id !== currentTableId)
+    .map((o) => tables.find((t) => t.id === o.table_id))
+    .filter((t) => t && t.table_type !== 'immediate');
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in">
+      <div className="bg-white rounded-xl p-5 w-96 shadow-xl border border-slate-200">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-bold text-slate-900">テーブル合算（統合するテーブルを選択）</h3>
+          <button onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <p className="text-xs text-slate-500 mb-4">選んだテーブルの注文をこのテーブルにまとめ、選んだ側は空席に戻ります。</p>
+        {sources.length === 0 ? (
+          <p className="text-sm text-slate-500 text-center py-8">合算できる使用中テーブルがありません</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-2 max-h-72 overflow-y-auto">
+            {sources.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => onSelect(t.id)}
+                disabled={isPending}
+                className="flex flex-col items-center justify-center gap-1 px-2 py-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-primary-50 hover:border-primary-300 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  {t.table_type === 'counter' ? 'カウンター' : 'テーブル'}
+                </span>
+                <span className="text-sm font-bold text-slate-900 text-center leading-tight">{t.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {isPending && <p className="text-xs text-slate-400 text-center mt-3">合算中...</p>}
+      </div>
+    </div>
+  );
+}
+
 // ── 質問選択モーダル（ソース種類・割り方など） ────────────────
 function ChoiceModal({ title, choices, onSelect, onClose }) {
   return (
@@ -152,6 +182,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   const [pendingAction,  setPendingAction]  = useState(null);
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [showTableModal, setShowTableModal] = useState(false);
+  const [showMergeModal, setShowMergeModal] = useState(false);
   const [priceEditItem,  setPriceEditItem]  = useState(null);
   const [choiceItem,     setChoiceItem]     = useState(null);
 
@@ -231,6 +262,26 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
       setShowTableModal(false);
       const newTable = tables.find((t) => t.id === updated.table_id);
       if (newTable && onMoved) onMoved(newTable);
+    },
+  });
+
+  // テーブル合算（統合元テーブルの注文をこのテーブルへまとめ、統合元を解放）
+  const mergeMutation = useMutation({
+    mutationFn: (sourceTableId) => api.mergeOrders(order.id, sourceTableId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders-open'] });
+      queryClient.invalidateQueries({ queryKey: orderKey });
+      setShowMergeModal(false);
+    },
+  });
+
+  // 空オープンの取消（明細が無い誤オープンを会計せず解放）
+  const cancelOrderMutation = useMutation({
+    mutationFn: () => api.cancelEmptyOrder(order.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders-open'] });
+      queryClient.removeQueries({ queryKey: orderKey });
+      onClose();
     },
   });
 
@@ -355,18 +406,8 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
             <p className="text-xs text-slate-400">人数に応じたチャージが設定されます</p>
           </div>
 
-          <div className="grid grid-cols-5 gap-2 w-full">
-            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-              <button
-                key={n}
-                onClick={() => handleSelectGuests(n)}
-                disabled={openOrderMutation.isPending}
-                className="aspect-square flex flex-col items-center justify-center rounded-xl bg-slate-50 border border-slate-200 hover:bg-primary-50 hover:border-primary-300 hover:text-primary-700 transition-all active:scale-95 disabled:opacity-50"
-              >
-                <span className="text-xl font-black text-slate-900">{n}</span>
-                <span className="text-[10px] text-slate-400 mt-0.5">名</span>
-              </button>
-            ))}
+          <div className="w-full">
+            <GuestCountPicker onSelect={handleSelectGuests} disabled={openOrderMutation.isPending} />
           </div>
 
           {openOrderMutation.isPending && (
@@ -410,6 +451,35 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
               テーブル変更
             </button>
           )}
+          {order && (
+            <button
+              onClick={() => setShowMergeModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary-50 border border-primary-200 hover:bg-primary-100 transition-colors text-sm font-semibold text-primary-700 cursor-pointer"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/>
+                <path d="M12 8v8"/><polyline points="9 13 12 16 15 13"/>
+              </svg>
+              テーブル合算
+            </button>
+          )}
+          {order && (order.items?.length ?? 0) === 0 && (
+            <button
+              onClick={() => setPendingAction({
+                label: '取消する',
+                confirmClass: 'bg-red-600 hover:bg-red-700',
+                title: 'このテーブルのオープンを取消しますか？',
+                description: '明細が無いオープンを取消して空席に戻します。',
+                onConfirm: () => cancelOrderMutation.mutate(),
+              })}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200 hover:bg-red-100 transition-colors text-sm font-semibold text-red-600 cursor-pointer"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              </svg>
+              オープン取消
+            </button>
+          )}
           <button
             onClick={onClose}
             className="w-11 h-11 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
@@ -439,6 +509,17 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
           onSelect={(tid) => updateTableMutation.mutate(tid)}
           onClose={() => setShowTableModal(false)}
           isPending={updateTableMutation.isPending}
+        />
+      )}
+
+      {showMergeModal && (
+        <TableMergeModal
+          currentTableId={table.id}
+          tables={tables}
+          openOrders={openOrders}
+          onSelect={(sid) => mergeMutation.mutate(sid)}
+          onClose={() => setShowMergeModal(false)}
+          isPending={mergeMutation.isPending}
         />
       )}
 
