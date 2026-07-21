@@ -6,9 +6,15 @@ const { broadcast } = require('../services/socketService');
 const VALID_TYPES = ['table', 'counter'];
 
 // GET /api/tables
+// 既定では is_active=TRUE のみ返す（レジ・お客さん画面用）。
+// 管理画面は ?include_archived=true でアーカイブ済み（is_active=FALSE）も含めて取得する。
 router.get('/', async (req, res, next) => {
   try {
-    const { rows } = await query(`SELECT id, name, table_type, status FROM tables WHERE table_type != 'immediate' ORDER BY id`);
+    const includeArchived = req.query.include_archived === 'true';
+    const activeFilter = includeArchived ? '' : 'AND is_active = TRUE';
+    const { rows } = await query(
+      `SELECT id, name, table_type, status, is_active FROM tables WHERE table_type != 'immediate' ${activeFilter} ORDER BY id`
+    );
     res.json(rows);
   } catch (err) {
     next(err);
@@ -52,9 +58,13 @@ router.post('/', async (req, res, next) => {
 // PATCH /api/tables/:id
 router.patch('/:id', async (req, res, next) => {
   try {
-    const { name, table_type, status } = req.body;
+    const { name, table_type, status, is_active } = req.body;
     const { rows: existing } = await query('SELECT id FROM tables WHERE id = $1', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ error: 'Table not found' });
+
+    if (is_active !== undefined && typeof is_active !== 'boolean') {
+      return res.status(400).json({ error: 'is_active must be a boolean' });
+    }
 
     if (name !== undefined) {
       if (typeof name !== 'string' || name.trim().length === 0) {
@@ -74,17 +84,21 @@ router.patch('/:id', async (req, res, next) => {
     if (name !== undefined)       { updates.push(`name = $${idx++}`);       values.push(name.trim()); }
     if (table_type !== undefined) { updates.push(`table_type = $${idx++}`); values.push(table_type); }
     if (status !== undefined)     { updates.push(`status = $${idx++}`);     values.push(status); }
+    if (is_active !== undefined)  { updates.push(`is_active = $${idx++}`);  values.push(is_active); }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
     values.push(req.params.id);
     const { rows } = await query(
-      `UPDATE tables SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, name, table_type, status`,
+      `UPDATE tables SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, name, table_type, status, is_active`,
       values
     );
 
     if (status !== undefined) {
       broadcast('table:status_changed', { tableId: rows[0].id, status: rows[0].status });
+    }
+    if (is_active !== undefined) {
+      broadcast('tables:changed', {});
     }
 
     res.json(rows[0]);
@@ -107,16 +121,21 @@ router.delete('/:id', async (req, res, next) => {
       return res.status(409).json({ error: 'Cannot delete table with open orders' });
     }
 
+    // 売上履歴があるテーブルは物理削除すると帳簿(orders.table_id)が壊れるため、
+    // ハード削除せず is_active=FALSE でアーカイブ（非表示）する。履歴が無ければ従来どおり物理削除。
     const { rows: allOrders } = await query(
       'SELECT id FROM orders WHERE table_id = $1 LIMIT 1',
       [req.params.id]
     );
     if (allOrders.length > 0) {
-      return res.status(409).json({ error: 'Cannot delete table with order history' });
+      await query('UPDATE tables SET is_active = FALSE WHERE id = $1', [req.params.id]);
+      broadcast('tables:changed', {});
+      return res.json({ ok: true, archived: true });
     }
 
     await query('DELETE FROM tables WHERE id = $1', [req.params.id]);
-    res.json({ ok: true });
+    broadcast('tables:changed', {});
+    res.json({ ok: true, deleted: true });
   } catch (err) {
     next(err);
   }

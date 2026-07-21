@@ -81,8 +81,14 @@ export default function TableManager() {
   const [addOpen, setAddOpen] = useState(false);
   const [editTable, setEditTable] = useState(null);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [archivedOpen, setArchivedOpen] = useState(false);
 
-  const { data: tables = [] } = useQuery({ queryKey: ['tables'], queryFn: api.getTables });
+  // 管理画面ではアーカイブ済み（is_active=false）も取得して「アーカイブ済み」セクションに表示する
+  const { data: tables = [] } = useQuery({
+    queryKey: ['tables', 'manage'],
+    queryFn: () => api.getTables({ includeArchived: true }),
+  });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['tables'] });
 
@@ -100,12 +106,27 @@ export default function TableManager() {
 
   const deleteMutation = useMutation({
     mutationFn: api.deleteTable,
-    onSuccess: invalidate,
+    onSuccess: (res) => {
+      invalidate();
+      setError('');
+      setNotice(res?.archived
+        ? 'テーブルを非表示にしました（売上履歴があるため記録は保持されます）'
+        : 'テーブルを削除しました');
+    },
     onError: (e) => setError(e.message),
   });
 
-  const tableRows   = tables.filter((t) => t.table_type === 'table');
-  const counterRows = tables.filter((t) => t.table_type === 'counter');
+  // アーカイブ済みテーブルを復元する（is_active=true に戻す）
+  const restoreMutation = useMutation({
+    mutationFn: (id) => api.updateTable(id, { is_active: true }),
+    onSuccess: () => { invalidate(); setError(''); setNotice('テーブルを復元しました'); },
+    onError: (e) => setError(e.message),
+  });
+
+  const activeTables   = tables.filter((t) => t.is_active !== false);
+  const archivedTables = tables.filter((t) => t.is_active === false);
+  const tableRows   = activeTables.filter((t) => t.table_type === 'table');
+  const counterRows = activeTables.filter((t) => t.table_type === 'counter');
 
   const statusLabel = (s) => s === 'occupied' ? '使用中' : s === 'closing' ? '会計中' : '空席';
   const statusCls   = (s) => s === 'occupied' ? 'bg-amber-100 text-amber-700' : s === 'closing' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700';
@@ -188,6 +209,16 @@ export default function TableManager() {
           {error}
         </div>
       )}
+      {notice && (
+        <div className="mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-800 flex items-start justify-between gap-3">
+          <span>{notice}</span>
+          <button onClick={() => setNotice('')} aria-label="閉じる" className="text-emerald-600 hover:text-emerald-800 flex-shrink-0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      )}
 
       <div className="space-y-7">
         <TableSection
@@ -202,6 +233,49 @@ export default function TableManager() {
           typeLabel="カウンター"
           typeCls="bg-emerald-50 text-emerald-700"
         />
+
+        {/* アーカイブ済み（非表示）テーブル。売上履歴があり物理削除できなかったものが入る */}
+        {archivedTables.length > 0 && (
+          <div>
+            <button
+              onClick={() => setArchivedOpen((v) => !v)}
+              className="w-full flex items-center justify-between py-2 mb-2 text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-500 tracking-wide">アーカイブ済み（非表示）</h3>
+                <span className="text-xs text-slate-400">({archivedTables.length}件)</span>
+              </span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                   className={`text-slate-400 transition-transform ${archivedOpen ? 'rotate-180' : ''}`}>
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            {archivedOpen && (
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                {archivedTables.map((table, idx) => (
+                  <div key={table.id} className={`flex items-center gap-4 px-6 py-5 border-b border-slate-50 ${idx === archivedTables.length - 1 ? 'border-b-0' : ''}`}>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-semibold text-slate-500">{table.name}</span>
+                    </div>
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0 bg-slate-100 text-slate-500">
+                      {table.table_type === 'counter' ? 'カウンター' : 'テーブル'}
+                    </span>
+                    <button
+                      onClick={() => restoreMutation.mutate(table.id)}
+                      disabled={restoreMutation.isPending}
+                      className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-medium bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-gray-50 cursor-pointer disabled:opacity-50 flex-shrink-0"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                      </svg>
+                      復元
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 追加モーダル */}

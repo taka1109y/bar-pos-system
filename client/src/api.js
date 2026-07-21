@@ -32,7 +32,7 @@ async function req(path, options = {}) {
 
 export const api = {
   // Tables
-  getTables: () => req('/tables'),
+  getTables: ({ includeArchived = false } = {}) => req(`/tables${includeArchived ? '?include_archived=true' : ''}`),
   getImmediateTable: () => req('/tables/immediate'),
   createTable: (data) => req('/tables', { method: 'POST', body: JSON.stringify(data) }),
   updateTable: (id, data) => req(`/tables/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

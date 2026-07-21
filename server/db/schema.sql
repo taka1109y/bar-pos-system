@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS tables (
 
 -- 既存DBへの追加カラムマイグレーション
 ALTER TABLE tables ADD COLUMN IF NOT EXISTS table_type TEXT NOT NULL DEFAULT 'table';
+-- アーカイブ（ソフト削除）用。売上履歴のあるテーブルは物理削除せず is_active=FALSE で非表示にする
+ALTER TABLE tables ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
 
 CREATE TABLE IF NOT EXISTS categories (
     id         SERIAL PRIMARY KEY,
