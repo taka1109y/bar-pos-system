@@ -96,7 +96,7 @@ export const api = {
   getCostAnalysis: (start, end) => req(`/reports/cost-analysis?start=${start}&end=${end}`),
   getProfitSummary: (start, end) => req(`/reports/profit-summary?start=${start}&end=${end}`),
   getAnalytics: (start, end) => req(`/reports/analytics?start=${start}&end=${end}`),
-  getReceipts: (date) => req(`/receipts?date=${date}`),
+  getReceipts: (date, since = null) => req(`/receipts?date=${date}${since ? `&since=${encodeURIComponent(since)}` : ''}`),
   getOrder: (orderId) => req(`/orders/${orderId}`),
   voidAndReissue: (orderId) => req(`/receipts/${orderId}/void-and-reissue`, { method: 'POST' }),
 

@@ -5,11 +5,27 @@ const { broadcast } = require('../services/socketService');
 const { TZ, todayJST } = require('../utils/time');
 const { assertDateFormat } = require('../utils/validate');
 
-// GET /api/receipts?date=YYYY-MM-DD
+// GET /api/receipts?date=YYYY-MM-DD[&since=ISO_TIMESTAMP]
+// since 指定時はレジ開店時刻以降（営業セッション基準）で抽出し、日計レポート(/reports/daily)と一致させる。
+// 未指定時は従来どおり暦日(date)基準（伝票情報ページ ReceiptsPage 用）。
 router.get('/', async (req, res, next) => {
   try {
     const date = req.query.date || todayJST();
     try { assertDateFormat(date, 'date'); } catch (e) { return res.status(e.status).json({ error: e.error }); }
+
+    const since = req.query.since || null;
+    if (since && Number.isNaN(Date.parse(since))) {
+      return res.status(400).json({ error: 'since must be a valid timestamp' });
+    }
+
+    // since 指定時は closed_at/opened_at >= since、未指定時は暦日一致。
+    // 参照しないプレースホルダを残さないよう WHERE 句と params を分岐で切り替える。
+    const whereClause = since
+      ? `(o.status = 'paid' AND o.closed_at >= $1)
+         OR (o.status = 'open' AND o.receipt_type = 'red' AND o.opened_at >= $1)`
+      : `(o.status = 'paid' AND (o.closed_at AT TIME ZONE $2)::date = $1)
+         OR (o.status = 'open' AND o.receipt_type = 'red' AND (o.opened_at AT TIME ZONE $2)::date = $1)`;
+    const params = since ? [since] : [date, TZ];
 
     const { rows } = await query(
       `SELECT
@@ -48,10 +64,7 @@ router.get('/', async (req, res, next) => {
        JOIN tables t ON o.table_id = t.id
        LEFT JOIN order_items oi ON oi.order_id = o.id
        WHERE (
-         (o.status = 'paid' AND (o.closed_at AT TIME ZONE $2)::date = $1)
-         OR
-         (o.status = 'open' AND o.receipt_type = 'red'
-          AND (o.opened_at AT TIME ZONE $2)::date = $1)
+         ${whereClause}
        )
        GROUP BY o.id, o.receipt_type, o.original_order_id, o.status, o.table_id,
                 o.closed_at, o.opened_at, o.total_amount, o.discount_amount,
@@ -60,7 +73,7 @@ router.get('/', async (req, res, next) => {
                 o.charge_per_person, o.charge_amount, o.guest_count,
                 t.name
        ORDER BY COALESCE(o.closed_at, o.opened_at) DESC`,
-      [date, TZ]
+      params
     );
 
     res.json(rows);

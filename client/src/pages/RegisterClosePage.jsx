@@ -150,8 +150,8 @@ export default function RegisterClosePage() {
   });
 
   const { data: todayReceipts = [] } = useQuery({
-    queryKey: ['receipts', today],
-    queryFn: () => api.getReceipts(today),
+    queryKey: ['receipts', today, settings?.register_opened_at],
+    queryFn: () => api.getReceipts(today, settings?.register_opened_at ?? null),
   });
 
   const { data: openOrders = [] } = useQuery({
