@@ -66,6 +66,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
   const [splitMode,          setSplitMode]          = useState(false);
   const [splitAmounts,       setSplitAmounts]       = useState({ cash: 0, card: 0, emoney: 0 });
   const [splitActive,        setSplitActive]        = useState('cash');
+  const [splitInput,         setSplitInput]         = useState('');
   const [discountType,       setDiscountType]       = useState('amount');
   const [discountInput,      setDiscountInput]      = useState('');
   const [savedDiscountType,  setSavedDiscountType]  = useState('amount');
@@ -147,9 +148,9 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
         giftCertAmount:  splitMode ? 0 : effectiveGiftCert,
         finalTotal,
         paymentMethod:   splitMode ? 'split' : paymentMethod,
-        payments:        splitMode ? { ...splitAmounts } : null,
-        received:        splitMode ? 0 : received,
-        change:          splitMode ? 0 : change,
+        payments:        splitMode ? { ...splitAlloc } : null,
+        received:        splitMode ? splitAmounts.cash : received,
+        change:          splitMode ? splitChange : change,
       });
     },
   });
@@ -253,12 +254,16 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
   const balance   = Math.max(finalTotal - totalPaid, 0);
   const change    = Math.max(totalPaid - finalTotal, 0);
 
-  // 分割会計
+  // 分割会計（確定済み splitAmounts を集計。splitInput は入力中バッファ）
   const SPLIT_METHODS  = [{ id: 'cash', label: '現金' }, { id: 'card', label: 'カード' }, { id: 'emoney', label: '電子マネー' }];
-  const splitSum       = splitAmounts.cash + splitAmounts.card + splitAmounts.emoney;
-  const splitRemaining = finalTotal - splitSum;
-  const splitFillValue = Math.max(finalTotal - (splitSum - splitAmounts[splitActive]), 0);
-  const splitPayments  = SPLIT_METHODS.filter((m) => splitAmounts[m.id] > 0).map((m) => ({ method: m.id, amount: splitAmounts[m.id] }));
+  const cashlessSum    = splitAmounts.card + splitAmounts.emoney;   // カード＋電子マネー（超過不可）
+  const enteredSum     = splitAmounts.cash + cashlessSum;           // 入力済み合計（お預かり相当）
+  const splitRemaining = Math.max(finalTotal - enteredSum, 0);      // 差額
+  const splitChange    = Math.max(enteredSum - finalTotal, 0);      // おつり（現金の超過分）
+  const splitFillValue = Math.max(finalTotal - (enteredSum - splitAmounts[splitActive]), 0);
+  const cashAlloc      = Math.max(finalTotal - cashlessSum, 0);     // 会計時の現金配分
+  const splitAlloc     = { cash: cashAlloc, card: splitAmounts.card, emoney: splitAmounts.emoney };
+  const splitPayments  = SPLIT_METHODS.filter((m) => splitAlloc[m.id] > 0).map((m) => ({ method: m.id, amount: splitAlloc[m.id] }));
 
   const switchSplitMode = (on) => {
     setSplitMode(on);
@@ -266,21 +271,28 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
     if (on) {
       setSplitAmounts({ cash: 0, card: 0, emoney: 0 });
       setSplitActive('cash');
+      setSplitInput('');
       setGiftCertTotal(0);
       setGiftCertNoChange(false);
     }
   };
   const selectSplitMethod = (m) => {
     setSplitActive(m);
-    setSplitAmounts((p) => ({ ...p, [m]: 0 }));
+    setSplitInput('');
   };
-  const onSplitInput = (v) => {
-    const n = parseInt(v, 10) || 0;
-    setSplitAmounts((p) => ({ ...p, [splitActive]: n }));
+  const onSplitInput = (v) => setSplitInput(v);
+  const commitSplit = () => {
+    if (splitInput === '') return;
+    setSplitAmounts((p) => ({ ...p, [splitActive]: parseInt(splitInput, 10) || 0 }));
+    setSplitInput('');
+  };
+  const clearSplit = () => {
+    setSplitAmounts({ cash: 0, card: 0, emoney: 0 });
+    setSplitInput('');
   };
 
   const canPay = !!order && (order.items?.length ?? 0) > 0 && !payMutation.isPending
-    && (splitMode ? (finalTotal > 0 && splitSum === finalTotal) : (isCash ? totalPaid >= finalTotal : true));
+    && (splitMode ? (finalTotal > 0 && enteredSum >= finalTotal && cashlessSum <= finalTotal) : (isCash ? totalPaid >= finalTotal : true));
 
   const items = order?.items ?? [];
 
@@ -556,49 +568,73 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                 </>
               ) : (
                 <>
-                  {/* 分割: 方法別金額行（タップで入力対象を選択） */}
+                  {/* 分割: 方法行（タップで選択、テンキー入力→決定で確定） */}
                   <div className="space-y-2">
-                    {SPLIT_METHODS.map((m) => (
-                      <button
-                        key={m.id}
-                        onClick={() => selectSplitMethod(m.id)}
-                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all ${
-                          splitActive === m.id
-                            ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-300'
-                            : 'border-slate-200 bg-white hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className={`text-sm font-semibold ${splitActive === m.id ? 'text-primary-700' : 'text-slate-700'}`}>
-                          {m.label}
-                        </span>
-                        <span className="text-lg font-black text-slate-900">¥{yen(splitAmounts[m.id])}</span>
-                      </button>
-                    ))}
+                    {SPLIT_METHODS.map((m) => {
+                      const isActive = splitActive === m.id;
+                      const shown = isActive && splitInput !== '' ? (parseInt(splitInput, 10) || 0) : splitAmounts[m.id];
+                      return (
+                        <button
+                          key={m.id}
+                          onClick={() => selectSplitMethod(m.id)}
+                          className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border transition-all ${
+                            isActive
+                              ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-300'
+                              : 'border-slate-200 bg-white hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className={`text-sm font-semibold ${isActive ? 'text-primary-700' : 'text-slate-700'}`}>
+                            {m.label}
+                          </span>
+                          <span className={`text-lg font-black ${isActive && splitInput !== '' ? 'text-primary-600' : 'text-slate-900'}`}>
+                            ¥{yen(shown)}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* 分割サマリ */}
+                  {/* 分割サマリ（差額 / おつり） */}
                   <div className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 space-y-1">
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-500">会計総額</span>
                       <span className="font-semibold text-slate-900">¥{yen(finalTotal)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">割当済</span>
-                      <span className="font-semibold text-slate-900">¥{yen(splitSum)}</span>
+                      <span className="text-slate-500">入力済</span>
+                      <span className="font-semibold text-slate-900">¥{yen(enteredSum)}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">残額</span>
-                      <span className={`font-bold ${splitRemaining === 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                        {splitRemaining < 0 ? '−' : ''}¥{yen(Math.abs(splitRemaining))}
-                      </span>
-                    </div>
+                    {splitChange > 0 ? (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-emerald-600">おつり</span>
+                        <span className="font-bold text-emerald-600">¥{yen(splitChange)}</span>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">差額</span>
+                        <span className={`font-bold ${splitRemaining === 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          ¥{yen(splitRemaining)}
+                        </span>
+                      </div>
+                    )}
+                    {cashlessSum > finalTotal && (
+                      <p className="text-xs text-red-500 pt-0.5">カード・電子マネーが会計総額を超えています</p>
+                    )}
                   </div>
 
-                  {/* テンキー（選択中の方法を編集） */}
+                  {/* 分割クリア */}
+                  <button
+                    onClick={clearSplit}
+                    className="w-full py-2.5 text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
+                  >
+                    分割クリア
+                  </button>
+
+                  {/* テンキー（決定で選択中の方法を確定） */}
                   <Numpad
-                    value={splitAmounts[splitActive] ? String(splitAmounts[splitActive]) : ''}
+                    value={splitInput}
                     onChange={onSplitInput}
-                    onConfirm={() => { if (canPay) payMutation.mutate(); }}
+                    onConfirm={commitSplit}
                     exactAmount={splitFillValue}
                   />
                 </>
