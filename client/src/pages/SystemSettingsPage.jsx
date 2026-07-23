@@ -7,8 +7,16 @@ import CrashTab from './settings/CrashTab';
 import MaintenanceTab from './settings/MaintenanceTab';
 
 const RECEIPT_LABELS = { normal: '通常', red: '赤伝票', void: '取消', black_cancelled: '黒取消' };
-const PAYMENT_LABELS = { cash: '現金', card: 'カード', emoney: '電子マネー' };
+const PAYMENT_LABELS = { cash: '現金', card: 'カード', emoney: '電子マネー', split: '分割' };
 const LOG_LIMIT = 50;
+
+// 分割伝票の内訳テキスト（例: "現金¥2,000 / カード¥3,000"）
+function splitBreakdown(o) {
+  return ['cash', 'card', 'emoney']
+    .filter((k) => (o[`${k}_amount`] ?? 0) > 0)
+    .map((k) => `${PAYMENT_LABELS[k]}¥${yen(Math.floor(o[`${k}_amount`]))}`)
+    .join(' / ');
+}
 
 function fmtDateTime(iso) {
   if (!iso) return '-';
@@ -88,6 +96,7 @@ function LogTab() {
               <option value="cash">現金</option>
               <option value="card">カード</option>
               <option value="emoney">電子マネー</option>
+              <option value="split">分割</option>
             </select>
           </div>
           <button
@@ -145,7 +154,14 @@ function LogTab() {
                       <td className="py-3 px-4 text-sm text-slate-400">#{o.id}</td>
                       <td className="py-3 px-4 text-sm text-slate-900 whitespace-nowrap">{fmtDateTime(o.closed_at)}</td>
                       <td className="py-3 px-4 text-sm text-slate-900">{o.table_name ?? '-'}</td>
-                      <td className="py-3 px-4 text-sm text-slate-700">{PAYMENT_LABELS[o.payment_method] ?? o.payment_method}</td>
+                      <td className="py-3 px-4 text-sm text-slate-700">
+                        {o.payment_method === 'split' ? (
+                          <div>
+                            <span className="font-medium">分割</span>
+                            <span className="block text-[11px] text-slate-400">{splitBreakdown(o)}</span>
+                          </div>
+                        ) : (PAYMENT_LABELS[o.payment_method] ?? o.payment_method)}
+                      </td>
                       <td className="py-3 px-4">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                           o.receipt_type === 'red'             ? 'bg-red-100 text-red-700' :

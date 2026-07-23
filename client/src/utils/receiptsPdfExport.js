@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const PAYMENT_LABELS = { cash: '現金', card: 'カード', emoney: '電子マネー' };
+const PAYMENT_LABELS = { cash: '現金', card: 'カード', emoney: '電子マネー', split: '分割' };
 const RECEIPT_TYPE_LABELS = {
   normal:          '黒伝票',
   red:             '赤伝票',
@@ -30,7 +30,9 @@ function buildReceiptBlock(r) {
   const isVoid     = r.receipt_type === 'void' || r.receipt_type === 'black_cancelled';
   const typeLabel  = RECEIPT_TYPE_LABELS[r.receipt_type] ?? '';
   const typeBadge  = RECEIPT_TYPE_BADGE[r.receipt_type] ?? { color: '#374151', background: '#f3f4f6' };
-  const payLabel   = PAYMENT_LABELS[r.payment_method] ?? r.payment_method;
+  const payLabel   = r.payment_method === 'split'
+    ? `分割 ${['cash', 'card', 'emoney'].filter((k) => (r[`${k}_amount`] ?? 0) > 0).map((k) => `${PAYMENT_LABELS[k]}${yen(r[`${k}_amount`])}`).join(' / ')}`
+    : (PAYMENT_LABELS[r.payment_method] ?? r.payment_method);
   const dt        = fmtTime(r.closed_at ?? r.opened_at);
   const items     = (r.items ?? []).filter(i => i.item_name);
   const itemsSub  = items.reduce((s, i) => s + i.unit_price * i.quantity, 0);

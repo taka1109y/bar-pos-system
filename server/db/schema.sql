@@ -67,6 +67,21 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS gift_cert_no_change BOOLEAN       NO
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS charge_per_person   NUMERIC(10,2) NOT NULL DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS charge_amount       NUMERIC(10,2) NOT NULL DEFAULT 0;
 
+-- 分割会計（複数支払い方法）: 方法ごとの金額。不変条件 cash+card+emoney = total_amount。
+-- payment_method は代表値（単一なら方法名、分割なら 'split'）として残す。
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS cash_amount   NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS card_amount   NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS emoney_amount NUMERIC(10,2) NOT NULL DEFAULT 0;
+
+-- 既存の会計済みオーダーを方法別金額へバックフィル（冪等: 3カラムが全て0のときのみ実行）。
+-- バックフィル後は非0になり再実行されない。新規オーダーは payments.js が直接3カラムを埋める。
+UPDATE orders
+SET cash_amount   = CASE WHEN payment_method = 'cash'   THEN total_amount ELSE 0 END,
+    card_amount   = CASE WHEN payment_method = 'card'   THEN total_amount ELSE 0 END,
+    emoney_amount = CASE WHEN payment_method = 'emoney' THEN total_amount ELSE 0 END
+WHERE status = 'paid' AND total_amount > 0
+  AND cash_amount = 0 AND card_amount = 0 AND emoney_amount = 0;
+
 CREATE TABLE IF NOT EXISTS order_items (
     id           SERIAL PRIMARY KEY,
     order_id     INTEGER NOT NULL REFERENCES orders(id),

@@ -71,14 +71,23 @@ export const api = {
   cancelEmptyOrder: (orderId) => req(`/orders/${orderId}`, { method: 'DELETE' }),
 
   // Payments
-  pay: (orderId, paymentMethod = 'cash', discountAmount = 0, memo = null, giftCertAmount = 0, giftCertNoChange = false) =>
+  // 分割会計対応: payments = [{ method, amount }, ...] を渡すと複数支払い方法で登録
+  pay: (orderId, {
+    paymentMethod    = 'cash',
+    payments         = null,
+    discountAmount   = 0,
+    memo             = null,
+    giftCertAmount   = 0,
+    giftCertNoChange = false,
+  } = {}) =>
     req(`/payments/${orderId}`, {
       method: 'POST',
       body: JSON.stringify({
-        payment_method:    paymentMethod,
-        discount_amount:   discountAmount,
-        memo:              memo || null,
-        gift_cert_amount:  giftCertAmount,
+        payment_method:      paymentMethod,
+        ...(payments ? { payments } : {}),
+        discount_amount:     discountAmount,
+        memo:                memo || null,
+        gift_cert_amount:    giftCertAmount,
         gift_cert_no_change: giftCertNoChange,
       }),
     }),

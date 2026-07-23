@@ -43,6 +43,9 @@ router.get('/', async (req, res, next) => {
          o.tax_rate::float,
          o.tax_amount::float,
          o.payment_method,
+         o.cash_amount::float,
+         o.card_amount::float,
+         o.emoney_amount::float,
          o.memo,
          o.gift_cert_amount::float,
          o.gift_cert_no_change,
@@ -69,7 +72,8 @@ router.get('/', async (req, res, next) => {
        GROUP BY o.id, o.receipt_type, o.original_order_id, o.status, o.table_id,
                 o.closed_at, o.opened_at, o.total_amount, o.discount_amount,
                 o.late_night_rate, o.late_night_amount, o.tax_rate, o.tax_amount,
-                o.payment_method, o.memo, o.gift_cert_amount, o.gift_cert_no_change,
+                o.payment_method, o.cash_amount, o.card_amount, o.emoney_amount,
+                o.memo, o.gift_cert_amount, o.gift_cert_no_change,
                 o.charge_per_person, o.charge_amount, o.guest_count,
                 t.name
        ORDER BY COALESCE(o.closed_at, o.opened_at) DESC`,
@@ -91,7 +95,8 @@ router.post('/:orderId/void-and-reissue', async (req, res, next) => {
     // FOR UPDATE で行ロックを取得してから状態確認（二重取消し防止）
     const { rows: orderRows } = await client.query(
       `SELECT id, table_id, status, receipt_type, closed_at,
-              total_amount, payment_method, guest_count, discount_amount,
+              total_amount, payment_method, cash_amount, card_amount, emoney_amount,
+              guest_count, discount_amount,
               tax_rate, tax_amount, late_night_rate, late_night_amount,
               memo, gift_cert_amount, gift_cert_no_change,
               charge_per_person, charge_amount
@@ -146,6 +151,7 @@ router.post('/:orderId/void-and-reissue', async (req, res, next) => {
          tax_rate, tax_amount, late_night_rate, late_night_amount,
          memo, gift_cert_amount, gift_cert_no_change,
          charge_per_person, charge_amount,
+         cash_amount, card_amount, emoney_amount,
          receipt_type, original_order_id
        ) VALUES (
          $1, 'paid', $2, $3,
@@ -153,7 +159,8 @@ router.post('/:orderId/void-and-reissue', async (req, res, next) => {
          $6, $7, $8, $9,
          $10, $11, $12,
          $13, $14,
-         'void', $15
+         $15, $16, $17,
+         'void', $18
        ) RETURNING id`,
       [
         order.table_id, order.total_amount, order.payment_method,
@@ -161,6 +168,7 @@ router.post('/:orderId/void-and-reissue', async (req, res, next) => {
         order.tax_rate, order.tax_amount, order.late_night_rate, order.late_night_amount,
         order.memo, order.gift_cert_amount, order.gift_cert_no_change,
         order.charge_per_person, order.charge_amount,
+        order.cash_amount, order.card_amount, order.emoney_amount,
         order.id,
       ]
     );
@@ -174,6 +182,7 @@ router.post('/:orderId/void-and-reissue', async (req, res, next) => {
          tax_rate, tax_amount, late_night_rate, late_night_amount,
          memo, gift_cert_amount, gift_cert_no_change,
          charge_per_person, charge_amount,
+         cash_amount, card_amount, emoney_amount,
          receipt_type, original_order_id
        ) VALUES (
          $1, 'open', $2, $3,
@@ -181,7 +190,8 @@ router.post('/:orderId/void-and-reissue', async (req, res, next) => {
          $6, $7, $8, $9,
          $10, $11, $12,
          $13, $14,
-         'red', $15
+         $15, $16, $17,
+         'red', $18
        ) RETURNING id`,
       [
         order.table_id, order.total_amount, order.payment_method,
@@ -189,6 +199,7 @@ router.post('/:orderId/void-and-reissue', async (req, res, next) => {
         order.tax_rate, order.tax_amount, order.late_night_rate, order.late_night_amount,
         order.memo, order.gift_cert_amount, order.gift_cert_no_change,
         order.charge_per_person, order.charge_amount,
+        order.cash_amount, order.card_amount, order.emoney_amount,
         order.id,
       ]
     );

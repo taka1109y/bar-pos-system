@@ -5,7 +5,7 @@ const { TZ } = require('../utils/time');
 const { assertDateFormat, clampInt } = require('../utils/validate');
 
 const VALID_RECEIPT_TYPES   = new Set(['normal', 'red', 'void', 'black_cancelled']);
-const VALID_PAYMENT_METHODS = new Set(['cash', 'card', 'emoney']);
+const VALID_PAYMENT_METHODS = new Set(['cash', 'card', 'emoney', 'split']);
 
 // GET /api/logs?from=YYYY-MM-DD&to=YYYY-MM-DD&receipt_type=all&payment_method=all&limit=50&offset=0
 router.get('/', async (req, res, next) => {
@@ -54,6 +54,9 @@ router.get('/', async (req, res, next) => {
               o.opened_at,
               o.closed_at,
               o.payment_method,
+              o.cash_amount::float,
+              o.card_amount::float,
+              o.emoney_amount::float,
               o.total_amount::float,
               o.discount_amount::float,
               o.gift_cert_amount::float,

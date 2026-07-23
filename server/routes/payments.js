@@ -11,13 +11,18 @@ const VALID_METHODS = ['cash', 'card', 'emoney'];
 router.post('/:orderId', async (req, res, next) => {
   const {
     payment_method   = 'cash',
+    payments         = null,   // 分割会計: [{ method:'cash', amount:2000 }, ...]（任意）
     discount_amount  = 0,
     memo             = null,
     gift_cert_amount = 0,
     gift_cert_no_change = false,
   } = req.body;
 
-  if (!VALID_METHODS.includes(payment_method)) {
+  // 分割会計が指定されているか（配列で1件以上）
+  const splitProvided = Array.isArray(payments) && payments.length > 0;
+
+  // 単一方法時のみ payment_method を検証（分割時は代表値をサーバ側で決めるため無視）
+  if (!splitProvided && !VALID_METHODS.includes(payment_method)) {
     return res.status(400).json({ error: 'Invalid payment_method. Use cash, card, or emoney.' });
   }
   if (parseFloat(discount_amount) < 0) {
@@ -25,6 +30,26 @@ router.post('/:orderId', async (req, res, next) => {
   }
   if (parseFloat(gift_cert_amount) < 0) {
     return res.status(400).json({ error: 'gift_cert_amount must be >= 0' });
+  }
+
+  // 分割会計の構造チェック（合計金額の一致チェックは total 算出後に実施）
+  if (splitProvided) {
+    const seen = new Set();
+    for (const p of payments) {
+      if (!p || !VALID_METHODS.includes(p.method)) {
+        return res.status(400).json({ error: `Invalid split method. Use ${VALID_METHODS.join(', ')}.` });
+      }
+      if (seen.has(p.method)) {
+        return res.status(400).json({ error: 'Duplicate split payment method' });
+      }
+      seen.add(p.method);
+      if (!(parseFloat(p.amount) >= 0)) {
+        return res.status(400).json({ error: 'Split amount must be a number >= 0' });
+      }
+    }
+    if (parseFloat(gift_cert_amount) > 0) {
+      return res.status(400).json({ error: '分割会計と金券は併用できません' });
+    }
   }
 
   const client = await pool.connect();
@@ -102,17 +127,40 @@ router.post('/:orderId', async (req, res, next) => {
     const effective_gift_cert = gift_cert_no_change
       ? Math.min(raw_gift_cert, total)
       : raw_gift_cert;
+
+    // 支払い方法別の金額を決定（不変条件: cash+card+emoney = total_amount）
+    const methodAmounts = { cash: 0, card: 0, emoney: 0 };
+    let representativeMethod;
+    if (splitProvided) {
+      // 分割: 各金額の合計は total と一致必須（金券併用なしのため total = 方法で払う額）
+      const splitSum = payments.reduce((s, p) => s + Math.round(parseFloat(p.amount) || 0), 0);
+      if (splitSum !== total) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `分割金額の合計(¥${splitSum})が会計総額(¥${total})と一致しません` });
+      }
+      for (const p of payments) methodAmounts[p.method] = Math.round(parseFloat(p.amount) || 0);
+      const usedMethods = VALID_METHODS.filter((m) => methodAmounts[m] > 0);
+      // 2方法以上なら代表値は 'split'、1方法だけなら実質単一なのでその方法名
+      representativeMethod = usedMethods.length >= 2 ? 'split' : (usedMethods[0] ?? payment_method);
+    } else {
+      // 単一: 従来どおり選んだ方法のカラム = total_amount、他は0
+      methodAmounts[payment_method] = total;
+      representativeMethod = payment_method;
+    }
+
     await client.query(
       `UPDATE orders
        SET status = 'paid', closed_at = NOW(),
            total_amount = $1, payment_method = $2,
            discount_amount = $3, tax_rate = $4, tax_amount = $5,
            late_night_rate = $6, late_night_amount = $7,
-           memo = $8, gift_cert_amount = $9, gift_cert_no_change = $10
-       WHERE id = $11`,
-      [total, payment_method, discount, tax_rate, tax_amount,
+           memo = $8, gift_cert_amount = $9, gift_cert_no_change = $10,
+           cash_amount = $11, card_amount = $12, emoney_amount = $13
+       WHERE id = $14`,
+      [total, representativeMethod, discount, tax_rate, tax_amount,
        late_night_rate, late_night_amount,
        memo || null, effective_gift_cert, gift_cert_no_change,
+       methodAmounts.cash, methodAmounts.card, methodAmounts.emoney,
        order.id]
     );
     // レシピベースの材料在庫自動減算
@@ -175,7 +223,8 @@ router.post('/:orderId', async (req, res, next) => {
       tax_rate,
       tax_amount,
       total,
-      paymentMethod: payment_method,
+      paymentMethod: representativeMethod,
+      payments: methodAmounts,   // { cash, card, emoney } 方法別内訳（結果表示用）
       giftCertAmount: effective_gift_cert,
       paidAt: new Date().toISOString(),
     });

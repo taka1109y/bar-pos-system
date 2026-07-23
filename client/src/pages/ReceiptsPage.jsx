@@ -9,7 +9,18 @@ import { TZ } from '../utils/tz';
 const inp = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
 const lbl = 'block text-xs font-semibold text-slate-500 mb-1.5';
 
-const PAYMENT_LABEL = { cash: '現金', card: 'カード', emoney: '電子マネー' };
+const PAYMENT_LABEL = { cash: '現金', card: 'カード', emoney: '電子マネー', split: '分割' };
+
+// 分割伝票の内訳テキスト（例: "分割 現金¥2,000 / カード¥3,000"）
+function paymentMethodText(r) {
+  if (r.payment_method === 'split') {
+    const parts = ['cash', 'card', 'emoney']
+      .filter((k) => (r[`${k}_amount`] ?? 0) > 0)
+      .map((k) => `${PAYMENT_LABEL[k]}¥${yen(Math.floor(r[`${k}_amount`]))}`);
+    return `分割 ${parts.join(' / ')}`;
+  }
+  return PAYMENT_LABEL[r.payment_method] ?? r.payment_method;
+}
 
 function getReceiptLabel(r) {
   if (r.receipt_type === 'black_cancelled') return { label: '黒伝票取消し', badgeCls: 'bg-gray-100 text-gray-500' };
@@ -252,7 +263,7 @@ export default function ReceiptsPage() {
                     )}
                     {!isRedOpen && (
                       <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 font-medium">
-                        {PAYMENT_LABEL[r.payment_method] ?? r.payment_method}
+                        {paymentMethodText(r)}
                       </span>
                     )}
                   </div>
