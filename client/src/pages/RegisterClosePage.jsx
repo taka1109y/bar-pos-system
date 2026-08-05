@@ -143,6 +143,11 @@ export default function RegisterClosePage() {
     queryFn: () => api.getSystemSettings(),
   });
 
+  // 営業日付＝レジオープン日（register_opened_at のJST日付）。0時をまたいでも当日営業として表示する。
+  const businessDate = settings?.register_opened_at
+    ? new Date(settings.register_opened_at).toLocaleDateString('sv-SE', { timeZone: TZ })
+    : today;
+
   const { data: report, isLoading } = useQuery({
     queryKey: ['report-daily', today, settings?.register_opened_at],
     queryFn: () => api.getDailyReport(today, settings?.register_opened_at ?? null),
@@ -314,11 +319,11 @@ export default function RegisterClosePage() {
         }
       }
 
-      pdf.save(`${today}_\u65e5\u8a08\u30ec\u30dd\u30fc\u30c8.pdf`);
+      pdf.save(`${businessDate}_\u65e5\u8a08\u30ec\u30dd\u30fc\u30c8.pdf`);
       setCloseError(null);
 
       // \u4f1d\u7968\u4e00\u89a7PDF\uff082\u679a\u76ee\uff09
-      await exportReceiptsPdf(todayReceipts, today);
+      await exportReceiptsPdf(todayReceipts, businessDate);
     } catch (err) {
       console.error('PDF\u51fa\u529b\u5931\u6557:', err);
     } finally {
@@ -490,7 +495,7 @@ export default function RegisterClosePage() {
         <div style={{ borderBottom: '2px solid #2b70ef', paddingBottom: '10px', marginBottom: '16px' }}>
           <h1 style={{ fontSize: '18px', fontWeight: 900, color: '#2b70ef', margin: 0 }}>日計レポート</h1>
           <div style={{ display: 'flex', gap: '24px', marginTop: '6px', fontSize: '11px', color: '#64748b' }}>
-            <span>営業日付: <strong>{today}</strong></span>
+            <span>営業日付: <strong>{businessDate}</strong></span>
           </div>
         </div>
 
