@@ -8,6 +8,7 @@ import MenuGrid from './MenuGrid';
 import PaymentModal from './PaymentModal';
 import CustomPriceModal from './CustomPriceModal';
 import GuestCountPicker from './GuestCountPicker';
+import ChoiceModal from './ChoiceModal';
 
 // ── 確認モーダル ──────────────────────────────────────────
 function ConfirmModal({ title, description, confirmLabel, confirmClass, onConfirm, onClose }) {
@@ -141,39 +142,6 @@ function TableMergeModal({ currentTableId, tables, openOrders, onSelect, onClose
   );
 }
 
-// ── 質問選択モーダル（ソース種類・割り方など） ────────────────
-function ChoiceModal({ title, choices, onSelect, onClose }) {
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in">
-      <div className="bg-white rounded-xl p-5 w-80 shadow-xl pop-in border border-slate-200">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold text-slate-900">{title}</h3>
-          <button onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-        <div className="space-y-2">
-          {choices.map((choice) => (
-            <button
-              key={choice.label}
-              onClick={() => onSelect(choice)}
-              className="w-full text-left px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-primary-50 hover:border-primary-300 text-sm font-medium text-slate-800 transition-all active:scale-[0.98]"
-            >
-              {choice.label}
-              {choice.priceDelta > 0 && (
-                <span className="ml-2 text-xs font-semibold text-primary-600">+¥{yen(choice.priceDelta)}</span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── 価格・商品名編集モーダル（時価商品用） ──────────────────
 // ── メインコンポーネント ──────────────────────────────────
 export default function OrderPanel({ table, menuItems, categories, subcategories = [], onClose, settings, tables = [], openOrders = [], onMoved }) {
@@ -235,8 +203,8 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menu_item_id, unit_price, item_name, selected_option }) =>
-      api.addOrderItem(orderId, { menu_item_id, quantity: 1, unit_price, item_name, selected_option }),
+    mutationFn: ({ orderId, menu_item_id, unit_price, item_name, selected_option, selected_options }) =>
+      api.addOrderItem(orderId, { menu_item_id, quantity: 1, unit_price, item_name, selected_option, selected_options }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
@@ -306,6 +274,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
         menu_item_id: menuItem.id,
         title:        menuItem.question_text,
         choices:      menuItem.question_choices || [],
+        allowMultiple: !!menuItem.question_allow_multiple,
       });
       return;
     }
@@ -337,6 +306,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
         menu_item_id: item.menu_item_id,
         title:        menuItem.question_text,
         choices:      menuItem.question_choices || [],
+        allowMultiple: !!menuItem.question_allow_multiple,
       });
       return;
     }
@@ -663,11 +633,15 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
         <ChoiceModal
           title={choiceItem.title}
           choices={choiceItem.choices}
-          onSelect={(choice) => {
+          allowMultiple={choiceItem.allowMultiple}
+          onConfirm={(chosen) => {
+            const labels = chosen.map((c) => c.label);
             addItemMutation.mutate({
               orderId: order.id,
               menu_item_id: choiceItem.menu_item_id,
-              selected_option: choice.label,
+              ...(choiceItem.allowMultiple
+                ? { selected_options: labels }
+                : { selected_option: labels[0] }),
             });
             setChoiceItem(null);
           }}

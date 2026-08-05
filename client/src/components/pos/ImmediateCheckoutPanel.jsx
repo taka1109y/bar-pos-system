@@ -6,6 +6,7 @@ import socket from '../../socket';
 import MenuGrid from './MenuGrid';
 import { DiscountModal, GiftCertModal, PaymentResultModal } from './PaymentModal';
 import CustomPriceModal from './CustomPriceModal';
+import ChoiceModal from './ChoiceModal';
 
 // ── テンキー ─────────────────────────────────────────────────
 function Numpad({ value, onChange, onConfirm, exactAmount }) {
@@ -79,6 +80,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
   const [tempGiftCertNoChange,  setTempGiftCertNoChange]  = useState(false);
   const [payResult,          setPayResult]          = useState(null);
   const [priceEditItem,      setPriceEditItem]      = useState(null);
+  const [choiceItem,         setChoiceItem]         = useState(null);
 
   // 即会計専用テーブル取得（起動後は変わらないので staleTime: Infinity）
   const { data: immediateTable } = useQuery({
@@ -122,8 +124,8 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menuItemId, unit_price, item_name }) =>
-      api.addOrderItem(orderId, { menu_item_id: menuItemId, quantity: 1, unit_price, item_name }),
+    mutationFn: ({ orderId, menuItemId, unit_price, item_name, selected_option, selected_options }) =>
+      api.addOrderItem(orderId, { menu_item_id: menuItemId, quantity: 1, unit_price, item_name, selected_option, selected_options }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
@@ -182,9 +184,32 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
       });
       return;
     }
+    // 質問が設定された商品は選択肢を選ばせる（単一/複数）
+    if (menuItem.question_text) {
+      setChoiceItem({
+        menu_item_id:  menuItem.id,
+        title:         menuItem.question_text,
+        choices:       menuItem.question_choices || [],
+        allowMultiple: !!menuItem.question_allow_multiple,
+      });
+      return;
+    }
     const orderId = await ensureOrderId();
     if (!orderId) return;
     addItemMutation.mutate({ orderId, menuItemId: menuItem.id });
+  };
+
+  // 質問商品の選択確定 → 遅延作成した注文へ追加
+  const handleChoiceConfirm = async (chosen) => {
+    const orderId = await ensureOrderId();
+    if (!orderId) { setChoiceItem(null); return; }
+    const labels = chosen.map((c) => c.label);
+    addItemMutation.mutate({
+      orderId,
+      menuItemId: choiceItem.menu_item_id,
+      ...(choiceItem.allowMultiple ? { selected_options: labels } : { selected_option: labels[0] }),
+    });
+    setChoiceItem(null);
   };
 
   // 時価商品の価格・商品名を確定して追加
@@ -204,6 +229,16 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
         menu_item_id: item.menu_item_id,
         defaultName:  item.item_name,
         defaultPrice: Math.round(item.unit_price),
+      });
+      return;
+    }
+    // 質問商品は追加のたびに選び直させる
+    if (mi?.question_text) {
+      setChoiceItem({
+        menu_item_id:  mi.id,
+        title:         mi.question_text,
+        choices:       mi.question_choices || [],
+        allowMultiple: !!mi.question_allow_multiple,
       });
       return;
     }
@@ -662,6 +697,15 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
           onConfirm={handlePriceConfirm}
           onClose={() => setPriceEditItem(null)}
           isPending={addItemMutation.isPending || createOrderMutation.isPending}
+        />
+      )}
+      {choiceItem && (
+        <ChoiceModal
+          title={choiceItem.title}
+          choices={choiceItem.choices}
+          allowMultiple={choiceItem.allowMultiple}
+          onConfirm={handleChoiceConfirm}
+          onClose={() => setChoiceItem(null)}
         />
       )}
     </>

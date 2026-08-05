@@ -221,6 +221,8 @@ CREATE INDEX IF NOT EXISTS idx_menu_items_sort ON menu_items(category_id, subcat
 -- 注文時の質問（ソースの種類・割り方など）: question_textが未設定の商品は質問なし
 ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_text TEXT;
 ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_choices JSONB;
+-- 選択肢を複数選べる商品（TRUE で複数選択→1明細に併記・価格差合算）
+ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_allow_multiple BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS selected_option TEXT;
 
 -- question_choices を文字列配列からオブジェクト配列 {label, priceDelta} へ移行（選択肢ごとの追加料金対応）

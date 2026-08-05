@@ -194,7 +194,15 @@ function CrashBanner({ crashState, categories, subcategories, onSelectCategory, 
 // ───────────────────────────────────────────
 // 質問選択モーダル（ソース種類・割り方など、中央表示）
 // ───────────────────────────────────────────
-function ChoiceModal({ item, onSelect, onCancel }) {
+function ChoiceModal({ item, onConfirm, onCancel }) {
+  const allowMultiple = !!item.question_allow_multiple;
+  const [selected, setSelected] = useState([]);
+  const toggle = (label) =>
+    setSelected((prev) => (prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]));
+  const confirmMulti = () => {
+    const chosen = (item.question_choices || []).filter((c) => selected.includes(c.label));
+    if (chosen.length > 0) onConfirm(chosen);
+  };
   return (
     <>
       <div
@@ -207,30 +215,55 @@ function ChoiceModal({ item, onSelect, onCancel }) {
           <h3 className="text-center mb-2" style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 19, fontWeight: 700, color: '#ffc531' }}>
             {item.name}
           </h3>
-          <p className="text-center mb-6" style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 15, color: '#f0f0f5' }}>
+          <p className="text-center mb-3" style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 15, color: '#f0f0f5' }}>
             {item.question_text}
           </p>
+          {allowMultiple && (
+            <p className="text-center mb-4" style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 13, color: '#7a7a90' }}>
+              複数選択できます
+            </p>
+          )}
           <div className="space-y-3 mb-3">
-            {(item.question_choices || []).map((choice) => (
-              <button
-                key={choice.label}
-                onClick={() => onSelect(choice)}
-                className="w-full active:scale-[0.98]"
-                style={{
-                  background: 'rgba(255,255,255,0.06)', border: '1px solid #252532', borderRadius: 12,
-                  padding: '14px 0', color: '#f0f0f5', fontFamily: "'Noto Sans JP', sans-serif",
-                  fontSize: 16, fontWeight: 700, cursor: 'pointer', transition: 'all 0.12s',
-                }}
-              >
-                {choice.label}
-                {choice.priceDelta > 0 && (
-                  <span style={{ color: '#ffc531', fontSize: 14, marginLeft: 8 }}>
-                    (+¥{yen(choice.priceDelta)})
-                  </span>
-                )}
-              </button>
-            ))}
+            {(item.question_choices || []).map((choice) => {
+              const isSel = selected.includes(choice.label);
+              return (
+                <button
+                  key={choice.label}
+                  onClick={() => (allowMultiple ? toggle(choice.label) : onConfirm([choice]))}
+                  className="w-full active:scale-[0.98]"
+                  style={{
+                    background: isSel ? 'rgba(229,34,51,0.18)' : 'rgba(255,255,255,0.06)',
+                    border: isSel ? '1px solid #e52233' : '1px solid #252532', borderRadius: 12,
+                    padding: '14px 0', color: '#f0f0f5', fontFamily: "'Noto Sans JP', sans-serif",
+                    fontSize: 16, fontWeight: 700, cursor: 'pointer', transition: 'all 0.12s',
+                  }}
+                >
+                  {allowMultiple && <span style={{ marginRight: 8 }}>{isSel ? '☑' : '☐'}</span>}
+                  {choice.label}
+                  {choice.priceDelta > 0 && (
+                    <span style={{ color: '#ffc531', fontSize: 14, marginLeft: 8 }}>
+                      (+¥{yen(choice.priceDelta)})
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
+          {allowMultiple && (
+            <button
+              onClick={confirmMulti}
+              disabled={selected.length === 0}
+              className="w-full active:scale-[0.98] mb-1"
+              style={{
+                background: selected.length ? '#e52233' : '#3a2226', border: 'none', borderRadius: 12,
+                padding: '15px 0', color: '#fff', fontFamily: "'Noto Sans JP', sans-serif",
+                fontSize: 17, fontWeight: 800, cursor: selected.length ? 'pointer' : 'default',
+                opacity: selected.length ? 1 : 0.5,
+              }}
+            >
+              決定{selected.length > 0 ? `（${selected.length}件）` : ''}
+            </button>
+          )}
           <button
             onClick={onCancel}
             className="w-full"
@@ -592,8 +625,8 @@ export default function TablePage() {
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menu_item_id, quantity, selected_option }) =>
-      api.addOrderItem(orderId, { menu_item_id, quantity, selected_option }),
+    mutationFn: ({ orderId, menu_item_id, quantity, selected_option, selected_options }) =>
+      api.addOrderItem(orderId, { menu_item_id, quantity, selected_option, selected_options }),
     onMutate: async ({ menu_item_id, quantity, price, name, selected_option }) => {
       await queryClient.cancelQueries({ queryKey: orderKey });
       const previous = queryClient.getQueryData(orderKey);
@@ -647,7 +680,7 @@ export default function TablePage() {
         if (!currentOrder) return;
       }
     }
-    addItemMutation.mutate({ orderId: currentOrder.id, menu_item_id: item.id, quantity: qty, price, name: item.name, selected_option: item.selected_option ?? null });
+    addItemMutation.mutate({ orderId: currentOrder.id, menu_item_id: item.id, quantity: qty, price, name: item.name, selected_option: item.selected_option ?? null, selected_options: item.selected_options });
   };
 
   const lnRate  = sysSettings?.late_night_rate  ?? 0.10;
@@ -774,8 +807,15 @@ export default function TablePage() {
       {choiceItem && (
         <ChoiceModal
           item={choiceItem}
-          onSelect={(choice) => {
-            setConfirmItem({ ...choiceItem, selected_option: choice.label, selectedPriceDelta: choice.priceDelta ?? 0 });
+          onConfirm={(chosen) => {
+            const labels = chosen.map((c) => c.label);
+            const deltaSum = chosen.reduce((s, c) => s + (c.priceDelta || 0), 0);
+            setConfirmItem({
+              ...choiceItem,
+              selected_option: labels.join(', '),
+              selected_options: choiceItem.question_allow_multiple ? labels : undefined,
+              selectedPriceDelta: deltaSum,
+            });
             setChoiceItem(null);
           }}
           onCancel={() => setChoiceItem(null)}

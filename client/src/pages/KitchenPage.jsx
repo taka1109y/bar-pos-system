@@ -364,15 +364,19 @@ export default function KitchenPage() {
                       </button>
                     </div>
 
-                    {/* キャンセルボタン */}
+                    {/* キャンセルボタン（即会計paidは会計済みのため提供完了のみ） */}
                     <div className="flex justify-center">
-                      <button
-                        onClick={() => setCancelTarget(row)}
-                        disabled={isServePending || isCancelPending}
-                        className="px-3 py-1.5 bg-slate-100 hover:bg-red-50 hover:text-red-600 disabled:opacity-40 text-slate-500 text-xs font-semibold rounded-lg transition-colors"
-                      >
-                        {isCancelPending ? '...' : 'キャンセル'}
-                      </button>
+                      {row.orderStatus === 'paid' ? (
+                        <span className="text-[11px] text-slate-400 font-medium">会計済</span>
+                      ) : (
+                        <button
+                          onClick={() => setCancelTarget(row)}
+                          disabled={isServePending || isCancelPending}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-red-50 hover:text-red-600 disabled:opacity-40 text-slate-500 text-xs font-semibold rounded-lg transition-colors"
+                        >
+                          {isCancelPending ? '...' : 'キャンセル'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

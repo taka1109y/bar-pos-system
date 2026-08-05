@@ -17,7 +17,7 @@ const ITEM_SELECT = `
     m.recipe_notes,
     m.is_drink, m.is_active, m.crash_enabled, m.is_crashed,
     m.image_url, m.tax_category, m.is_staff_only, m.price_editable,
-    m.question_text, m.question_choices,
+    m.question_text, m.question_choices, m.question_allow_multiple,
     c.name  AS category_name,  c.sort_order AS category_sort_order,
     sc.name AS subcategory_name, sc.sort_order AS subcategory_sort_order
   FROM menu_items m
@@ -237,7 +237,7 @@ router.post('/', async (req, res, next) => {
     const { category_id, subcategory_id, name, base_price, min_price, max_price,
             price_step_up, price_step_down, is_drink = true, image_url = null,
             tax_category, is_staff_only = false, price_editable = false,
-            question_text = null, question_choices = null } = req.body;
+            question_text = null, question_choices = null, question_allow_multiple = false } = req.body;
     if (!category_id || !name || base_price == null) {
       return res.status(400).json({ error: 'category_id, name, base_price are required' });
     }
@@ -272,13 +272,15 @@ router.post('/', async (req, res, next) => {
     if (Number(minP) > Number(maxP)) {
       return res.status(400).json({ error: 'min_price must be less than or equal to max_price' });
     }
+    // 質問が無い商品は複数選択フラグを強制的に false にする
+    const allowMultiple = qText ? Boolean(question_allow_multiple) : false;
     const { rows } = await query(
       `INSERT INTO menu_items
-         (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, image_url, tax_category, is_staff_only, price_editable, question_text, question_choices, sort_order)
-       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+         (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, image_url, tax_category, is_staff_only, price_editable, question_text, question_choices, question_allow_multiple, sort_order)
+       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
          COALESCE((SELECT MAX(sort_order) FROM menu_items WHERE category_id = $1 AND subcategory_id IS NOT DISTINCT FROM $2), -1) + 1)
        RETURNING id`,
-      [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink, image_url || null, effectiveTaxCategory, Boolean(is_staff_only), Boolean(price_editable), qText, qChoices ? JSON.stringify(qChoices) : null]
+      [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink, image_url || null, effectiveTaxCategory, Boolean(is_staff_only), Boolean(price_editable), qText, qChoices ? JSON.stringify(qChoices) : null, allowMultiple]
     );
     const { rows: result } = await query(`${ITEM_SELECT} WHERE m.id = $1`, [rows[0].id]);
     res.status(201).json(result[0]);
@@ -439,7 +441,7 @@ router.patch('/:id', async (req, res, next) => {
     const { category_id, name, base_price, min_price, max_price, price_step_up, price_step_down,
             is_drink, is_active, subcategory_id, crash_enabled, is_crashed,
             image_url, tax_category, is_staff_only, price_editable, sort_order,
-            question_text, question_choices } = req.body;
+            question_text, question_choices, question_allow_multiple } = req.body;
     const updates = [];
     const values = [];
     let idx = 1;
@@ -487,6 +489,8 @@ router.patch('/:id', async (req, res, next) => {
       }
       updates.push(`question_text = $${idx++}`);     values.push(qText);
       updates.push(`question_choices = $${idx++}`);  values.push(qChoices ? JSON.stringify(qChoices) : null);
+      // 質問設定を更新する時は複数選択フラグも合わせて設定（質問なしなら false 固定）
+      updates.push(`question_allow_multiple = $${idx++}`); values.push(qText ? Boolean(question_allow_multiple) : false);
     }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });

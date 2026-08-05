@@ -16,6 +16,7 @@ const KITCHEN_ITEM_COLUMNS = `
   oi.created_at     AS ordered_at,
   oi.selected_option,
   o.table_id,
+  o.status          AS order_status,
   t.name            AS table_name
 `;
 
@@ -31,6 +32,7 @@ function mapKitchenRow(r) {
     status:         r.item_status,
     orderedAt:      r.ordered_at,
     selectedOption: r.selected_option,
+    orderStatus:    r.order_status,
   };
 }
 
@@ -42,7 +44,11 @@ router.get('/orders', async (req, res, next) => {
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
       JOIN tables t ON t.id = o.table_id
-      WHERE o.status = 'open' AND oi.status = 'pending'
+      WHERE oi.status = 'pending' AND (
+        o.status = 'open'
+        OR (o.status = 'paid' AND t.table_type = 'immediate'
+            AND o.closed_at >= now() - interval '12 hours')
+      )
       ORDER BY oi.created_at ASC, oi.id ASC
     `);
 
