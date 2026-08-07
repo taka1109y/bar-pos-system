@@ -203,8 +203,8 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menu_item_id, unit_price, item_name, selected_option, selected_options }) =>
-      api.addOrderItem(orderId, { menu_item_id, quantity: 1, unit_price, item_name, selected_option, selected_options }),
+    mutationFn: ({ orderId, menu_item_id, unit_price, item_name, selected_option, selected_options, selected_option_counts }) =>
+      api.addOrderItem(orderId, { menu_item_id, quantity: 1, unit_price, item_name, selected_option, selected_options, selected_option_counts }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
@@ -275,6 +275,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
         title:        menuItem.question_text,
         choices:      menuItem.question_choices || [],
         allowMultiple: !!menuItem.question_allow_multiple,
+        allowQuantity: !!menuItem.question_allow_quantity,
       });
       return;
     }
@@ -307,6 +308,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
         title:        menuItem.question_text,
         choices:      menuItem.question_choices || [],
         allowMultiple: !!menuItem.question_allow_multiple,
+        allowQuantity: !!menuItem.question_allow_quantity,
       });
       return;
     }
@@ -634,14 +636,17 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
           title={choiceItem.title}
           choices={choiceItem.choices}
           allowMultiple={choiceItem.allowMultiple}
+          allowQuantity={choiceItem.allowQuantity}
           onConfirm={(chosen) => {
-            const labels = chosen.map((c) => c.label);
+            const payload = choiceItem.allowQuantity
+              ? { selected_option_counts: chosen.map((c) => ({ label: c.label, count: c.count })) }
+              : choiceItem.allowMultiple
+                ? { selected_options: chosen.map((c) => c.label) }
+                : { selected_option: chosen[0].label };
             addItemMutation.mutate({
               orderId: order.id,
               menu_item_id: choiceItem.menu_item_id,
-              ...(choiceItem.allowMultiple
-                ? { selected_options: labels }
-                : { selected_option: labels[0] }),
+              ...payload,
             });
             setChoiceItem(null);
           }}

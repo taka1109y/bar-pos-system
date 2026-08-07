@@ -178,7 +178,7 @@ router.post('/', async (req, res, next) => {
 router.post('/:id/items', async (req, res, next) => {
   const client = await pool.connect();
   try {
-    const { menu_item_id, quantity = 1, unit_price, item_name, selected_option, selected_options } = req.body;
+    const { menu_item_id, quantity = 1, unit_price, item_name, selected_option, selected_options, selected_option_counts } = req.body;
     if (!menu_item_id) return res.status(400).json({ error: 'menu_item_id is required' });
     const qty = Number(quantity);
     if (!Number.isInteger(qty) || qty < 1) {
@@ -199,7 +199,7 @@ router.post('/:id/items', async (req, res, next) => {
     }
 
     const { rows: menuRows } = await client.query(
-      'SELECT id, name, current_price::float, is_drink, price_editable, question_text, question_choices, question_allow_multiple FROM menu_items WHERE id = $1 AND is_active = TRUE',
+      'SELECT id, name, current_price::float, is_drink, price_editable, question_text, question_choices, question_allow_multiple, question_allow_quantity FROM menu_items WHERE id = $1 AND is_active = TRUE',
       [menu_item_id]
     );
     const menuItem = menuRows[0];
@@ -233,7 +233,29 @@ router.post('/:id/items', async (req, res, next) => {
     let finalSelectedOption = null;
     if (menuItem.question_text) {
       const choices = menuItem.question_choices || [];
-      if (menuItem.question_allow_multiple) {
+      if (menuItem.question_allow_quantity) {
+        // 数量指定: selected_option_counts（[{label, count}]）を各照合、priceDelta×count を合算、"A×2, B×1" 併記
+        const rawCounts = Array.isArray(selected_option_counts) ? selected_option_counts : [];
+        const cleaned = rawCounts
+          .map((c) => ({ label: String(c?.label ?? '').trim(), count: parseInt(c?.count, 10) }))
+          .filter((c) => c.label.length > 0 && Number.isInteger(c.count) && c.count > 0);
+        if (cleaned.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: '回答を選択してください' });
+        }
+        const parts = [];
+        for (const { label, count } of cleaned) {
+          const matched = choices.find((c) => c.label === label);
+          if (!matched) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: '無効な選択肢です' });
+          }
+          const cnt = Math.min(99, count); // 個数上限99
+          finalPrice += (Number(matched.priceDelta) || 0) * cnt;
+          parts.push(`${label}×${cnt}`);
+        }
+        finalSelectedOption = parts.join(', ');
+      } else if (menuItem.question_allow_multiple) {
         // 複数選択: selected_options（ラベル配列）を各照合、priceDeltaを合算、1明細に併記
         const labels = Array.isArray(selected_options)
           ? selected_options.map((s) => String(s).trim()).filter((s) => s.length > 0)

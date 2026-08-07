@@ -223,6 +223,8 @@ ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_text TEXT;
 ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_choices JSONB;
 -- 選択肢を複数選べる商品（TRUE で複数選択→1明細に併記・価格差合算）
 ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_allow_multiple BOOLEAN NOT NULL DEFAULT FALSE;
+-- 同じ選択肢を個数指定できる商品（TRUE で数量指定→1明細に "A×2, B×1" 併記・価格差×個数合算。複数選択より優先）
+ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_allow_quantity BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS selected_option TEXT;
 
 -- question_choices を文字列配列からオブジェクト配列 {label, priceDelta} へ移行（選択肢ごとの追加料金対応）

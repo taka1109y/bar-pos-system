@@ -124,8 +124,8 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menuItemId, unit_price, item_name, selected_option, selected_options }) =>
-      api.addOrderItem(orderId, { menu_item_id: menuItemId, quantity: 1, unit_price, item_name, selected_option, selected_options }),
+    mutationFn: ({ orderId, menuItemId, unit_price, item_name, selected_option, selected_options, selected_option_counts }) =>
+      api.addOrderItem(orderId, { menu_item_id: menuItemId, quantity: 1, unit_price, item_name, selected_option, selected_options, selected_option_counts }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
@@ -191,6 +191,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
         title:         menuItem.question_text,
         choices:       menuItem.question_choices || [],
         allowMultiple: !!menuItem.question_allow_multiple,
+        allowQuantity: !!menuItem.question_allow_quantity,
       });
       return;
     }
@@ -203,11 +204,15 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
   const handleChoiceConfirm = async (chosen) => {
     const orderId = await ensureOrderId();
     if (!orderId) { setChoiceItem(null); return; }
-    const labels = chosen.map((c) => c.label);
+    const payload = choiceItem.allowQuantity
+      ? { selected_option_counts: chosen.map((c) => ({ label: c.label, count: c.count })) }
+      : choiceItem.allowMultiple
+        ? { selected_options: chosen.map((c) => c.label) }
+        : { selected_option: chosen[0].label };
     addItemMutation.mutate({
       orderId,
       menuItemId: choiceItem.menu_item_id,
-      ...(choiceItem.allowMultiple ? { selected_options: labels } : { selected_option: labels[0] }),
+      ...payload,
     });
     setChoiceItem(null);
   };
@@ -239,6 +244,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
         title:         mi.question_text,
         choices:       mi.question_choices || [],
         allowMultiple: !!mi.question_allow_multiple,
+        allowQuantity: !!mi.question_allow_quantity,
       });
       return;
     }
@@ -704,6 +710,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
           title={choiceItem.title}
           choices={choiceItem.choices}
           allowMultiple={choiceItem.allowMultiple}
+          allowQuantity={choiceItem.allowQuantity}
           onConfirm={handleChoiceConfirm}
           onClose={() => setChoiceItem(null)}
         />

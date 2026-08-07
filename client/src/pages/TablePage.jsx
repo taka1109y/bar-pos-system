@@ -196,11 +196,21 @@ function CrashBanner({ crashState, categories, subcategories, onSelectCategory, 
 // ───────────────────────────────────────────
 function ChoiceModal({ item, onConfirm, onCancel }) {
   const allowMultiple = !!item.question_allow_multiple;
+  const allowQuantity = !!item.question_allow_quantity;
+  const choices = item.question_choices || [];
   const [selected, setSelected] = useState([]);
+  const [counts, setCounts] = useState({});
   const toggle = (label) =>
     setSelected((prev) => (prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]));
+  const setCount = (label, delta) =>
+    setCounts((prev) => ({ ...prev, [label]: Math.max(0, Math.min(99, (prev[label] || 0) + delta)) }));
+  const totalCount = choices.reduce((s, c) => s + (counts[c.label] || 0), 0);
   const confirmMulti = () => {
-    const chosen = (item.question_choices || []).filter((c) => selected.includes(c.label));
+    const chosen = choices.filter((c) => selected.includes(c.label)).map((c) => ({ ...c, count: 1 }));
+    if (chosen.length > 0) onConfirm(chosen);
+  };
+  const confirmQuantity = () => {
+    const chosen = choices.filter((c) => (counts[c.label] || 0) > 0).map((c) => ({ ...c, count: counts[c.label] }));
     if (chosen.length > 0) onConfirm(chosen);
   };
   return (
@@ -218,18 +228,50 @@ function ChoiceModal({ item, onConfirm, onCancel }) {
           <p className="text-center mb-3" style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 15, color: '#f0f0f5' }}>
             {item.question_text}
           </p>
-          {allowMultiple && (
+          {(allowQuantity || allowMultiple) && (
             <p className="text-center mb-4" style={{ fontFamily: "'Noto Sans JP', sans-serif", fontSize: 13, color: '#7a7a90' }}>
-              複数選択できます
+              {allowQuantity ? '個数を選べます' : '複数選択できます'}
             </p>
           )}
           <div className="space-y-3 mb-3">
-            {(item.question_choices || []).map((choice) => {
+            {choices.map((choice) => {
+              if (allowQuantity) {
+                const cnt = counts[choice.label] || 0;
+                return (
+                  <div
+                    key={choice.label}
+                    className="w-full flex items-center justify-between"
+                    style={{
+                      background: cnt > 0 ? 'rgba(229,34,51,0.18)' : 'rgba(255,255,255,0.06)',
+                      border: cnt > 0 ? '1px solid #e52233' : '1px solid #252532', borderRadius: 12,
+                      padding: '10px 16px', color: '#f0f0f5', fontFamily: "'Noto Sans JP', sans-serif",
+                    }}
+                  >
+                    <span style={{ fontSize: 16, fontWeight: 700 }}>
+                      {choice.label}
+                      {choice.priceDelta > 0 && (
+                        <span style={{ color: '#ffc531', fontSize: 14, marginLeft: 8 }}>(+¥{yen(choice.priceDelta)})</span>
+                      )}
+                    </span>
+                    <span className="flex items-center" style={{ gap: 12 }}>
+                      <button onClick={() => setCount(choice.label, -1)} disabled={cnt === 0} aria-label={`${choice.label}を減らす`}
+                        style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: '#2a2a36', color: '#fff', fontSize: 22, fontWeight: 800, cursor: cnt ? 'pointer' : 'default', opacity: cnt ? 1 : 0.4 }}>
+                        −
+                      </button>
+                      <span style={{ minWidth: 24, textAlign: 'center', fontSize: 18, fontWeight: 800 }}>{cnt}</span>
+                      <button onClick={() => setCount(choice.label, 1)} aria-label={`${choice.label}を増やす`}
+                        style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: '#e52233', color: '#fff', fontSize: 22, fontWeight: 800, cursor: 'pointer' }}>
+                        ＋
+                      </button>
+                    </span>
+                  </div>
+                );
+              }
               const isSel = selected.includes(choice.label);
               return (
                 <button
                   key={choice.label}
-                  onClick={() => (allowMultiple ? toggle(choice.label) : onConfirm([choice]))}
+                  onClick={() => (allowMultiple ? toggle(choice.label) : onConfirm([{ ...choice, count: 1 }]))}
                   className="w-full active:scale-[0.98]"
                   style={{
                     background: isSel ? 'rgba(229,34,51,0.18)' : 'rgba(255,255,255,0.06)',
@@ -249,7 +291,21 @@ function ChoiceModal({ item, onConfirm, onCancel }) {
               );
             })}
           </div>
-          {allowMultiple && (
+          {allowQuantity ? (
+            <button
+              onClick={confirmQuantity}
+              disabled={totalCount === 0}
+              className="w-full active:scale-[0.98] mb-1"
+              style={{
+                background: totalCount ? '#e52233' : '#3a2226', border: 'none', borderRadius: 12,
+                padding: '15px 0', color: '#fff', fontFamily: "'Noto Sans JP', sans-serif",
+                fontSize: 17, fontWeight: 800, cursor: totalCount ? 'pointer' : 'default',
+                opacity: totalCount ? 1 : 0.5,
+              }}
+            >
+              決定{totalCount > 0 ? `（計${totalCount}点）` : ''}
+            </button>
+          ) : allowMultiple ? (
             <button
               onClick={confirmMulti}
               disabled={selected.length === 0}
@@ -263,7 +319,7 @@ function ChoiceModal({ item, onConfirm, onCancel }) {
             >
               決定{selected.length > 0 ? `（${selected.length}件）` : ''}
             </button>
-          )}
+          ) : null}
           <button
             onClick={onCancel}
             className="w-full"
@@ -625,8 +681,8 @@ export default function TablePage() {
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menu_item_id, quantity, selected_option, selected_options }) =>
-      api.addOrderItem(orderId, { menu_item_id, quantity, selected_option, selected_options }),
+    mutationFn: ({ orderId, menu_item_id, quantity, selected_option, selected_options, selected_option_counts }) =>
+      api.addOrderItem(orderId, { menu_item_id, quantity, selected_option, selected_options, selected_option_counts }),
     onMutate: async ({ menu_item_id, quantity, price, name, selected_option }) => {
       await queryClient.cancelQueries({ queryKey: orderKey });
       const previous = queryClient.getQueryData(orderKey);
@@ -680,7 +736,7 @@ export default function TablePage() {
         if (!currentOrder) return;
       }
     }
-    addItemMutation.mutate({ orderId: currentOrder.id, menu_item_id: item.id, quantity: qty, price, name: item.name, selected_option: item.selected_option ?? null, selected_options: item.selected_options });
+    addItemMutation.mutate({ orderId: currentOrder.id, menu_item_id: item.id, quantity: qty, price, name: item.name, selected_option: item.selected_option ?? null, selected_options: item.selected_options, selected_option_counts: item.selected_option_counts });
   };
 
   const lnRate  = sysSettings?.late_night_rate  ?? 0.10;
@@ -808,12 +864,15 @@ export default function TablePage() {
         <ChoiceModal
           item={choiceItem}
           onConfirm={(chosen) => {
-            const labels = chosen.map((c) => c.label);
-            const deltaSum = chosen.reduce((s, c) => s + (c.priceDelta || 0), 0);
+            const quantity = choiceItem.question_allow_quantity;
+            const deltaSum = chosen.reduce((s, c) => s + (c.priceDelta || 0) * (c.count || 1), 0);
             setConfirmItem({
               ...choiceItem,
-              selected_option: labels.join(', '),
-              selected_options: choiceItem.question_allow_multiple ? labels : undefined,
+              selected_option: quantity
+                ? chosen.map((c) => `${c.label}×${c.count}`).join(', ')
+                : chosen.map((c) => c.label).join(', '),
+              selected_options: choiceItem.question_allow_multiple ? chosen.map((c) => c.label) : undefined,
+              selected_option_counts: quantity ? chosen.map((c) => ({ label: c.label, count: c.count })) : undefined,
               selectedPriceDelta: deltaSum,
             });
             setChoiceItem(null);

@@ -56,6 +56,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     price_editable:  item?.price_editable ?? false,
     question_text:    item?.question_text || '',
     question_allow_multiple: item?.question_allow_multiple || false,
+    question_allow_quantity: item?.question_allow_quantity || false,
     question_choices: (item?.question_choices || []).map((c) =>
       typeof c === 'string' ? { label: c, priceDelta: 0 } : { label: c.label ?? '', priceDelta: c.priceDelta ?? 0 }
     ),
@@ -156,6 +157,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
       question_text:    qText || null,
       question_choices: qText ? qChoices : null,
       question_allow_multiple: qText ? Boolean(form.question_allow_multiple) : false,
+      question_allow_quantity: qText ? Boolean(form.question_allow_quantity) : false,
     });
   };
 
@@ -454,6 +456,15 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
                 className="w-4 h-4 accent-primary-500"
               />
               <span className="text-sm text-slate-700">複数選択を許可（選んだ分を1明細にまとめ、追加料金を合算）</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={form.question_allow_quantity}
+                onChange={(e) => set('question_allow_quantity', e.target.checked)}
+                className="w-4 h-4 accent-primary-500"
+              />
+              <span className="text-sm text-slate-700">数量指定を許可（同じ選択肢を複数個・A×2 など。ONのとき複数選択より優先）</span>
             </label>
             {questionError && <p className="text-xs text-red-600">{questionError}</p>}
           </div>
