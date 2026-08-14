@@ -372,8 +372,11 @@ router.post('/crash', async (req, res, next) => {
     const broadcastItems = [];
     for (const item of targets) {
       const pct = Math.min(Math.max(item.effective_pct ?? 0, 0), 100);
-      // セーフティネット: 原価データがある商品は原価×1.2(25円切上げ)を下限とし、原価割れを防ぐ
-      const costFloor = item.cost > 0 ? Math.ceil(item.cost * 1.2 / 25) * 25 : 0;
+      // セーフティネット: 原価がある商品は原価×1.2、原価不明(レシピ未登録)の商品は
+      // base_price×40% を下限にする(25円切上げ)。これで全商品に必ず下限がかかる。
+      const costFloor = item.cost > 0
+        ? Math.ceil(item.cost * 1.2 / 25) * 25
+        : Math.ceil(item.base_price * 0.4 / 25) * 25;
       const raw = Math.round(item.min_price * (1 - pct / 100) / 25) * 25;
       const crashPrice = Math.max(raw, costFloor, 0);
       await query(
