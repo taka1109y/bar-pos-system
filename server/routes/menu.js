@@ -351,6 +351,11 @@ router.post('/crash', async (req, res, next) => {
         m.name,
         m.base_price::float,
         m.min_price::float,
+        COALESCE((
+          SELECT SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0))
+          FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id
+          WHERE r.menu_item_id = m.id
+        ), 0)::float AS cost,
         COALESCE(
           CASE WHEN m.subcategory_id = ANY($2::int[]) THEN sc.crash_pct::float ELSE NULL END,
           CASE WHEN m.category_id    = ANY($1::int[]) THEN c.crash_pct::float  ELSE NULL END
@@ -367,7 +372,10 @@ router.post('/crash', async (req, res, next) => {
     const broadcastItems = [];
     for (const item of targets) {
       const pct = Math.min(Math.max(item.effective_pct ?? 0, 0), 100);
-      const crashPrice = Math.max(Math.round(item.min_price * (1 - pct / 100) / 25) * 25, 0);
+      // セーフティネット: 原価データがある商品は原価×1.2(25円切上げ)を下限とし、原価割れを防ぐ
+      const costFloor = item.cost > 0 ? Math.ceil(item.cost * 1.2 / 25) * 25 : 0;
+      const raw = Math.round(item.min_price * (1 - pct / 100) / 25) * 25;
+      const crashPrice = Math.max(raw, costFloor, 0);
       await query(
         'UPDATE menu_items SET current_price = $1, is_crashed = TRUE WHERE id = $2',
         [crashPrice, item.id]
