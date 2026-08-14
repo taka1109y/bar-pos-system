@@ -75,7 +75,7 @@ router.get('/categories', async (req, res, next) => {
     const includeStaff = req.query.staff === 'true';
     const staffFilter  = includeStaff ? '' : 'WHERE is_staff_only = FALSE';
     const { rows } = await query(
-      `SELECT id, name, sort_order, crash_pct::float, is_staff_only
+      `SELECT id, name, sort_order, crash_pct::float, is_staff_only, competition_category_wide
        FROM categories ${staffFilter} ORDER BY sort_order`
     );
     res.json(rows);
@@ -85,11 +85,11 @@ router.get('/categories', async (req, res, next) => {
 // POST /api/menu/categories
 router.post('/categories', async (req, res, next) => {
   try {
-    const { name, sort_order = 0, is_staff_only = false } = req.body;
+    const { name, sort_order = 0, is_staff_only = false, competition_category_wide = false } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
     const { rows } = await query(
-      'INSERT INTO categories (name, sort_order, is_staff_only) VALUES ($1, $2, $3) RETURNING id, name, sort_order, crash_pct::float, is_staff_only',
-      [name, sort_order, Boolean(is_staff_only)]
+      'INSERT INTO categories (name, sort_order, is_staff_only, competition_category_wide) VALUES ($1, $2, $3, $4) RETURNING id, name, sort_order, crash_pct::float, is_staff_only, competition_category_wide',
+      [name, sort_order, Boolean(is_staff_only), Boolean(competition_category_wide)]
     );
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
@@ -101,7 +101,7 @@ router.patch('/categories/:id', async (req, res, next) => {
     const { rows: existing } = await query('SELECT id FROM categories WHERE id = $1', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ error: 'Category not found' });
 
-    const { name, sort_order, crash_pct, is_staff_only } = req.body;
+    const { name, sort_order, crash_pct, is_staff_only, competition_category_wide } = req.body;
     const updates = [];
     const values = [];
     let idx = 1;
@@ -109,11 +109,12 @@ router.patch('/categories/:id', async (req, res, next) => {
     if (sort_order !== undefined)    { updates.push(`sort_order = $${idx++}`);    values.push(sort_order); }
     if (crash_pct !== undefined)     { updates.push(`crash_pct = $${idx++}`);     values.push(crash_pct); }
     if (is_staff_only !== undefined) { updates.push(`is_staff_only = $${idx++}`); values.push(Boolean(is_staff_only)); }
+    if (competition_category_wide !== undefined) { updates.push(`competition_category_wide = $${idx++}`); values.push(Boolean(competition_category_wide)); }
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
     values.push(req.params.id);
     const { rows } = await query(
-      `UPDATE categories SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, name, sort_order, crash_pct::float, is_staff_only`,
+      `UPDATE categories SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, name, sort_order, crash_pct::float, is_staff_only, competition_category_wide`,
       values
     );
     res.json(rows[0]);
@@ -436,7 +437,7 @@ router.post('/crash/reset', async (req, res, next) => {
 // PATCH /api/menu/:id
 router.patch('/:id', async (req, res, next) => {
   try {
-    const { rows: existing } = await query('SELECT id, min_price::float, max_price::float FROM menu_items WHERE id = $1', [req.params.id]);
+    const { rows: existing } = await query('SELECT id, min_price::float, max_price::float, is_crashed FROM menu_items WHERE id = $1', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ error: 'Item not found' });
 
     const { category_id, name, base_price, min_price, max_price, price_step_up, price_step_down,
@@ -447,18 +448,24 @@ router.patch('/:id', async (req, res, next) => {
     const values = [];
     let idx = 1;
 
+    // min/max の実効値（未指定なら既存値）。バリデーションと base 変更時の current_price クランプで共用
+    const effectiveMin = min_price !== undefined ? Number(min_price) : existing[0].min_price;
+    const effectiveMax = max_price !== undefined ? Number(max_price) : existing[0].max_price;
+    if (effectiveMin > effectiveMax) {
+      return res.status(400).json({ error: 'min_price must be less than or equal to max_price' });
+    }
+
     if (category_id !== undefined) {
       if (!category_id) return res.status(400).json({ error: 'category_id must not be empty' });
       updates.push(`category_id = $${idx++}`); values.push(category_id);
     }
     if (name !== undefined)             { updates.push(`name = $${idx++}`);             values.push(name); }
     if (base_price !== undefined)       { updates.push(`base_price = $${idx++}`);       values.push(base_price); }
-    if (min_price !== undefined || max_price !== undefined) {
-      const effectiveMin = min_price !== undefined ? Number(min_price) : existing[0].min_price;
-      const effectiveMax = max_price !== undefined ? Number(max_price) : existing[0].max_price;
-      if (effectiveMin > effectiveMax) {
-        return res.status(400).json({ error: 'min_price must be less than or equal to max_price' });
-      }
+    // 基準価格を変更した時、暴落中でなければ現在価格(=表示価格)も基準価格に追従させる。
+    // 食品(is_drink=false)は価格エンジン非対象で current_price が旧値のまま固定される不具合の修正。
+    if (base_price !== undefined && !existing[0].is_crashed) {
+      const clamped = Math.max(effectiveMin, Math.min(effectiveMax, Number(base_price)));
+      updates.push(`current_price = $${idx++}`); values.push(clamped);
     }
     if (min_price !== undefined)        { updates.push(`min_price = $${idx++}`);        values.push(min_price); }
     if (max_price !== undefined)        { updates.push(`max_price = $${idx++}`);        values.push(max_price); }

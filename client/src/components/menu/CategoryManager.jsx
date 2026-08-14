@@ -203,7 +203,7 @@ export default function CategoryManager() {
                 </button>
                 <span className="text-xs text-slate-400">順序: {cat.sort_order}</span>
                 <button
-                  onClick={() => { setEditingCat(cat); setCatForm({ name: cat.name, sort_order: cat.sort_order, crash_pct: cat.crash_pct ?? 0, is_staff_only: cat.is_staff_only ?? false }); }}
+                  onClick={() => { setEditingCat(cat); setCatForm({ name: cat.name, sort_order: cat.sort_order, crash_pct: cat.crash_pct ?? 0, is_staff_only: cat.is_staff_only ?? false, competition_category_wide: cat.competition_category_wide ?? false }); }}
                   className="w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer"
                   title="編集"
                 >
@@ -285,6 +285,15 @@ export default function CategoryManager() {
             {catForm.is_staff_only && (
               <p className="text-xs text-amber-600 mt-1 ml-6">POS画面にのみ表示されます</p>
             )}
+            <label className="flex items-center gap-2 cursor-pointer mt-3">
+              <input
+                type="checkbox"
+                checked={Boolean(catForm.competition_category_wide)}
+                onChange={(e) => setCatForm((f) => ({ ...f, competition_category_wide: e.target.checked }))}
+                className="w-4 h-4 rounded accent-primary-500"
+              />
+              <span className="text-sm text-slate-700">価格競合をカテゴリ全体で行う（OFF＝サブカテゴリ内）</span>
+            </label>
           </div>
           {formButtons(
             () => { setAddOpen(false); setCatForm({}); },
@@ -311,6 +320,15 @@ export default function CategoryManager() {
             {catForm.is_staff_only && (
               <p className="text-xs text-amber-600 mt-1 ml-6">POS画面にのみ表示されます</p>
             )}
+            <label className="flex items-center gap-2 cursor-pointer mt-3">
+              <input
+                type="checkbox"
+                checked={Boolean(catForm.competition_category_wide)}
+                onChange={(e) => setCatForm((f) => ({ ...f, competition_category_wide: e.target.checked }))}
+                className="w-4 h-4 rounded accent-primary-500"
+              />
+              <span className="text-sm text-slate-700">価格競合をカテゴリ全体で行う（OFF＝サブカテゴリ内）</span>
+            </label>
           </div>
           {formButtons(
             () => setEditingCat(null),

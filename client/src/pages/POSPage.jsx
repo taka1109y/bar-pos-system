@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import socket from '../socket';
 import usePriceStore from '../store/usePriceStore';
+import { getAudioCtx, playNotification } from '../utils/audioAlert';
 import TableGrid from '../components/pos/TableGrid';
 import OrderPanel from '../components/pos/OrderPanel';
 import MenuManager from '../components/menu/MenuManager';
@@ -176,6 +177,8 @@ export default function POSPage() {
       setCrashActive(false);
       setCrashElapsed(0);
     };
+    // 新規注文明細が入ったらレジ画面でも通知音を鳴らす（キッチンと同じ検知）
+    const handleKitchenNewItem = () => { playNotification(); };
 
     socket.on('prices:updated',       handlePricesUpdated);
     socket.on('prices:sync',          handlePricesSync);
@@ -184,6 +187,7 @@ export default function POSPage() {
     socket.on('orders:changed',       handleOrdersChanged);
     socket.on('crash:started',        handleCrashStarted);
     socket.on('crash:ended',          handleCrashEnded);
+    socket.on('kitchen:new_item',     handleKitchenNewItem);
 
     return () => {
       socket.off('prices:updated',       handlePricesUpdated);
@@ -193,7 +197,27 @@ export default function POSPage() {
       socket.off('orders:changed',       handleOrdersChanged);
       socket.off('crash:started',        handleCrashStarted);
       socket.off('crash:ended',          handleCrashEnded);
+      socket.off('kitchen:new_item',     handleKitchenNewItem);
     };
+  }, []);
+
+  // AudioContextのキープアライブ（タブ非表示中の自動サスペンド防止）。KitchenPage と同じ仕組み。
+  useEffect(() => {
+    const keepAliveId = setInterval(() => {
+      try {
+        const ctx = getAudioCtx();
+        if (ctx.state !== 'running') return;
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.value = 0.0001;
+        osc.frequency.value = 20;
+        osc.start();
+        osc.stop(ctx.currentTime + 0.05);
+      } catch { /* noop */ }
+    }, 15_000);
+    return () => clearInterval(keepAliveId);
   }, []);
 
   const handleSelectTable = (table) => {

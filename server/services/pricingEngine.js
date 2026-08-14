@@ -17,19 +17,30 @@ async function runTick() {
     PRUNE_EVENTS_SECONDS,
   } = pricingSettings.getSettings();
 
-  // サブカテゴリ別アクティブドリンク数
-  const { rows: subcatCountRows } = await query(`
-    SELECT subcategory_id, COUNT(*)::int AS cnt
+  // 競合スコープ: カテゴリ全体ON のカテゴリは配下の全ドリンクを1グループにする（サブカテゴリ跨ぎ）。
+  // それ以外はサブカテゴリ単位（従来）。グループキーで需要・商品数を集計する。
+  const { rows: catRows } = await query(`SELECT id, competition_category_wide FROM categories`);
+  const catWide = Object.fromEntries(catRows.map((r) => [r.id, r.competition_category_wide]));
+  const groupKey = (categoryId, subcategoryId) => {
+    if (catWide[categoryId]) return `c${categoryId}`;
+    if (subcategoryId != null) return `s${subcategoryId}`;
+    return null;
+  };
+
+  // グループ別アクティブドリンク数
+  const { rows: countRows } = await query(`
+    SELECT category_id, subcategory_id
     FROM menu_items
-    WHERE is_drink = TRUE AND is_active = TRUE AND subcategory_id IS NOT NULL
-    GROUP BY subcategory_id
+    WHERE is_drink = TRUE AND is_active = TRUE
   `);
-  const subcatCountMap = Object.fromEntries(
-    subcatCountRows.map((r) => [r.subcategory_id, r.cnt])
-  );
+  const groupCountMap = {};
+  for (const r of countRows) {
+    const k = groupKey(r.category_id, r.subcategory_id);
+    if (k) groupCountMap[k] = (groupCountMap[k] ?? 0) + 1;
+  }
 
   const { rows: items } = await query(`
-    SELECT id, name, subcategory_id,
+    SELECT id, name, category_id, subcategory_id,
       base_price::float, current_price::float,
       min_price::float, max_price::float,
       price_step_up::float, price_step_down::float
@@ -46,12 +57,13 @@ async function runTick() {
   );
   const demandMap = Object.fromEntries(demandRows.map((r) => [r.menu_item_id, r.total_qty]));
 
-  // サブカテゴリ別の合計需要
-  const subcatDemandMap = {};
+  // グループ別の合計需要
+  const groupDemandMap = {};
   for (const item of items) {
-    if (item.subcategory_id != null) {
+    const k = groupKey(item.category_id, item.subcategory_id);
+    if (k) {
       const qty = demandMap[item.id] ?? 0;
-      subcatDemandMap[item.subcategory_id] = (subcatDemandMap[item.subcategory_id] ?? 0) + qty;
+      groupDemandMap[k] = (groupDemandMap[k] ?? 0) + qty;
     }
   }
 
@@ -62,22 +74,23 @@ async function runTick() {
 
     let targetPrice;
 
-    if (item.subcategory_id != null) {
-      const subcatItemCount = subcatCountMap[item.subcategory_id] ?? 0;
+    const gKey = groupKey(item.category_id, item.subcategory_id);
+    if (gKey != null) {
+      const groupItemCount = groupCountMap[gKey] ?? 0;
 
-      if (subcatItemCount <= 1) {
-        // 1商品サブカテゴリ: base_price へ緩やかに戻す
+      if (groupItemCount <= 1) {
+        // グループに1商品のみ: base_price へ緩やかに戻す
         targetPrice = item.base_price;
       } else {
         // 競合ロジック: 自分の注文数 × step_up、競合注文数 × step_down
-        const competitorQty = (subcatDemandMap[item.subcategory_id] ?? 0) - itemQty;
+        const competitorQty = (groupDemandMap[gKey] ?? 0) - itemQty;
         targetPrice = item.base_price
           + itemQty       * item.price_step_up
           - competitorQty * item.price_step_down;
         targetPrice = Math.max(item.min_price, Math.min(item.max_price, targetPrice));
       }
     } else {
-      // サブカテゴリなし: 自分の注文数 × step_up のみ
+      // グループなし（サブカテゴリなし・カテゴリ全体OFF）: 自分の注文数 × step_up のみ
       targetPrice = item.base_price + itemQty * item.price_step_up;
       targetPrice = Math.max(item.min_price, Math.min(item.max_price, targetPrice));
     }
