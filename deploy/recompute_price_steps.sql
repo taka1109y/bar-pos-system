@@ -19,7 +19,7 @@ calc AS (
   WHERE m.is_drink = TRUE AND m.is_active = TRUE AND m.min_price <> m.max_price AND cost.c > 0
 )
 UPDATE menu_items m SET
-  price_step_up   = GREATEST(10, LEAST(150, ROUND(calc.b * 0.07  * (0.5 + calc.margin) / 5) * 5)),
-  price_step_down = GREATEST(5,  LEAST(100, ROUND(calc.b * 0.035 * (0.5 + calc.margin) / 5) * 5)),
+  price_step_up   = GREATEST(10, LEAST(100, ROUND(calc.b * 0.07  * (0.5 + calc.margin) / 5) * 5)),
+  price_step_down = GREATEST(5,  LEAST(50,  ROUND(calc.b * 0.035 * (0.5 + calc.margin) / 5) * 5)),
   min_price       = LEAST(calc.maxp, GREATEST(calc.minp, CEIL(calc.c * 1.2 / 25) * 25))
 FROM calc WHERE m.id = calc.id;
