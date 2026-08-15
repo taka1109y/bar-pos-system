@@ -117,6 +117,8 @@ export const api = {
   // Crash
   triggerCrash: (data) => req('/menu/crash', { method: 'POST', body: JSON.stringify(data) }),
   resetCrash:   ()     => req('/menu/crash/reset', { method: 'POST' }),
+  // 手動暴落(フェーズ3): scope='all'|'category', category_ids?
+  manualCrash:  (data) => req('/menu/crash/manual', { method: 'POST', body: JSON.stringify(data) }),
 
   // Kitchen
   getKitchenOrders: () => req('/kitchen/orders'),

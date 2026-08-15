@@ -113,6 +113,8 @@ async function main() {
   await ensureImmediateTable();
   await loadPersistedPricingSettings();
   startPricingEngine();
+  // フェーズ3: 手動暴落の継続時間経過を独立監視して自動解除（価格tick間隔に依存しない）
+  require('./routes/menu').startCrashWatcher();
 
   server.listen(PORT, () => {
     logger.info({ port: PORT }, 'Server running');

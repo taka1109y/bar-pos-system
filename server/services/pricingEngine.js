@@ -17,6 +17,9 @@ async function runTick() {
     PRUNE_EVENTS_SECONDS,
   } = pricingSettings.getSettings();
 
+  // 注: 手動暴落(フェーズ3)の継続時間経過による自動解除は、価格tick間隔(本番は長時間)に依存しないよう
+  // menu.js の独立ウォッチャ(startCrashWatcher, 20秒間隔)が担当する。ここでは扱わない。
+
   // 競合スコープ: カテゴリ全体ON のカテゴリは配下の全ドリンクを1グループにする（サブカテゴリ跨ぎ）。
   // それ以外はサブカテゴリ単位（従来）。グループキーで需要・商品数を集計する。
   const { rows: catRows } = await query(`SELECT id, competition_category_wide FROM categories`);

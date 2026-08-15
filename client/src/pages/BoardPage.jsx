@@ -5,6 +5,7 @@ import usePriceStore from '../store/usePriceStore';
 import PriceRow from '../components/board/PriceRow';
 import CategoryHeaderRow from '../components/board/CategoryHeaderRow';
 import { yen, num } from '../utils/format';
+import { playNotification } from '../utils/audioAlert';
 
 const HEADER_ROW_HEIGHT_PX = 44; // thead の概算高さ
 const ROW_HEIGHT_PX        = 44; // カテゴリ見出し行・商品行 共通の概算高さ
@@ -127,6 +128,42 @@ export default function BoardPage() {
     };
   }, []);
 
+  // 暴落演出(フェーズ3): crash:started/ended と 初期状態(crash_ends_at)から暴落中フラグ・終了時刻を管理
+  const [crashEndsAt, setCrashEndsAt] = useState(null); // ISO文字列 or null
+  const [crashRemaining, setCrashRemaining] = useState(0); // 残り秒
+  useEffect(() => {
+    // 初期状態の復元（リロード時に暴落中なら演出を再開）
+    api.getSystemSettings()
+      .then((s) => { if (s?.crash_ends_at && new Date(s.crash_ends_at).getTime() > Date.now()) setCrashEndsAt(s.crash_ends_at); })
+      .catch(() => {});
+    const handleStarted = (data) => {
+      setCrashEndsAt(data?.endsAt ?? null);
+      try { playNotification(); } catch { /* 音源はプレースホルダ */ }
+    };
+    const handleEnded = () => setCrashEndsAt(null);
+    socket.on('crash:started', handleStarted);
+    socket.on('crash:ended',   handleEnded);
+    return () => {
+      socket.off('crash:started', handleStarted);
+      socket.off('crash:ended',   handleEnded);
+    };
+  }, []);
+
+  // 残り時間カウントダウン
+  useEffect(() => {
+    if (!crashEndsAt) { setCrashRemaining(0); return; }
+    const update = () => {
+      const rem = Math.max(0, Math.ceil((new Date(crashEndsAt).getTime() - Date.now()) / 1000));
+      setCrashRemaining(rem);
+      if (rem <= 0) setCrashEndsAt(null); // 保険（サーバ解除が届かない場合）
+    };
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [crashEndsAt]);
+  const crashActive = !!crashEndsAt && crashRemaining > 0;
+  const crashMMSS = `${String(Math.floor(crashRemaining / 60)).padStart(2, '0')}:${String(crashRemaining % 60).padStart(2, '0')}`;
+
   const hasData = prices.length > 0;
 
   // 表示エリアの実高さから、1ページに収まる行数を計算する
@@ -171,7 +208,17 @@ export default function BoardPage() {
   const currentPage = pages.length > 0 ? pages[pageIndex % pages.length] : [];
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-slate-950 text-white p-8 pb-16">
+    <div className={`h-screen flex flex-col overflow-hidden text-white p-8 pb-16 transition-colors duration-500 ${crashActive ? 'bg-red-950' : 'bg-slate-950'}`}>
+      {/* 暴落演出オーバーレイ（フェーズ3）: 全体赤転＋残り時間 */}
+      {crashActive && (
+        <>
+          <div className="pointer-events-none fixed inset-0 z-40 border-[10px] border-red-600 animate-pulse" style={{ boxShadow: 'inset 0 0 120px rgba(220,38,38,0.55)' }} />
+          <div className="fixed top-0 left-1/2 -translate-x-1/2 z-50 mt-3 px-6 py-2 rounded-full bg-red-600 text-white font-black text-xl shadow-lg flex items-center gap-3">
+            <span className="animate-pulse">🔻 暴落中</span>
+            <span className="tabular-nums">残り {crashMMSS}</span>
+          </div>
+        </>
+      )}
       {/* ヘッダー */}
       <div className="flex items-center justify-between mb-8 flex-shrink-0">
         <div className="flex items-center gap-5">

@@ -2,6 +2,59 @@ const express = require('express');
 const router = express.Router();
 const { pool, query } = require('../db/database');
 const { broadcast } = require('../services/socketService');
+const crashCfg = require('../services/crashSettings');
+
+// 手動暴落(フェーズ3)用の丸めヘルパー
+const _round25 = (v) => Math.round(v / crashCfg.PRICE_ROUND_UNIT) * crashCfg.PRICE_ROUND_UNIT;
+const _ceil25  = (v) => Math.ceil(v / crashCfg.PRICE_ROUND_UNIT) * crashCfg.PRICE_ROUND_UNIT;
+let _manualCrashTimer = null;
+
+// 暴落中の全商品を base_price に戻し、crash_reset を記録して解除を通知する（自動/手動解除で共用）
+async function performManualCrashReset(triggerLabel) {
+  const { rows: before } = await query(
+    `SELECT id, current_price::float AS current_price, base_price::float AS base_price
+     FROM menu_items WHERE is_crashed = TRUE AND is_active = TRUE`
+  );
+  if (before.length === 0) {
+    await query(`DELETE FROM system_settings WHERE key IN ('crash_started_at','crash_ends_at')`);
+    return { updated: 0 };
+  }
+  await query(`UPDATE menu_items SET current_price = base_price, is_crashed = FALSE WHERE is_crashed = TRUE AND is_active = TRUE`);
+  for (const b of before) {
+    await query(
+      `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
+       VALUES ($1, $2, $3, 'crash_reset', $4)`,
+      [b.id, b.current_price, b.base_price, triggerLabel]
+    );
+  }
+  await query(`DELETE FROM system_settings WHERE key IN ('crash_started_at','crash_ends_at')`);
+  const { rows: allPrices } = await query(`
+    SELECT id, name, base_price::float, current_price::float,
+      COALESCE(ROUND((current_price - base_price) * 100.0 / NULLIF(base_price, 0), 1), 0)::float AS pct_change
+    FROM menu_items WHERE is_drink = TRUE AND is_active = TRUE
+  `);
+  const items = allPrices.map((r) => ({ ...r, direction: r.pct_change > 0 ? 'up' : r.pct_change < 0 ? 'down' : 'flat' }));
+  broadcast('prices:updated', { items, timestamp: Date.now() });
+  broadcast('crash:ended', { timestamp: Date.now() });
+  return { updated: before.length };
+}
+
+// フェーズ3: 手動暴落の継続時間(crash_ends_at)経過を独立監視して自動解除する。
+// 価格エンジンのtick間隔(本番は長時間)に依存しないよう、専用の軽量インターバルで20秒ごとに確認する。
+// サーバ再起動時も起動直後に1回チェックするため、暴落中に再起動しても期限経過分は解除される。
+let _crashWatcherStarted = false;
+async function _checkCrashExpiry() {
+  const { rows: ce } = await query(`SELECT value FROM system_settings WHERE key = 'crash_ends_at'`);
+  if (ce[0] && new Date(ce[0].value).getTime() <= Date.now()) {
+    await performManualCrashReset('auto');
+  }
+}
+function startCrashWatcher() {
+  if (_crashWatcherStarted) return;
+  _crashWatcherStarted = true;
+  _checkCrashExpiry().catch(() => {}); // 起動直後の再起動リカバリ
+  setInterval(() => { _checkCrashExpiry().catch(() => {}); }, 20 * 1000);
+}
 
 const ITEM_SELECT = `
   SELECT m.id, m.category_id, m.subcategory_id, m.name,
@@ -473,6 +526,85 @@ router.post('/crash/reset', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/menu/crash/manual — 手動暴落（暴落ナイト用・フェーズ3）
+// body: { scope: 'all' | 'category', category_ids?: number[] }
+// 対象を base_price×率 まで急落（下限=原価×1.2 / 原価なし base×40% を絶対床として優先）。
+// price_events に crash_manual を記録し、継続時間経過でサーバ自動解除（手動解除は /crash/reset）。
+router.post('/crash/manual', async (req, res, next) => {
+  try {
+    const scope = req.body.scope === 'category' ? 'category' : 'all';
+    const category_ids = Array.isArray(req.body.category_ids)
+      ? req.body.category_ids.map(Number).filter(Number.isInteger)
+      : [];
+    if (scope === 'category' && category_ids.length === 0) {
+      return res.status(400).json({ error: 'category_ids required when scope=category' });
+    }
+
+    const scopeFilter = scope === 'category' ? 'AND m.category_id = ANY($1::int[])' : '';
+    const params = scope === 'category' ? [category_ids] : [];
+    const { rows: targets } = await query(`
+      SELECT m.id, m.name, m.base_price::float AS base_price, m.current_price::float AS current_price,
+        COALESCE((
+          SELECT SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0))
+          FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id
+          WHERE r.menu_item_id = m.id
+        ), 0)::float AS cost
+      FROM menu_items m
+      WHERE m.crash_enabled = TRUE AND m.is_active = TRUE AND m.is_drink = TRUE ${scopeFilter}
+    `, params);
+
+    let updated = 0;
+    const broadcastItems = [];
+    for (const item of targets) {
+      // 下限（絶対床・優先）: 原価×1.2 / 原価なしは base×40%
+      const floor = item.cost > 0
+        ? _ceil25(item.cost * crashCfg.COST_FLOOR_MULTIPLIER)
+        : _ceil25(item.base_price * crashCfg.NO_COST_FLOOR_RATE);
+      const target = _round25(item.base_price * crashCfg.MANUAL_CRASH_TARGET_RATE);
+      const crashPrice = Math.max(target, floor, 0);
+      if (crashPrice >= item.current_price) continue; // 既に下限以下なら下げない
+      await query('UPDATE menu_items SET current_price = $1, is_crashed = TRUE WHERE id = $2', [crashPrice, item.id]);
+      await query('INSERT INTO price_history (menu_item_id, price) VALUES ($1, $2)', [item.id, crashPrice]);
+      await query(
+        `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
+         VALUES ($1, $2, $3, 'crash_manual', 'manual')`,
+        [item.id, item.current_price, crashPrice]
+      );
+      broadcastItems.push({
+        id: item.id, name: item.name, base_price: item.base_price, current_price: crashPrice,
+        pct_change: item.base_price > 0 ? Math.round((crashPrice - item.base_price) / item.base_price * 1000) / 10 : 0,
+        direction: 'down',
+      });
+      updated++;
+    }
+
+    let endsAtIso = null;
+    if (updated > 0) {
+      const startedAt = new Date();
+      const endsAt = new Date(startedAt.getTime() + crashCfg.MANUAL_CRASH_DURATION_MS);
+      endsAtIso = endsAt.toISOString();
+      await query(
+        `INSERT INTO system_settings (key, value) VALUES ('crash_started_at', $1)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [startedAt.toISOString()]
+      );
+      await query(
+        `INSERT INTO system_settings (key, value) VALUES ('crash_ends_at', $1)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [endsAtIso]
+      );
+      broadcast('prices:updated', { items: broadcastItems, timestamp: Date.now() });
+      broadcast('crash:started', {
+        scope, category_ids, endsAt: endsAtIso,
+        durationMs: crashCfg.MANUAL_CRASH_DURATION_MS, manual: true, timestamp: Date.now(),
+      });
+      // プロセス内の自動解除タイマー。再起動時はpricingEngine tickのcrash_ends_at検知が保険。
+      if (_manualCrashTimer) clearTimeout(_manualCrashTimer);
+      _manualCrashTimer = setTimeout(() => { performManualCrashReset('auto').catch(() => {}); }, crashCfg.MANUAL_CRASH_DURATION_MS);
+    }
+
+    res.json({ updated, endsAt: endsAtIso });
+  } catch (err) { next(err); }
+});
+
 // PATCH /api/menu/:id
 router.patch('/:id', async (req, res, next) => {
   try {
@@ -584,3 +716,4 @@ router.delete('/:id', async (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.startCrashWatcher = startCrashWatcher;
