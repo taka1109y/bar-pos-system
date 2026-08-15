@@ -29,3 +29,15 @@ yarn-error.log*
 # 開発ツールの生成物
 .superpowers/
 raspberrypi.txt
+
+# 業務データ・機密（publicリポジトリのため厳守：売上/個人情報/認証情報をコミットしない）
+analysis/               # 実売上を含む分析レポート
+backups/                # DBバックアップ
+*_dump.sql              # DBダンプ
+*.dump
+*.tar
+*.tar.gz
+server/uploads/         # アップロード済み商品画像（業務データ）
+uploads/
+match_days.csv          # 試合日等のデータ
+*.private.md            # 個人/機密メモ用の慣習拡張子
