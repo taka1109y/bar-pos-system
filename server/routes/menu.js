@@ -10,19 +10,22 @@ const _round25 = (v) => Math.round(v / crashCfg.PRICE_ROUND_UNIT) * crashCfg.PRI
 const _ceil25  = (v) => Math.ceil(v / crashCfg.PRICE_ROUND_UNIT) * crashCfg.PRICE_ROUND_UNIT;
 let _manualCrashTimer = null;
 
-// Phase4/5: 基準価格から min/max/段(呼値)/現在価格 を算出。
-// ロック/非ドリンク/時価(price_editable) は固定価格(min=max=round25(base))。
+// Phase6(承認済 6-1): 価格格子モデル。基準価格から min/max/呼値/現在価格 を算出。
+// 格子 = base + n×step。soft_floor=base(=min) / anchor=base×1.1(新規は寄り付き値で上場) / max=base×1.2。
+// ロック/非ドリンク/時価(price_editable) は固定価格(min=max=current=base)。
+// ※旧 Phase4版(computeMin/computeMax/ladderStep/snapToLadder)は pricingModel に残置(ロールバック用)。
+// cost は Phase6 では未使用(暴落下限 hard_floor は暴落時に算出)。互換のため引数は残す。
 function computeLadder(base, cost, { locked, isDrink, priceEditable }) {
   const variable = isDrink && !priceEditable && !locked;
+  const step = pm.stepForBase(base);
   if (!variable) {
-    const p = pm.round25(base);
-    return { min: p, max: p, step: pm.UNIT, current: p };
+    const p = pm.softFloor(base); // = base(格子点)
+    return { min: p, max: p, step, current: p };
   }
-  let min = pm.computeMin(base, cost);
-  let max = pm.computeMax(base, cost);
+  const min = pm.softFloor(base);
+  let max = pm.maxP6(base);
   if (max < min) max = min;
-  const step = pm.ladderStep(min, max);
-  return { min, max, step, current: pm.snapToLadder(base, min, max, step) };
+  return { min, max, step, current: pm.anchorP6(base) };
 }
 
 // 暴落中の全商品を「暴落前価格」に戻し、crash_reset を記録して解除を通知する（自動/手動解除で共用）。
