@@ -31,13 +31,19 @@ yarn-error.log*
 raspberrypi.txt
 
 # 業務データ・機密（publicリポジトリのため厳守：売上/個人情報/認証情報をコミットしない）
-analysis/               # 実売上を含む分析レポート
-backups/                # DBバックアップ
-*_dump.sql              # DBダンプ
+# ※gitignoreは行末コメント非対応。コメントは必ず独立行に書く
+# 実売上を含む分析レポート
+analysis/
+# DBバックアップ・ダンプ
+backups/
+*_dump.sql
 *.dump
 *.tar
 *.tar.gz
-server/uploads/         # アップロード済み商品画像（業務データ）
+# アップロード済み商品画像（業務データ）
+server/uploads/
 uploads/
-match_days.csv          # 試合日等のデータ
-*.private.md            # 個人/機密メモ用の慣習拡張子
+# 試合日等のデータ
+match_days.csv
+# 個人/機密メモ用の慣習拡張子
+*.private.md
