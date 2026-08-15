@@ -43,10 +43,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     category_id:     item?.category_id || categories[0]?.id || '',
     subcategory_id:  item?.subcategory_id || '',
     base_price:      item?.base_price || '',
-    min_price:       item?.min_price || '',
-    max_price:       item?.max_price || '',
-    price_step_up:   item?.price_step_up ?? 50,
-    price_step_down: item?.price_step_down ?? 25,
+    price_locked:    item ? (item.min_price === item.max_price) : false,
     crash_enabled:   item?.crash_enabled ?? false,
     is_drink:        item?.is_drink ?? 1,
     is_active:       item?.is_active ?? 1,
@@ -143,10 +140,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
       category_id:     Number(form.category_id),
       subcategory_id:  form.subcategory_id ? Number(form.subcategory_id) : null,
       base_price:      Number(form.base_price),
-      min_price:       Number(form.min_price) || Number(form.base_price) * 0.7,
-      max_price:       Number(form.max_price) || Number(form.base_price) * 2.0,
-      price_step_up:   Number(form.price_step_up),
-      price_step_down: Number(form.price_step_down),
+      price_locked:    Boolean(form.price_locked),
       crash_enabled:   Boolean(form.crash_enabled),
       is_drink:        Number(form.is_drink),
       is_active:       Number(form.is_active),
@@ -253,20 +247,27 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 items-end">
         <div>
           <label className={lbl}>基準価格</label>
           <input className={inp} type="number" value={form.base_price} onChange={(e) => set('base_price', e.target.value)} placeholder="500" required min={0} />
         </div>
-        <div>
-          <label className={lbl}>下限価格</label>
-          <input className={inp} type="number" value={form.min_price} onChange={(e) => set('min_price', e.target.value)} placeholder="自動" min={0} />
-        </div>
-        <div>
-          <label className={lbl}>上限価格</label>
-          <input className={inp} type="number" value={form.max_price} onChange={(e) => set('max_price', e.target.value)} placeholder="自動" min={0} />
-        </div>
+        <label className="flex items-center gap-2 cursor-pointer pb-2 leading-normal">
+          <input type="checkbox" checked={Boolean(form.price_locked)} onChange={(e) => set('price_locked', e.target.checked)} className="w-4 h-4 accent-primary-500" />
+          <span className="text-sm text-slate-700">変動させない（固定価格）</span>
+        </label>
       </div>
+      {/* 下限/上限/呼値(段幅)は基準価格から自動計算（読み取り表示） */}
+      {item && item.is_drink && !form.price_locked ? (
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 grid grid-cols-4 gap-2 text-center">
+          <div><p className="text-[11px] text-slate-400">下限</p><p className="text-sm font-bold text-slate-800">¥{yen(Math.round(item.min_price))}</p></div>
+          <div><p className="text-[11px] text-slate-400">上限</p><p className="text-sm font-bold text-slate-800">¥{yen(Math.round(item.max_price))}</p></div>
+          <div><p className="text-[11px] text-slate-400">呼値(段幅)</p><p className="text-sm font-bold text-slate-800">¥{yen(Math.round(item.price_step_up))}</p></div>
+          <div><p className="text-[11px] text-slate-400">現在</p><p className="text-sm font-bold text-primary-600">¥{yen(Math.round(item.current_price))}</p></div>
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400">下限・上限・呼値(段幅)は基準価格から自動計算されます（呼値ラダー）。「変動させない」で固定価格。</p>
+      )}
       {item && item.cost_price > 0 && (
         <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
           <p className="text-xs font-semibold text-amber-700 mb-1">原価（レシピから自動計算）</p>
@@ -342,16 +343,8 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
         )}
       </div>
       {Boolean(form.is_drink) && (
-        <div className="grid grid-cols-2 gap-3 bg-primary-50 border border-primary-100 rounded-lg p-3">
+        <div className="grid grid-cols-1 gap-3 bg-primary-50 border border-primary-100 rounded-lg p-3">
           <div>
-            <label className={lbl}>1注文あたり上昇額 (¥)</label>
-            <input className={inp} type="number" value={form.price_step_up} onChange={(e) => set('price_step_up', e.target.value)} placeholder="50" min={1} step={1} />
-          </div>
-          <div>
-            <label className={lbl}>1競合注文あたり降下額 (¥)</label>
-            <input className={inp} type="number" value={form.price_step_down} onChange={(e) => set('price_step_down', e.target.value)} placeholder="25" min={1} step={1} />
-          </div>
-          <div className="col-span-2 pt-1 border-t border-primary-100">
             <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
               <input
                 type="checkbox"
@@ -359,7 +352,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
                 onChange={(e) => set('crash_enabled', e.target.checked)}
                 className="w-4 h-4 accent-red-600 rounded"
               />
-              暴落許可（株価暴落の対象にする）
+              暴落対象（暴落発動の対象にする）
             </label>
           </div>
         </div>

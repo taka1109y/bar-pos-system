@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../db/database');
+const pm = require('../services/pricingModel');
 
 const upsertSetting = (key, value) =>
   query(
@@ -26,6 +27,11 @@ function parseSettings(rows) {
     crash_started_at:     s.crash_started_at ?? null,
     crash_ends_at:        s.crash_ends_at ?? null,
     period_ends_at:       s.period_ends_at ?? null,
+    // 価格モデル(Phase4)の定数（管理画面の「価格モデル」タブ表示用）
+    price_model: {
+      period_minutes: Math.round(pm.PERIOD_MS / 60000),
+      ladder_steps:   pm.LADDER_STEPS,
+    },
   };
 }
 

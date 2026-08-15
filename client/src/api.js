@@ -110,6 +110,8 @@ export const api = {
   voidAndReissue: (orderId) => req(`/receipts/${orderId}/void-and-reissue`, { method: 'POST' }),
 
   // Settings
+  getPriceEvents: (menuItemId, limit = 100) => req(`/reports/price-events?menu_item_id=${menuItemId}&limit=${limit}`),
+  getBasePriceHistory: (menuItemId) => req(`/reports/base-price-history?menu_item_id=${menuItemId}`),
   getPricingSettings: () => req('/settings/pricing'),
   updatePricingSettings: (data) => req('/settings/pricing', { method: 'PATCH', body: JSON.stringify(data) }),
   resetPricingSettings: () => req('/settings/pricing/reset', { method: 'POST' }),

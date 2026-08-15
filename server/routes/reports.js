@@ -545,4 +545,33 @@ router.get('/analytics', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/reports/price-events?menu_item_id=&limit= — 価格変動イベント(計装)を新しい順で返す
+router.get('/price-events', async (req, res, next) => {
+  try {
+    const menuItemId = parseInt(req.query.menu_item_id, 10);
+    if (!Number.isInteger(menuItemId)) return res.status(400).json({ error: 'menu_item_id is required' });
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 200);
+    const { rows } = await query(
+      `SELECT id, price_before::float, price_after::float, event_type, trigger, event_time
+       FROM price_events WHERE menu_item_id = $1 ORDER BY id DESC LIMIT $2`,
+      [menuItemId, limit]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// GET /api/reports/base-price-history?menu_item_id= — 基準価格変更履歴を新しい順で返す
+router.get('/base-price-history', async (req, res, next) => {
+  try {
+    const menuItemId = parseInt(req.query.menu_item_id, 10);
+    if (!Number.isInteger(menuItemId)) return res.status(400).json({ error: 'menu_item_id is required' });
+    const { rows } = await query(
+      `SELECT id, price_before::float, price_after::float, changed_at, operator
+       FROM base_price_history WHERE menu_item_id = $1 ORDER BY id DESC LIMIT 200`,
+      [menuItemId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

@@ -10,6 +10,21 @@ const _round25 = (v) => Math.round(v / crashCfg.PRICE_ROUND_UNIT) * crashCfg.PRI
 const _ceil25  = (v) => Math.ceil(v / crashCfg.PRICE_ROUND_UNIT) * crashCfg.PRICE_ROUND_UNIT;
 let _manualCrashTimer = null;
 
+// Phase4/5: 基準価格から min/max/段(呼値)/現在価格 を算出。
+// ロック/非ドリンク/時価(price_editable) は固定価格(min=max=round25(base))。
+function computeLadder(base, cost, { locked, isDrink, priceEditable }) {
+  const variable = isDrink && !priceEditable && !locked;
+  if (!variable) {
+    const p = pm.round25(base);
+    return { min: p, max: p, step: pm.UNIT, current: p };
+  }
+  let min = pm.computeMin(base, cost);
+  let max = pm.computeMax(base, cost);
+  if (max < min) max = min;
+  const step = pm.ladderStep(min, max);
+  return { min, max, step, current: pm.snapToLadder(base, min, max, step) };
+}
+
 // 暴落中の全商品を「暴落前価格」に戻し、crash_reset を記録して解除を通知する（自動/手動解除で共用）。
 // 復帰先=直近 crash_manual/crash の price_before（ラダーにスナップ）。取得できなければ base_price。
 async function performManualCrashReset(triggerLabel) {
@@ -334,23 +349,22 @@ router.post('/', async (req, res, next) => {
       if (e.status) return res.status(e.status).json({ error: e.error });
       throw e;
     }
-    const minP   = min_price        ?? base_price * 0.7;
-    const maxP   = max_price        ?? base_price * 2.0;
-    const stepUp = price_step_up   ?? 50;
-    const stepDn = price_step_down ?? 25;
-    if (Number(minP) > Number(maxP)) {
-      return res.status(400).json({ error: 'min_price must be less than or equal to max_price' });
-    }
+    // Phase4/5: min/max/段(呼値)は基準価格から自動計算（手動入力は無視）。
+    // ロック(price_locked)/非ドリンク/時価は固定価格(min=max)。原価は作成時0（レシピは後付け）。
+    const ladder = computeLadder(Number(base_price), 0, {
+      locked: Boolean(req.body.price_locked), isDrink: is_drink, priceEditable: price_editable,
+    });
+    const minP = ladder.min, maxP = ladder.max, stepUp = ladder.step, stepDn = ladder.step, curP = ladder.current;
     // 質問が無い商品は複数選択/数量指定フラグを強制的に false にする
     const allowMultiple = qText ? Boolean(question_allow_multiple) : false;
     const allowQuantity = qText ? Boolean(question_allow_quantity) : false;
     const { rows } = await query(
       `INSERT INTO menu_items
          (category_id, subcategory_id, name, base_price, current_price, min_price, max_price, price_step_up, price_step_down, is_drink, image_url, tax_category, is_staff_only, price_editable, question_text, question_choices, question_allow_multiple, question_allow_quantity, sort_order)
-       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+       VALUES ($1, $2, $3, $4, $18, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
          COALESCE((SELECT MAX(sort_order) FROM menu_items WHERE category_id = $1 AND subcategory_id IS NOT DISTINCT FROM $2), -1) + 1)
        RETURNING id`,
-      [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink, image_url || null, effectiveTaxCategory, Boolean(is_staff_only), Boolean(price_editable), qText, qChoices ? JSON.stringify(qChoices) : null, allowMultiple, allowQuantity]
+      [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink, image_url || null, effectiveTaxCategory, Boolean(is_staff_only), Boolean(price_editable), qText, qChoices ? JSON.stringify(qChoices) : null, allowMultiple, allowQuantity, curP]
     );
     // 計装(1-2): 商品作成時の初期 base_price を履歴に記録（before=NULL）
     await query(
@@ -624,7 +638,13 @@ router.post('/crash/manual', async (req, res, next) => {
 // PATCH /api/menu/:id
 router.patch('/:id', async (req, res, next) => {
   try {
-    const { rows: existing } = await query('SELECT id, min_price::float, max_price::float, is_crashed, base_price::float, current_price::float FROM menu_items WHERE id = $1', [req.params.id]);
+    const { rows: existing } = await query(
+      `SELECT m.id, m.min_price::float AS min_price, m.max_price::float AS max_price, m.is_crashed,
+         m.base_price::float AS base_price, m.current_price::float AS current_price,
+         m.is_drink, m.price_editable,
+         COALESCE((SELECT SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0))
+           FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id WHERE r.menu_item_id = m.id), 0)::float AS cost
+       FROM menu_items m WHERE m.id = $1`, [req.params.id]);
     if (!existing[0]) return res.status(404).json({ error: 'Item not found' });
 
     const { category_id, name, base_price, min_price, max_price, price_step_up, price_step_down,
@@ -648,18 +668,34 @@ router.patch('/:id', async (req, res, next) => {
     }
     if (name !== undefined)             { updates.push(`name = $${idx++}`);             values.push(name); }
     if (base_price !== undefined)       { updates.push(`base_price = $${idx++}`);       values.push(base_price); }
-    // 基準価格を変更した時、暴落中でなければ現在価格(=表示価格)も基準価格に追従させる。
-    // 食品(is_drink=false)は価格エンジン非対象で current_price が旧値のまま固定される不具合の修正。
-    let followedCurrentPrice = null; // 計装(1-2/1-1): base追従で更新した current_price（price_events記録用）
-    if (base_price !== undefined && !existing[0].is_crashed) {
-      const clamped = Math.max(effectiveMin, Math.min(effectiveMax, Number(base_price)));
-      followedCurrentPrice = clamped;
-      updates.push(`current_price = $${idx++}`); values.push(clamped);
+    // Phase4/5: 基準価格変更 or ロック切替 時は min/max/段/現在価格 を自動再計算（暴落中は据え置き）。
+    // 食品/時価/ロックは固定価格(min=max)。手動 min/max/step 入力は使わない。
+    let followedCurrentPrice = null; // 計装(1-1): 追従で更新した current_price（price_events記録用）
+    let ladderUpdated = false;
+    const recompute = base_price !== undefined || req.body.price_locked !== undefined;
+    if (recompute && !existing[0].is_crashed) {
+      const newBase = base_price !== undefined ? Number(base_price) : existing[0].base_price;
+      const isDrinkEff = is_drink !== undefined ? Boolean(is_drink) : existing[0].is_drink;
+      const priceEditableEff = price_editable !== undefined ? Boolean(price_editable) : existing[0].price_editable;
+      const locked = req.body.price_locked !== undefined
+        ? Boolean(req.body.price_locked)
+        : (existing[0].min_price === existing[0].max_price);
+      const L = computeLadder(newBase, existing[0].cost || 0, { locked, isDrink: isDrinkEff, priceEditable: priceEditableEff });
+      updates.push(`min_price = $${idx++}`);       values.push(L.min);
+      updates.push(`max_price = $${idx++}`);       values.push(L.max);
+      updates.push(`price_step_up = $${idx++}`);   values.push(L.step);
+      updates.push(`price_step_down = $${idx++}`); values.push(L.step);
+      updates.push(`current_price = $${idx++}`);   values.push(L.current);
+      followedCurrentPrice = L.current;
+      ladderUpdated = true;
     }
-    if (min_price !== undefined)        { updates.push(`min_price = $${idx++}`);        values.push(min_price); }
-    if (max_price !== undefined)        { updates.push(`max_price = $${idx++}`);        values.push(max_price); }
-    if (price_step_up !== undefined)    { updates.push(`price_step_up = $${idx++}`);    values.push(price_step_up); }
-    if (price_step_down !== undefined)  { updates.push(`price_step_down = $${idx++}`);  values.push(price_step_down); }
+    // 後方互換: 再計算しない場合のみ従来の手動 min/max/step を受ける
+    if (!ladderUpdated) {
+      if (min_price !== undefined)        { updates.push(`min_price = $${idx++}`);        values.push(min_price); }
+      if (max_price !== undefined)        { updates.push(`max_price = $${idx++}`);        values.push(max_price); }
+      if (price_step_up !== undefined)    { updates.push(`price_step_up = $${idx++}`);    values.push(price_step_up); }
+      if (price_step_down !== undefined)  { updates.push(`price_step_down = $${idx++}`);  values.push(price_step_down); }
+    }
     if (is_drink !== undefined)         { updates.push(`is_drink = $${idx++}`);         values.push(is_drink); }
     if (is_active !== undefined)        { updates.push(`is_active = $${idx++}`);        values.push(is_active); }
     if (subcategory_id !== undefined)   { updates.push(`subcategory_id = $${idx++}`);   values.push(subcategory_id || null); }

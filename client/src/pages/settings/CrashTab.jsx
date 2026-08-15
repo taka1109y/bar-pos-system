@@ -3,123 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 import Section from './Section';
 
-function CrashModal({ categories, subcategories, menuItems, onClose, onExecute, isPending }) {
-  const [selectedCatIds,    setSelectedCatIds]    = useState(new Set());
-  const [selectedSubcatIds, setSelectedSubcatIds] = useState(new Set());
-
-  const subcatsByCategory = subcategories.reduce((acc, s) => {
-    if (!acc[s.category_id]) acc[s.category_id] = [];
-    acc[s.category_id].push(s);
-    return acc;
-  }, {});
-
-  const toggleCategory = (catId) => {
-    const subs = subcatsByCategory[catId] ?? [];
-    const isSelected = selectedCatIds.has(catId);
-    setSelectedCatIds((prev) => {
-      const next = new Set(prev);
-      isSelected ? next.delete(catId) : next.add(catId);
-      return next;
-    });
-    setSelectedSubcatIds((prev) => {
-      const next = new Set(prev);
-      subs.forEach((s) => isSelected ? next.delete(s.id) : next.add(s.id));
-      return next;
-    });
-  };
-
-  const toggleSubcategory = (subId) => {
-    setSelectedSubcatIds((prev) => {
-      const next = new Set(prev);
-      next.has(subId) ? next.delete(subId) : next.add(subId);
-      return next;
-    });
-  };
-
-  const eligibleCount = menuItems.filter((item) =>
-    item.crash_enabled &&
-    item.is_active &&
-    (selectedCatIds.has(item.category_id) || selectedSubcatIds.has(item.subcategory_id))
-  ).length;
-
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 border border-slate-200 max-h-[80vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 flex-shrink-0">
-          <h2 className="text-base font-bold text-slate-900">暴落対象を選択</h2>
-          <button
-            onClick={onClose}
-            aria-label="閉じる"
-            className="w-10 h-10 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-1">
-          {categories.map((cat) => {
-            const subs = subcatsByCategory[cat.id] ?? [];
-            return (
-              <div key={cat.id}>
-                <label className="flex items-center gap-3 py-2 cursor-pointer hover:bg-slate-50 rounded-lg px-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedCatIds.has(cat.id)}
-                    onChange={() => toggleCategory(cat.id)}
-                    className="w-4 h-4 accent-red-600 rounded"
-                  />
-                  <span className="text-sm font-semibold text-slate-800 flex-1">{cat.name}</span>
-                  {cat.crash_pct > 0 && (
-                    <span className="text-xs text-red-500 font-bold">▼{cat.crash_pct}%</span>
-                  )}
-                </label>
-                {subs.map((sub) => (
-                  <label key={sub.id} className="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-slate-50 rounded-lg pl-8 pr-2">
-                    <input
-                      type="checkbox"
-                      checked={selectedSubcatIds.has(sub.id)}
-                      onChange={() => toggleSubcategory(sub.id)}
-                      className="w-4 h-4 accent-red-600 rounded"
-                    />
-                    <span className="text-sm text-slate-700 flex-1">{sub.name}</span>
-                    {sub.crash_pct > 0 && (
-                      <span className="text-xs text-red-500 font-bold">▼{sub.crash_pct}%</span>
-                    )}
-                  </label>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-        <div className="px-5 py-4 border-t border-slate-200 flex-shrink-0 space-y-3">
-          <p className="text-sm text-slate-600">
-            対象商品: <span className="font-bold text-red-600">{eligibleCount} 商品</span>が暴落します
-          </p>
-          <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors"
-            >
-              キャンセル
-            </button>
-            <button
-              onClick={() => onExecute({
-                category_ids:    Array.from(selectedCatIds),
-                subcategory_ids: Array.from(selectedSubcatIds),
-              })}
-              disabled={isPending || eligibleCount === 0}
-              className="flex-1 py-4 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50"
-            >
-              {isPending ? '実行中...' : '暴落を実行'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function fmtElapsed(sec) {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
@@ -138,11 +21,8 @@ export default function CrashTab() {
 
   const { data: settings }           = useQuery({ queryKey: ['system-settings'], queryFn: api.getSystemSettings });
   const { data: categories    = [] } = useQuery({ queryKey: ['categories-staff'], queryFn: api.getStaffCategories });
-  const { data: subcategories = [] } = useQuery({ queryKey: ['subcategories'], queryFn: api.getSubcategories });
   const { data: menuItems     = [] } = useQuery({ queryKey: ['menu-all'], queryFn: api.getAllMenu });
 
-  const [crashModalOpen, setCrashModalOpen] = useState(false);
-  const [crashMsg,       setCrashMsg]       = useState('');
   const [resetMsg,       setResetMsg]       = useState('');
   const [elapsed,        setElapsed]        = useState(0);
   // 手動暴落(フェーズ3)
@@ -166,21 +46,6 @@ export default function CrashTab() {
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
   }, [isCrashActive, crashStartedAt]);
-
-  const crashMutation = useMutation({
-    mutationFn: api.triggerCrash,
-    onSuccess: (data) => {
-      setCrashModalOpen(false);
-      queryClient.invalidateQueries({ queryKey: ['menu-all'] });
-      queryClient.invalidateQueries({ queryKey: ['system-settings'] });
-      setCrashMsg(`暴落を実行しました（${data.updated}商品）`);
-      setTimeout(() => setCrashMsg(''), 3000);
-    },
-    onError: () => {
-      setCrashMsg('エラーが発生しました');
-      setTimeout(() => setCrashMsg(''), 3000);
-    },
-  });
 
   const resetMutation = useMutation({
     mutationFn: api.resetCrash,
@@ -257,43 +122,17 @@ export default function CrashTab() {
       <div className="flex flex-col gap-3">
         <div className="flex gap-3">
           <button
-            onClick={() => {
-              if (isCrashActive) return;
-              setCrashModalOpen(true);
-            }}
-            disabled={isCrashActive}
-            className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-lg cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            暴落を実行
-          </button>
-          <button
             onClick={handleCrashReset}
             disabled={resetMutation.isPending || !isCrashActive}
             className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            暴落解除
+            暴落を解除（暴落前価格へ戻す）
           </button>
         </div>
-        {isCrashActive && (
-          <p className="text-sm text-amber-600 font-medium">
-            ※ 再度実施する際は一度解除してからおこなってください
-          </p>
-        )}
       </div>
-      {crashMsg && <p className="mt-2 text-sm text-red-600 font-medium">{crashMsg}</p>}
       {resetMsg && <p className="mt-2 text-sm text-emerald-600 font-medium">{resetMsg}</p>}
-      {crashModalOpen && (
-        <CrashModal
-          categories={categories}
-          subcategories={subcategories}
-          menuItems={menuItems}
-          onClose={() => setCrashModalOpen(false)}
-          onExecute={(data) => crashMutation.mutate(data)}
-          isPending={crashMutation.isPending}
-        />
-      )}
 
-      {/* 暴落ナイト（手動発動・フェーズ3） */}
+      {/* 暴落ナイト（手動発動） */}
       <div className="mt-8 pt-6 border-t border-slate-200">
         <h3 className="text-sm font-bold text-slate-800 mb-1">暴落ナイト（手動発動）</h3>
         <p className="text-xs text-slate-500 mb-3">基準価格の約50%まで一気に急落させます（下限＝原価×1.2）。5分で自動解除、手動でも解除できます。</p>
