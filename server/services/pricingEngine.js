@@ -111,6 +111,12 @@ async function runTick() {
     if (newPrice !== item.current_price) {
       await query('UPDATE menu_items SET current_price = $1 WHERE id = $2', [newPrice, item.id]);
       await query('INSERT INTO price_history (menu_item_id, price) VALUES ($1, $2)', [item.id, newPrice]);
+      // 計装(1-1): 価格変動イベントを永続記録（tick）。変動前=旧current, 変動後=newPrice。
+      await query(
+        `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
+         VALUES ($1, $2, $3, 'tick', 'engine')`,
+        [item.id, item.current_price, newPrice]
+      );
 
       const pctChange = ((newPrice - item.base_price) / item.base_price) * 100;
       updates.push({
@@ -134,10 +140,14 @@ async function runTick() {
     }
   }
 
-  await query(
-    `DELETE FROM pricing_events WHERE event_time < NOW() - $1 * INTERVAL '1 second'`,
-    [PRUNE_EVENTS_SECONDS]
-  );
+  // 計装(1-1): 需要ログ(pricing_events)は分析(A2:暴落後15分抽出)のため永続化する。
+  // 剪定は PRUNE_EVENTS_SECONDS > 0 のときのみ実行（既定0=剪定なし）。増大時は削除でなくアーカイブで対応。
+  if (PRUNE_EVENTS_SECONDS > 0) {
+    await query(
+      `DELETE FROM pricing_events WHERE event_time < NOW() - $1 * INTERVAL '1 second'`,
+      [PRUNE_EVENTS_SECONDS]
+    );
+  }
 
   if (updates.length > 0) {
     const updatedIds = updates.map((u) => u.id);

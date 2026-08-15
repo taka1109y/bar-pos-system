@@ -111,6 +111,32 @@ CREATE TABLE IF NOT EXISTS price_history (
     recorded_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- 価格変動イベントの永続ログ（計装フェーズ1-1）。current_price が変わる全経路で記録する。
+-- price_history と違い剪定しない。event_type: tick/crash/crash_reset/base_edit（将来 crash_manual）。
+-- 掲示価格スナップショット(1-3)も兼ねる: 「時刻Tに客が見た価格」= 商品ごと event_time<=T の最新 price_after。
+CREATE TABLE IF NOT EXISTS price_events (
+    id           BIGSERIAL PRIMARY KEY,
+    menu_item_id INTEGER NOT NULL REFERENCES menu_items(id),
+    price_before NUMERIC(10,2),
+    price_after  NUMERIC(10,2) NOT NULL,
+    event_type   TEXT NOT NULL,
+    trigger      TEXT,
+    event_time   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_price_events_item_time ON price_events (menu_item_id, event_time);
+
+-- base_price（基準価格）変更履歴（計装フェーズ1-2）。任意過去時点の base を復元でき、A1分析の近似問題を解消する。
+-- operator は認証が無いため NULL（将来認証導入時に記録）。
+CREATE TABLE IF NOT EXISTS base_price_history (
+    id           BIGSERIAL PRIMARY KEY,
+    menu_item_id INTEGER NOT NULL REFERENCES menu_items(id),
+    price_before NUMERIC(10,2),
+    price_after  NUMERIC(10,2) NOT NULL,
+    changed_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    operator     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_base_price_history_item_time ON base_price_history (menu_item_id, changed_at);
+
 CREATE TABLE IF NOT EXISTS system_settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL

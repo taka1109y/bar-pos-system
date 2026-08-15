@@ -284,6 +284,12 @@ router.post('/', async (req, res, next) => {
        RETURNING id`,
       [category_id, subcategory_id || null, name.trim(), base_price, minP, maxP, stepUp, stepDn, is_drink, image_url || null, effectiveTaxCategory, Boolean(is_staff_only), Boolean(price_editable), qText, qChoices ? JSON.stringify(qChoices) : null, allowMultiple, allowQuantity]
     );
+    // 計装(1-2): 商品作成時の初期 base_price を履歴に記録（before=NULL）
+    await query(
+      `INSERT INTO base_price_history (menu_item_id, price_before, price_after, operator)
+       VALUES ($1, NULL, $2, NULL)`,
+      [rows[0].id, base_price]
+    );
     const { rows: result } = await query(`${ITEM_SELECT} WHERE m.id = $1`, [rows[0].id]);
     res.status(201).json(result[0]);
   } catch (err) {
@@ -350,6 +356,7 @@ router.post('/crash', async (req, res, next) => {
       SELECT m.id,
         m.name,
         m.base_price::float,
+        m.current_price::float,
         m.min_price::float,
         COALESCE((
           SELECT SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0))
@@ -387,6 +394,12 @@ router.post('/crash', async (req, res, next) => {
         'INSERT INTO price_history (menu_item_id, price) VALUES ($1, $2)',
         [item.id, crashPrice]
       );
+      // 計装(1-1): 暴落イベントを永続記録（before=旧current, after=crashPrice）
+      await query(
+        `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
+         VALUES ($1, $2, $3, 'crash', 'crash_endpoint')`,
+        [item.id, item.current_price, crashPrice]
+      );
       const pctChange = item.base_price > 0
         ? Math.round((crashPrice - item.base_price) / item.base_price * 100 * 10) / 10
         : 0;
@@ -419,12 +432,27 @@ router.post('/crash', async (req, res, next) => {
 // POST /api/menu/crash/reset
 router.post('/crash/reset', async (req, res, next) => {
   try {
+    // 計装(1-1): reset前に暴落中商品の現在価格を控える（before記録用）
+    const { rows: beforeReset } = await query(
+      `SELECT id, current_price::float AS current_price, base_price::float AS base_price
+       FROM menu_items WHERE is_crashed = TRUE AND is_active = TRUE`
+    );
+
     const { rows } = await query(`
       UPDATE menu_items
       SET current_price = base_price, is_crashed = FALSE
       WHERE is_crashed = TRUE AND is_active = TRUE
       RETURNING id
     `);
+
+    // 計装(1-1): 暴落解除イベントを永続記録（before=暴落中価格, after=base_price）
+    for (const b of beforeReset) {
+      await query(
+        `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
+         VALUES ($1, $2, $3, 'crash_reset', 'crash_endpoint')`,
+        [b.id, b.current_price, b.base_price]
+      );
+    }
 
     if (rows.length > 0) {
       const { rows: allPrices } = await query(`
@@ -448,7 +476,7 @@ router.post('/crash/reset', async (req, res, next) => {
 // PATCH /api/menu/:id
 router.patch('/:id', async (req, res, next) => {
   try {
-    const { rows: existing } = await query('SELECT id, min_price::float, max_price::float, is_crashed FROM menu_items WHERE id = $1', [req.params.id]);
+    const { rows: existing } = await query('SELECT id, min_price::float, max_price::float, is_crashed, base_price::float, current_price::float FROM menu_items WHERE id = $1', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ error: 'Item not found' });
 
     const { category_id, name, base_price, min_price, max_price, price_step_up, price_step_down,
@@ -474,8 +502,10 @@ router.patch('/:id', async (req, res, next) => {
     if (base_price !== undefined)       { updates.push(`base_price = $${idx++}`);       values.push(base_price); }
     // 基準価格を変更した時、暴落中でなければ現在価格(=表示価格)も基準価格に追従させる。
     // 食品(is_drink=false)は価格エンジン非対象で current_price が旧値のまま固定される不具合の修正。
+    let followedCurrentPrice = null; // 計装(1-2/1-1): base追従で更新した current_price（price_events記録用）
     if (base_price !== undefined && !existing[0].is_crashed) {
       const clamped = Math.max(effectiveMin, Math.min(effectiveMax, Number(base_price)));
+      followedCurrentPrice = clamped;
       updates.push(`current_price = $${idx++}`); values.push(clamped);
     }
     if (min_price !== undefined)        { updates.push(`min_price = $${idx++}`);        values.push(min_price); }
@@ -517,6 +547,23 @@ router.patch('/:id', async (req, res, next) => {
 
     values.push(req.params.id);
     await query(`UPDATE menu_items SET ${updates.join(', ')} WHERE id = $${idx}`, values);
+
+    // 計装(1-2): base_price が実際に変化したら履歴を記録（operatorは認証なしのためNULL）
+    if (base_price !== undefined && Number(base_price) !== existing[0].base_price) {
+      await query(
+        `INSERT INTO base_price_history (menu_item_id, price_before, price_after, operator)
+         VALUES ($1, $2, $3, NULL)`,
+        [req.params.id, existing[0].base_price, Number(base_price)]
+      );
+    }
+    // 計装(1-1): base追従で current_price を更新した場合、価格変動イベントを記録（base_edit）
+    if (followedCurrentPrice !== null && followedCurrentPrice !== existing[0].current_price) {
+      await query(
+        `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
+         VALUES ($1, $2, $3, 'base_edit', 'menu_edit')`,
+        [req.params.id, existing[0].current_price, followedCurrentPrice]
+      );
+    }
 
     const { rows: result } = await query(`${ITEM_SELECT} WHERE m.id = $1`, [req.params.id]);
     res.json(result[0]);
