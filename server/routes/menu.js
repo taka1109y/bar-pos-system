@@ -3,28 +3,43 @@ const router = express.Router();
 const { pool, query } = require('../db/database');
 const { broadcast } = require('../services/socketService');
 const crashCfg = require('../services/crashSettings');
+const pm = require('../services/pricingModel');
 
 // 手動暴落(フェーズ3)用の丸めヘルパー
 const _round25 = (v) => Math.round(v / crashCfg.PRICE_ROUND_UNIT) * crashCfg.PRICE_ROUND_UNIT;
 const _ceil25  = (v) => Math.ceil(v / crashCfg.PRICE_ROUND_UNIT) * crashCfg.PRICE_ROUND_UNIT;
 let _manualCrashTimer = null;
 
-// 暴落中の全商品を base_price に戻し、crash_reset を記録して解除を通知する（自動/手動解除で共用）
+// 暴落中の全商品を「暴落前価格」に戻し、crash_reset を記録して解除を通知する（自動/手動解除で共用）。
+// 復帰先=直近 crash_manual/crash の price_before（ラダーにスナップ）。取得できなければ base_price。
 async function performManualCrashReset(triggerLabel) {
   const { rows: before } = await query(
-    `SELECT id, current_price::float AS current_price, base_price::float AS base_price
+    `SELECT id, current_price::float AS current_price, base_price::float AS base_price,
+       min_price::float AS minp, max_price::float AS maxp, price_step_up::float AS step
      FROM menu_items WHERE is_crashed = TRUE AND is_active = TRUE`
   );
   if (before.length === 0) {
     await query(`DELETE FROM system_settings WHERE key IN ('crash_started_at','crash_ends_at')`);
     return { updated: 0 };
   }
-  await query(`UPDATE menu_items SET current_price = base_price, is_crashed = FALSE WHERE is_crashed = TRUE AND is_active = TRUE`);
+  // 各商品の暴落直前価格（最新の crash 系イベントの price_before）
+  const { rows: preRows } = await query(`
+    SELECT DISTINCT ON (menu_item_id) menu_item_id, price_before::float AS price_before
+    FROM price_events WHERE event_type IN ('crash_manual','crash')
+    ORDER BY menu_item_id, id DESC
+  `);
+  const preMap = Object.fromEntries(preRows.map((r) => [r.menu_item_id, r.price_before]));
   for (const b of before) {
+    const raw = preMap[b.id] != null ? preMap[b.id] : b.base_price;
+    // ロック(min=max)は min に、可変はラダーにスナップして復帰
+    const restore = b.minp === b.maxp
+      ? b.base_price
+      : pm.snapToLadder(raw, b.minp, b.maxp, (b.step && b.step > 0) ? b.step : pm.ladderStep(b.minp, b.maxp));
+    await query('UPDATE menu_items SET current_price = $1, is_crashed = FALSE WHERE id = $2', [restore, b.id]);
     await query(
       `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
        VALUES ($1, $2, $3, 'crash_reset', $4)`,
-      [b.id, b.current_price, b.base_price, triggerLabel]
+      [b.id, b.current_price, restore, triggerLabel]
     );
   }
   await query(`DELETE FROM system_settings WHERE key IN ('crash_started_at','crash_ends_at')`);
@@ -544,6 +559,7 @@ router.post('/crash/manual', async (req, res, next) => {
     const params = scope === 'category' ? [category_ids] : [];
     const { rows: targets } = await query(`
       SELECT m.id, m.name, m.base_price::float AS base_price, m.current_price::float AS current_price,
+        m.min_price::float AS min_price, m.max_price::float AS max_price,
         COALESCE((
           SELECT SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0))
           FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id
@@ -556,13 +572,13 @@ router.post('/crash/manual', async (req, res, next) => {
     let updated = 0;
     const broadcastItems = [];
     for (const item of targets) {
-      // 下限（絶対床・優先）: 原価×1.2 / 原価なしは base×40%
-      const floor = item.cost > 0
-        ? _ceil25(item.cost * crashCfg.COST_FLOOR_MULTIPLIER)
-        : _ceil25(item.base_price * crashCfg.NO_COST_FLOOR_RATE);
-      const target = _round25(item.base_price * crashCfg.MANUAL_CRASH_TARGET_RATE);
-      const crashPrice = Math.max(target, floor, 0);
-      if (crashPrice >= item.current_price) continue; // 既に下限以下なら下げない
+      // 暴落=最下段へ即時。可変商品は min_price、ロック(min=max)は原価床(原価×1.2 / base×40%)。
+      // いずれも原価×1.2 を下回らない（min_price は再計算時に原価床以上で作られている）。
+      const floor = pm.costFloor(item.base_price, item.cost);
+      const crashPrice = item.min_price === item.max_price
+        ? Math.max(floor, 0)
+        : Math.max(item.min_price, floor, 0);
+      if (crashPrice >= item.current_price) continue; // 既に最下段以下なら下げない
       await query('UPDATE menu_items SET current_price = $1, is_crashed = TRUE WHERE id = $2', [crashPrice, item.id]);
       await query('INSERT INTO price_history (menu_item_id, price) VALUES ($1, $2)', [item.id, crashPrice]);
       await query(

@@ -1,236 +1,140 @@
 const { query } = require('../db/database');
 const { broadcast } = require('./socketService');
 const pricingSettings = require('./pricingSettings');
+const pm = require('./pricingModel');
 const logger = require('../utils/logger');
 
 const TZ = process.env.TZ_REPORT || 'Asia/Tokyo';
 
-function roundToNearest(value, step) {
-  return Math.round(value / step) * step;
-}
+// ── 価格モデル(Phase4): 呼値ラダー × 15分期 ─────────────────────────────
+// ・注文が入った瞬間に、その銘柄を即時1段上昇（stepUpOnOrder, orders.js から呼ぶ）
+// ・15分「期」の区切りで、その期に注文が無かった銘柄を1段減衰（runPeriodDecay, 定期実行）
+// ・影響は個別銘柄のみ（カテゴリ/サブカテゴリ競合は使わない）。乱数なし。整数(25円)演算。
+// ・暴落(最下段への即時遷移・復帰)は menu.js が担当。
+//   従来の需要競合ロジック(groupKey)は Phase4 で本モデルに置換した(承認済み)。
 
-async function runTick() {
-  const {
-    WINDOW_SECONDS,
-    PRICE_STEP_DOWN,
-    HISTORY_KEEP,
-    PRUNE_EVENTS_SECONDS,
-  } = pricingSettings.getSettings();
-
-  // 注: 手動暴落(フェーズ3)の継続時間経過による自動解除は、価格tick間隔(本番は長時間)に依存しないよう
-  // menu.js の独立ウォッチャ(startCrashWatcher, 20秒間隔)が担当する。ここでは扱わない。
-
-  // 競合スコープ: カテゴリ全体ON のカテゴリは配下の全ドリンクを1グループにする（サブカテゴリ跨ぎ）。
-  // それ以外はサブカテゴリ単位（従来）。グループキーで需要・商品数を集計する。
-  const { rows: catRows } = await query(`SELECT id, competition_category_wide FROM categories`);
-  const catWide = Object.fromEntries(catRows.map((r) => [r.id, r.competition_category_wide]));
-  const groupKey = (categoryId, subcategoryId) => {
-    if (catWide[categoryId]) return `c${categoryId}`;
-    if (subcategoryId != null) return `s${subcategoryId}`;
-    return null;
-  };
-
-  // グループ別アクティブドリンク数
-  const { rows: countRows } = await query(`
-    SELECT category_id, subcategory_id
-    FROM menu_items
-    WHERE is_drink = TRUE AND is_active = TRUE
-  `);
-  const groupCountMap = {};
-  for (const r of countRows) {
-    const k = groupKey(r.category_id, r.subcategory_id);
-    if (k) groupCountMap[k] = (groupCountMap[k] ?? 0) + 1;
-  }
-
-  const { rows: items } = await query(`
-    SELECT id, name, category_id, subcategory_id,
-      base_price::float, current_price::float,
-      min_price::float, max_price::float,
-      price_step_up::float, price_step_down::float
-    FROM menu_items
-    WHERE is_drink = TRUE AND is_active = TRUE AND is_crashed = FALSE
-  `);
-
-  const { rows: demandRows } = await query(
-    `SELECT menu_item_id, COALESCE(SUM(quantity), 0)::int AS total_qty
-     FROM pricing_events
-     WHERE event_time > NOW() - $1 * INTERVAL '1 second'
-     GROUP BY menu_item_id`,
-    [WINDOW_SECONDS]
-  );
-  const demandMap = Object.fromEntries(demandRows.map((r) => [r.menu_item_id, r.total_qty]));
-
-  // グループ別の合計需要
-  const groupDemandMap = {};
-  for (const item of items) {
-    const k = groupKey(item.category_id, item.subcategory_id);
-    if (k) {
-      const qty = demandMap[item.id] ?? 0;
-      groupDemandMap[k] = (groupDemandMap[k] ?? 0) + qty;
-    }
-  }
-
-  const updates = [];
-
-  for (const item of items) {
-    const itemQty = demandMap[item.id] ?? 0;
-
-    let targetPrice;
-
-    const gKey = groupKey(item.category_id, item.subcategory_id);
-    if (gKey != null) {
-      const groupItemCount = groupCountMap[gKey] ?? 0;
-
-      if (groupItemCount <= 1) {
-        // グループに1商品のみ: base_price へ緩やかに戻す
-        targetPrice = item.base_price;
-      } else {
-        // 競合ロジック: 自分の注文数 × step_up、競合注文数 × step_down
-        const competitorQty = (groupDemandMap[gKey] ?? 0) - itemQty;
-        targetPrice = item.base_price
-          + itemQty       * item.price_step_up
-          - competitorQty * item.price_step_down;
-        targetPrice = Math.max(item.min_price, Math.min(item.max_price, targetPrice));
-      }
-    } else {
-      // グループなし（サブカテゴリなし・カテゴリ全体OFF）: 自分の注文数 × step_up のみ
-      targetPrice = item.base_price + itemQty * item.price_step_up;
-      targetPrice = Math.max(item.min_price, Math.min(item.max_price, targetPrice));
-    }
-
-    let newPrice;
-    if (item.current_price < targetPrice) {
-      newPrice = targetPrice; // 即時引き上げ
-    } else if (item.current_price > targetPrice) {
-      newPrice = Math.max(item.current_price * (1 - PRICE_STEP_DOWN), targetPrice); // 緩やかに下降
-    } else {
-      newPrice = item.current_price;
-    }
-
-    newPrice = Math.max(item.min_price, Math.min(item.max_price, newPrice));
-    newPrice = roundToNearest(newPrice, 25);
-    newPrice = Math.max(item.min_price, Math.min(item.max_price, newPrice));
-
-    if (newPrice !== item.current_price) {
-      await query('UPDATE menu_items SET current_price = $1 WHERE id = $2', [newPrice, item.id]);
-      await query('INSERT INTO price_history (menu_item_id, price) VALUES ($1, $2)', [item.id, newPrice]);
-      // 計装(1-1): 価格変動イベントを永続記録（tick）。変動前=旧current, 変動後=newPrice。
-      await query(
-        `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
-         VALUES ($1, $2, $3, 'tick', 'engine')`,
-        [item.id, item.current_price, newPrice]
-      );
-
-      const pctChange = ((newPrice - item.base_price) / item.base_price) * 100;
-      updates.push({
-        id: item.id,
-        name: item.name,
-        current_price: newPrice,
-        base_price: item.base_price,
-        pct_change: Math.round(pctChange * 10) / 10,
-        direction: newPrice > item.current_price ? 'up' : 'down',
-      });
-
-      await query(
-        `DELETE FROM price_history
-         WHERE menu_item_id = $1
-           AND id NOT IN (
-             SELECT id FROM price_history WHERE menu_item_id = $1
-             ORDER BY recorded_at DESC LIMIT $2
-           )`,
-        [item.id, HISTORY_KEEP]
-      );
-    }
-  }
-
-  // 計装(1-1): 需要ログ(pricing_events)は分析(A2:暴落後15分抽出)のため永続化する。
-  // 剪定は PRUNE_EVENTS_SECONDS > 0 のときのみ実行（既定0=剪定なし）。増大時は削除でなくアーカイブで対応。
-  if (PRUNE_EVENTS_SECONDS > 0) {
-    await query(
-      `DELETE FROM pricing_events WHERE event_time < NOW() - $1 * INTERVAL '1 second'`,
-      [PRUNE_EVENTS_SECONDS]
-    );
-  }
-
-  if (updates.length > 0) {
-    const updatedIds = updates.map((u) => u.id);
-    const { rows: dayStats } = await query(
-      `SELECT menu_item_id,
-         MAX(price)::float AS day_high,
-         MIN(price)::float AS day_low
-       FROM price_history
-       WHERE menu_item_id = ANY($1)
-         AND (recorded_at AT TIME ZONE $2)::date = (NOW() AT TIME ZONE $2)::date
-       GROUP BY menu_item_id`,
-      [updatedIds, TZ]
-    );
-    const dayStatsMap = Object.fromEntries(dayStats.map((r) => [r.menu_item_id, r]));
-
-    const updatesWithStats = updates.map((u) => ({
-      ...u,
-      day_high: dayStatsMap[u.id]?.day_high ?? u.current_price,
-      day_low:  dayStatsMap[u.id]?.day_low  ?? u.current_price,
-    }));
-
-    broadcast('prices:updated', { items: updatesWithStats, timestamp: Date.now() });
-    logger.info({ count: updates.length }, 'PricingEngine price updated');
-  }
-
-  // 全アイテムの最新価格をブロードキャスト（暴落中アイテムも現在価格のまま含める。
-  // 除外すると prices:sync を全置換で受け取るクライアントの価格リストから暴落中商品が消えてしまうため）
-  const { rows: allPrices } = await query(`
+// 全ドリンクの最新価格をボードへ同期（暴落中も現在価格のまま含める）
+async function broadcastPricesSync() {
+  const { rows } = await query(`
     SELECT m.id, m.name,
       m.base_price::float, m.current_price::float,
       COALESCE(ROUND((m.current_price - m.base_price) * 100.0 / NULLIF(m.base_price, 0), 1), 0)::float AS pct_change,
-      c.id AS category_id,
-      c.name AS category_name
+      c.id AS category_id, c.name AS category_name
     FROM menu_items m
     JOIN categories c ON m.category_id = c.id
     LEFT JOIN subcategories sc ON m.subcategory_id = sc.id
     WHERE m.is_drink = TRUE AND m.is_active = TRUE AND m.is_staff_only = FALSE
     ORDER BY c.sort_order, sc.sort_order NULLS LAST, m.sort_order, m.name
   `);
-  const syncItems = allPrices.map((r) => ({
+  const items = rows.map((r) => ({
     ...r,
     direction: r.pct_change > 0 ? 'up' : r.pct_change < 0 ? 'down' : 'flat',
   }));
-  broadcast('prices:sync', { items: syncItems, timestamp: Date.now() });
+  broadcast('prices:sync', { items, timestamp: Date.now() });
 }
 
-let running     = false;
-let pendingTick = false;
+// 価格変更を記録し、price_events / price_history に残す共通処理（整数前提）
+async function applyPriceChange(item, before, after, trigger) {
+  await query('UPDATE menu_items SET current_price = $1 WHERE id = $2', [after, item.id]);
+  await query('INSERT INTO price_history (menu_item_id, price) VALUES ($1, $2)', [item.id, after]);
+  await query(
+    `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
+     VALUES ($1, $2, $3, 'tick', $4)`,
+    [item.id, before, after, trigger]
+  );
+  // price_history を商品ごと HISTORY_KEEP 件に剪定（従来踏襲）
+  const { HISTORY_KEEP } = pricingSettings.getSettings();
+  await query(
+    `DELETE FROM price_history WHERE menu_item_id = $1
+       AND id NOT IN (SELECT id FROM price_history WHERE menu_item_id = $1 ORDER BY recorded_at DESC LIMIT $2)`,
+    [item.id, HISTORY_KEEP]
+  );
+}
 
-async function triggerTick() {
-  if (running) { pendingTick = true; return; }
-  running = true;
+// 注文時: その銘柄を即時1段上昇（≤max）。crashed/ロック(min=max)/非ドリンクは対象外。
+async function stepUpOnOrder(menuItemId) {
   try {
-    await runTick();
-    if (pendingTick) { pendingTick = false; await runTick(); }
+    const { rows } = await query(
+      `SELECT id, name, base_price::float AS base_price, current_price::float AS cp,
+         min_price::float AS minp, max_price::float AS maxp, price_step_up::float AS step,
+         is_crashed, is_active, is_drink
+       FROM menu_items WHERE id = $1`, [menuItemId]
+    );
+    const it = rows[0];
+    if (!it || !it.is_active || !it.is_drink || it.is_crashed || it.minp === it.maxp) return;
+    const step = it.step && it.step > 0 ? it.step : pm.ladderStep(it.minp, it.maxp);
+    const next = pm.stepUp(it.cp, it.minp, it.maxp, step);
+    if (next === it.cp) return; // 既に最上段
+    await applyPriceChange(it, it.cp, next, 'order');
+    const pct = it.base_price > 0 ? Math.round((next - it.base_price) / it.base_price * 1000) / 10 : 0;
+    broadcast('prices:updated', {
+      items: [{ id: it.id, name: it.name, base_price: it.base_price, current_price: next, pct_change: pct, direction: 'up' }],
+      timestamp: Date.now(),
+    });
   } catch (e) {
-    logger.error({ err: e }, 'PricingEngine triggered tick error');
-  } finally {
-    running = false; pendingTick = false;
+    logger.error({ err: e }, 'stepUpOnOrder failed');
   }
 }
 
-let tickTimer = null;
+// 15分期の減衰: 当期に注文が無かった非ロック・非crashedを1段減衰（≥min）。
+async function runPeriodDecay() {
+  try {
+    const { rows: items } = await query(`
+      SELECT id, name, base_price::float AS base_price, current_price::float AS cp,
+        min_price::float AS minp, max_price::float AS maxp, price_step_down::float AS step
+      FROM menu_items
+      WHERE is_drink = TRUE AND is_active = TRUE AND is_crashed = FALSE AND min_price <> max_price
+    `);
+    // 当期(直近 PERIOD_MS)に注文があった銘柄は据え置き
+    const { rows: demand } = await query(
+      `SELECT DISTINCT menu_item_id FROM pricing_events WHERE event_time > NOW() - ($1::bigint * INTERVAL '1 millisecond')`,
+      [pm.PERIOD_MS]
+    );
+    const ordered = new Set(demand.map((d) => d.menu_item_id));
+    let changed = 0;
+    for (const it of items) {
+      if (ordered.has(it.id)) continue;
+      const step = it.step && it.step > 0 ? it.step : pm.ladderStep(it.minp, it.maxp);
+      const next = pm.stepDown(it.cp, it.minp, it.maxp, step);
+      if (next !== it.cp) { await applyPriceChange(it, it.cp, next, 'decay'); changed++; }
+    }
+    // 次の期の終了時刻を保存し、カウントダウン用に通知
+    const endsAt = new Date(Date.now() + pm.PERIOD_MS).toISOString();
+    await query(
+      `INSERT INTO system_settings (key, value) VALUES ('period_ends_at', $1)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [endsAt]
+    );
+    await broadcastPricesSync();
+    broadcast('period:tick', { endsAt, timestamp: Date.now() });
+    if (changed > 0) logger.info({ count: changed }, 'PricingEngine period decay');
+  } catch (e) {
+    logger.error({ err: e }, 'runPeriodDecay failed');
+  }
+}
+
+let periodTimer = null;
 
 function startPricingEngine() {
-  const { TICK_INTERVAL_MS } = pricingSettings.getSettings();
-  logger.info('PricingEngine starting');
-  runTick().catch((e) => logger.error({ err: e }, 'PricingEngine initial tick error'));
-  tickTimer = setInterval(() => {
-    runTick().catch((e) => logger.error({ err: e }, 'PricingEngine tick error'));
-  }, TICK_INTERVAL_MS);
+  logger.info('PricingEngine(Phase4 ladder) starting');
+  // 起動時に period_ends_at を必ずセットしてから定期減衰を開始
+  runPeriodDecay().catch((e) => logger.error({ err: e }, 'PricingEngine initial period error'));
+  periodTimer = setInterval(() => {
+    runPeriodDecay().catch((e) => logger.error({ err: e }, 'PricingEngine period error'));
+  }, pm.PERIOD_MS);
 }
 
 function restartInterval() {
-  if (tickTimer) clearInterval(tickTimer);
-  const { TICK_INTERVAL_MS } = pricingSettings.getSettings();
-  tickTimer = setInterval(() => {
-    runTick().catch((e) => logger.error({ err: e }, 'PricingEngine tick error'));
-  }, TICK_INTERVAL_MS);
-  logger.info({ intervalMs: TICK_INTERVAL_MS }, 'PricingEngine interval restarted');
+  if (periodTimer) clearInterval(periodTimer);
+  periodTimer = setInterval(() => {
+    runPeriodDecay().catch((e) => logger.error({ err: e }, 'PricingEngine period error'));
+  }, pm.PERIOD_MS);
+  logger.info({ periodMs: pm.PERIOD_MS }, 'PricingEngine period interval restarted');
 }
 
-module.exports = { startPricingEngine, triggerTick, restartInterval };
+// 互換: 旧 triggerTick は Phase4 では未使用(全体tickは廃止)。呼ばれても無害。
+function triggerTick() { /* deprecated in Phase4; per-item step-up is via stepUpOnOrder */ }
+
+module.exports = {
+  startPricingEngine, restartInterval, triggerTick,
+  stepUpOnOrder, runPeriodDecay, broadcastPricesSync,
+};

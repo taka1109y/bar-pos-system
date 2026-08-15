@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool, query } = require('../db/database');
 const { broadcastToRoom, broadcast } = require('../services/socketService');
-const { triggerTick } = require('../services/pricingEngine');
+const { triggerTick, stepUpOnOrder } = require('../services/pricingEngine');
 const { nowInTZ, isHourInRange } = require('../utils/time');
 const { clampInt } = require('../utils/validate');
 const logger = require('../utils/logger');
@@ -309,9 +309,9 @@ router.post('/:id/items', async (req, res, next) => {
 
     await client.query('COMMIT');
 
-    // ドリンク注文時は価格を即時反映
+    // ドリンク注文時は当該銘柄を即時1段上昇（Phase4: 呼値ラダー・個別銘柄）
     if (menuItem.is_drink) {
-      triggerTick();
+      stepUpOnOrder(menu_item_id);
     }
 
     const updated = await getOrderWithItems(order.id);

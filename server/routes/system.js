@@ -25,6 +25,7 @@ function parseSettings(rows) {
     register_opened_at:   s.register_opened_at ?? null,
     crash_started_at:     s.crash_started_at ?? null,
     crash_ends_at:        s.crash_ends_at ?? null,
+    period_ends_at:       s.period_ends_at ?? null,
   };
 }
 
