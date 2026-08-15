@@ -78,7 +78,9 @@ const CRASH_FLOOR_RATIO_DEFAULT    = 0.5; // 暴落下限 = base×0.5 (通常)
 const CRASH_FLOOR_RATIO_ENGINE_OFF = 0.7; // engine_off かつ crash可 の暴落下限 = base×0.7
 // 運動規則の config(6-2以降で使用)
 const PERIOD_MINUTES     = 15; // 1期
-const DECAY_IDLE_PERIODS = 2;  // 2期連続(在店・無注文)で −1段
+// 減衰カウンタ idle_periods の意味論(コード全体で統一):
+// 「在店期ベースで累積2無注文期で −1段、注文で0リセット、無人期はカウンタ・価格とも凍結」。
+const DECAY_IDLE_PERIODS = 2;  // −1段に必要な累積無注文期数(在店期のみ計数)
 const CRASH_MINUTES      = 5;  // 暴落継続時間
 // COST_FLOOR_MULTIPLIER(=1.2) は既存定数を流用
 

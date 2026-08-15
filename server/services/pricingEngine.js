@@ -51,7 +51,34 @@ async function applyPriceChange(item, before, after, trigger) {
   );
 }
 
-// 注文時: その銘柄を即時1段上昇（≤max）。crashed/ロック(min=max)/非ドリンクは対象外。
+// Phase6(6-2) 注文時: engine_enabled のドリンクを即時1段上昇(格子・maxで頭打ち)。
+// ・暴落中(is_crashed)は約定は hard_floor 価格で通すが、段index+1 は適用しない
+//   (暴落終了時は「暴落前の段」へ復帰。暴落中の注文数で復帰位置が変わらないようにする)。
+// ・idle_periods のリセットは runPeriodDecay 側で「当期に注文があった銘柄」を
+//   order_items.created_at 基準で判定して行う(会計時刻ではなく注文時刻基準)。
+async function stepUpOnOrder(menuItemId) {
+  try {
+    const { rows } = await query(
+      `SELECT id, name, base_price::float AS base_price, current_price::float AS cp,
+         is_crashed, is_active, is_drink, engine_enabled
+       FROM menu_items WHERE id = $1`, [menuItemId]
+    );
+    const it = rows[0];
+    // engine_enabled=false(ボトル/高額グラス/ノンアル/フード/裏/時価/薄利) と暴落中は段上昇の対象外
+    if (!it || !it.is_active || !it.is_drink || !it.engine_enabled || it.is_crashed) return;
+    const next = pm.gridStepUp(it.base_price, it.cp);
+    if (next === it.cp) return; // 既に最上段
+    await applyPriceChange(it, it.cp, next, 'order');
+    const pct = it.base_price > 0 ? Math.round((next - it.base_price) / it.base_price * 1000) / 10 : 0;
+    broadcast('prices:updated', {
+      items: [{ id: it.id, name: it.name, base_price: it.base_price, current_price: next, pct_change: pct, direction: 'up' }],
+      timestamp: Date.now(),
+    });
+  } catch (e) {
+    logger.error({ err: e }, 'stepUpOnOrder failed');
+  }
+}
+/* 旧Phase4版(参考・残置):
 async function stepUpOnOrder(menuItemId) {
   try {
     const { rows } = await query(
@@ -64,7 +91,7 @@ async function stepUpOnOrder(menuItemId) {
     if (!it || !it.is_active || !it.is_drink || it.is_crashed || it.minp === it.maxp) return;
     const step = it.step && it.step > 0 ? it.step : pm.ladderStep(it.minp, it.maxp);
     const next = pm.stepUp(it.cp, it.minp, it.maxp, step);
-    if (next === it.cp) return; // 既に最上段
+    if (next === it.cp) return;
     await applyPriceChange(it, it.cp, next, 'order');
     const pct = it.base_price > 0 ? Math.round((next - it.base_price) / it.base_price * 1000) / 10 : 0;
     broadcast('prices:updated', {
@@ -75,8 +102,80 @@ async function stepUpOnOrder(menuItemId) {
     logger.error({ err: e }, 'stepUpOnOrder failed');
   }
 }
+*/
 
-// 15分期の減衰: 当期に注文が無かった非ロック・非crashedを1段減衰（≥min）。
+// Phase6(6-2) 期(既定15分)の減衰。減衰カウンタ idle_periods の意味論:
+//   「在店期ベースで累積2無注文期で −1段、注文で0リセット、無人期はカウンタ・価格とも凍結」。
+// ・在店判定: 期末時点で status='open' の未会計オーダーが1件以上あるか(スナップショット)。
+// ・銘柄別の注文有無: 当期窓 [period_started_at, now] に order_items.created_at がある銘柄
+//   (会計時刻ではなく注文明細の作成時刻基準。伝票が翌期に会計されても注文期に計上)。
+// ・対象: engine_enabled=TRUE の非crashedドリンク。暴落中は idle_periods 凍結(WHERE で除外)。
+// ・期の起点は状態(period_started_at → register_opened_at → now-PERIOD_MS)から読む
+//   (壁時計の00/15/30/45分固定ではない。market_open 起点への整合は6-3で行う前提の構造)。
+async function runPeriodDecay() {
+  try {
+    const now = Date.now();
+    // 期の起点を状態から読む(6-3で market_open に整合させる)
+    const { rows: st } = await query(
+      `SELECT key, value FROM system_settings WHERE key IN ('period_started_at', 'register_opened_at')`
+    );
+    const smap = Object.fromEntries(st.map((r) => [r.key, r.value]));
+    const startIso = smap.period_started_at || smap.register_opened_at || new Date(now - pm.PERIOD_MS).toISOString();
+
+    // 在店(期末に未会計あり)判定
+    const { rows: openRows } = await query(`SELECT COUNT(*)::int AS n FROM orders WHERE status = 'open'`);
+    const occupied = openRows[0].n > 0;
+
+    let changed = 0;
+    if (occupied) {
+      // 当期に注文があった銘柄(order_items.created_at 基準)
+      const { rows: od } = await query(
+        `SELECT DISTINCT menu_item_id FROM order_items WHERE created_at >= $1`, [startIso]
+      );
+      const ordered = new Set(od.map((r) => r.menu_item_id));
+      const { rows: items } = await query(`
+        SELECT id, name, base_price::float AS base_price, current_price::float AS cp, idle_periods
+        FROM menu_items
+        WHERE is_drink = TRUE AND is_active = TRUE AND is_crashed = FALSE AND engine_enabled = TRUE
+      `);
+      for (const it of items) {
+        if (ordered.has(it.id)) {
+          // 注文あり: カウンタ0リセット(価格は据え置き)
+          if (it.idle_periods !== 0) await query('UPDATE menu_items SET idle_periods = 0 WHERE id = $1', [it.id]);
+          continue;
+        }
+        // 在店・無注文: 累積+1。DECAY_IDLE_PERIODS に達したら −1段してカウンタ0へ
+        const nextCount = it.idle_periods + 1;
+        if (nextCount >= pm.DECAY_IDLE_PERIODS) {
+          const next = pm.gridStepDown(it.base_price, it.cp);
+          await query('UPDATE menu_items SET idle_periods = 0 WHERE id = $1', [it.id]);
+          if (next !== it.cp) { await applyPriceChange(it, it.cp, next, 'decay'); changed++; }
+        } else {
+          await query('UPDATE menu_items SET idle_periods = $2 WHERE id = $1', [it.id, nextCount]);
+        }
+      }
+    }
+    // 無人期(!occupied)は何もしない: idle_periods・価格とも凍結
+
+    // 次期の起点/終了を保存し、カウントダウン用に通知
+    const endsAt = new Date(now + pm.PERIOD_MS).toISOString();
+    const startNext = new Date(now).toISOString();
+    await query(
+      `INSERT INTO system_settings (key, value) VALUES ('period_started_at', $1)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [startNext]
+    );
+    await query(
+      `INSERT INTO system_settings (key, value) VALUES ('period_ends_at', $1)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [endsAt]
+    );
+    await broadcastPricesSync();
+    broadcast('period:tick', { endsAt, timestamp: now });
+    if (changed > 0) logger.info({ count: changed, occupied }, 'PricingEngine period decay(Phase6)');
+  } catch (e) {
+    logger.error({ err: e }, 'runPeriodDecay failed');
+  }
+}
+/* 旧Phase4版(参考・残置):
 async function runPeriodDecay() {
   try {
     const { rows: items } = await query(`
@@ -85,7 +184,6 @@ async function runPeriodDecay() {
       FROM menu_items
       WHERE is_drink = TRUE AND is_active = TRUE AND is_crashed = FALSE AND min_price <> max_price
     `);
-    // 当期(直近 PERIOD_MS)に注文があった銘柄は据え置き
     const { rows: demand } = await query(
       `SELECT DISTINCT menu_item_id FROM pricing_events WHERE event_time > NOW() - ($1::bigint * INTERVAL '1 millisecond')`,
       [pm.PERIOD_MS]
@@ -98,7 +196,6 @@ async function runPeriodDecay() {
       const next = pm.stepDown(it.cp, it.minp, it.maxp, step);
       if (next !== it.cp) { await applyPriceChange(it, it.cp, next, 'decay'); changed++; }
     }
-    // 次の期の終了時刻を保存し、カウントダウン用に通知
     const endsAt = new Date(Date.now() + pm.PERIOD_MS).toISOString();
     await query(
       `INSERT INTO system_settings (key, value) VALUES ('period_ends_at', $1)
@@ -111,6 +208,7 @@ async function runPeriodDecay() {
     logger.error({ err: e }, 'runPeriodDecay failed');
   }
 }
+*/
 
 let periodTimer = null;
 
