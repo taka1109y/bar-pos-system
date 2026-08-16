@@ -135,7 +135,8 @@ async function runPeriodDecay() {
       );
       const ordered = new Set(od.map((r) => r.menu_item_id));
       const { rows: items } = await query(`
-        SELECT id, name, base_price::float AS base_price, current_price::float AS cp, idle_periods
+        SELECT id, name, base_price::float AS base_price, current_price::float AS cp, idle_periods,
+          min_price::float AS minp
         FROM menu_items
         WHERE is_drink = TRUE AND is_active = TRUE AND is_crashed = FALSE AND engine_enabled = TRUE
       `);
@@ -148,7 +149,8 @@ async function runPeriodDecay() {
         // 在店・無注文: 累積+1。DECAY_IDLE_PERIODS に達したら −1段してカウンタ0へ
         const nextCount = it.idle_periods + 1;
         if (nextCount >= pm.DECAY_IDLE_PERIODS) {
-          const next = pm.gridStepDown(it.base_price, it.cp);
+          // 減衰の停止点は stored min_price(=effectiveSoftFloor)。原価×1.2でクランプ済みの薄利銘柄も原価割れしない。
+          const next = pm.gridStepDown(it.base_price, it.cp, it.minp);
           await query('UPDATE menu_items SET idle_periods = 0 WHERE id = $1', [it.id]);
           if (next !== it.cp) { await applyPriceChange(it, it.cp, next, 'decay'); changed++; }
         } else {

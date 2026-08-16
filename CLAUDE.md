@@ -501,16 +501,18 @@ CSS変数            : --wf-bg / --wf-surface / --wf-border / --wf-text / --wf-t
 
 以下は Phase6 で確定した価格モデルの凍結パラメータ。config は `server/services/pricingModel.js`（STEP_TABLE・各率・PERIOD_MINUTES・DECAY_IDLE_PERIODS・CRASH_MINUTES・CRASH_FLOOR_RATIO_*）と `server/services/crashSettings.js`（暴落継続5分）に集約。
 
+- **運用メモ（market_days）**：取引ナイトは**金曜・土曜固定・週2**。**月曜定休**。寄り付き（market open）はレジオープンごとに走るため、実質この取引ナイトの開店時が起点になる。
+
 - **base** ＝ `menu_items.base_price`（現行実売価格＝定価）。エンジンは書き換えない。全比率は base 基準。**base=0 の時価商品（price_editable）はエンジン・暴落とも対象外**。
 - **呼値 step（base で決定・固定）**：`base<1000→30 ／ 1000≤base<3000→100 ／ base≥3000→200`。全約定・表示価格は**格子 `base + n×step` 上のみ**。中間丸めは round half up。
-- **価格帯**：`soft_floor(=min_price)=base×1.0 ／ anchor(寄り付き)=base×1.1 ／ max(=max_price)=base×1.2`（格子へスナップ）。
+- **価格帯**：`soft_floor(=min_price)=base×0.8 ／ anchor(寄り付き)=base×1.1 ／ max(=max_price)=base×1.2`（格子へスナップ）。soft_floor率は config `SOFT_FLOOR_RATE`（**1.0→0.8 にオーナー承認で変更**）。**ただし stored `min_price` は `effectiveSoftFloor = max(base×0.8格子, 原価×1.2格子)`**：原価×1.2（hard_floor の原価成分）が base×0.8 を上回る薄利銘柄は min_price をそちらへクランプし、減衰でも原価割れしない（＝該当銘柄では soft_floor が hard_floor の原価成分に一致する）。移行は `deploy/migrations/2026-08-16_soft_floor_08_*`（可逆・バックアップ表方式。変動ドリンクのみ対象、暴落中・ロック品・時価は除外）。
 - **hard_floor（暴落時のみ）**＝`ceilGrid(max(base×ratio, 原価×1.2))`。`ratio`：engine_off（`engine_enabled=false かつ crash_eligible=true`）=0.7 ／ 通常=0.5。原価欠損は `base×ratio` のみ（暴落発動レスポンスに警告）。
 - **運動規則**：期=15分。注文で即時+1段（max頭打ち）。減衰は「在店期ベースで累積2無注文期で−1段（soft_floorで停止）、注文で0リセット、無人期はカウンタ・価格とも凍結」。在店判定＝**期末時点で status='open' の未会計オーダー1件以上**。銘柄別の注文有無は **`order_items.created_at` 基準**（会計時刻でない）。減衰カウンタは `menu_items.idle_periods`。
 - **寄り付き（market open）**：レジオープン（`register_open`→true）で `engine_enabled` のドリンクを anchor へリセット・idle=0、期起点 `period_started_at` をオープン時刻に。手動は システム管理＞価格モデル＞寄り付きリセット（確認付き・例外用、`POST /api/system/market-open`）。event_type=`market_open`。
 - **暴落**：`crash_eligible` の銘柄を hard_floor へ即時、5分で**暴落前の段**へ復帰（`price_before`＝発動時に crash_manual へ記録した唯一の真実。復帰は格子へsnap+[soft,max]クランプ）。event_type=`crash_manual`/`crash_reset`。暴落中は段+1/減衰しない・idle凍結。約定は hard_floor 価格で通る。銘柄単位（カテゴリはスコープ指定のみ）。
 - **フラグ（menu_items）**：`engine_enabled`（自動変動）／`crash_eligible`（暴落対象）。初期割当：フード・裏メニュー（客側非表示）・時価・ノンアル・ボトル・薄利（藍茜/萌黄）＝off/off ／ 高額グラス（base≥2000：山崎/山崎12年/macallan）＝off/on ／ 通常アルコール＝on/on。**ノンアル品は常に定価**。商品管理（MenuManager）でトグル編集可（保存経路のみ deprecated `crash_enabled` も同値同期）。
-  - **`engine_enabled` を true→false に切り替えると `current_price` は定価（soft_floor=base）へ固定**される（off銘柄は寄り付き対象外のため切替時に定価へ戻す）。暴落中・base再計算時は据え置き。
+  - **`engine_enabled` を true→false に切り替えると `current_price` は定価（=`base`）へ固定**される（off銘柄は寄り付き対象外のため切替時に定価へ戻す）。※soft_floor率0.8化により **soft_floor≠base**（soft_floor=base×0.8）。off銘柄は「常に定価」なので **soft_floor ではなく base** を使う（`menu.js` の切替は `pm.snapGrid(base,base)=base`）。暴落中・base再計算時は据え置き。
   - **`crash_enabled` は deprecated・読み取り禁止**。6-4以降の暴落対象参照は `crash_eligible` のみ。UI保存時に同値で同期されるだけ（トリガー等はなし）。
   - **`price_locked`（min=max=base の完全固定）は通常運用の概念から除外**（UI非表示）。列とロック判定ロジックは残置し、用途は**障害時の緊急価格固定専用（DB直接操作）**。通常「動かさない」は `engine_enabled=false` を使う。
-- **値引き費用（暴落原資）集計**：`Σ max(0, COALESCE(order_items.base_price_at_order, 現行base) − 約定単価) × 数量`（`GET /api/reports/discount-cost`）。約定時 base は `order_items.base_price_at_order` にスナップ（列追加以前は現行base近似）。月次上限＝`system_settings.monthly_discount_cap`（0=無効）、超過で売上管理にアラート。
+- **値引き費用（暴落原資）集計**：`Σ max(0, COALESCE(order_items.base_price_at_order, 現行base) − 約定単価) × 数量`（`GET /api/reports/discount-cost`）。約定時 base は `order_items.base_price_at_order` にスナップ（列追加以前は現行base近似）。月次上限＝`system_settings.monthly_discount_cap`（0=無効）、超過で売上管理にアラート。**初期値＝6000円**（オーナー指定。6-7導入時の既定`'0'`から、`deploy/migrations/2026-08-16_discount_cap_6000_*` で設定・可逆）。
 - **6-6（同一原酒・提供形態違い＝1指数＋固定差額）はバックログ**（現メニューに該当0）。6-5（フラグの商品管理UI）は当面DB直接変更で代替可。

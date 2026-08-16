@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool, query } = require('../db/database');
+const pm = require('../services/pricingModel');
 
 // 商品1件のレシピ（材料リスト + recipe_notes）を返すヘルパー
 async function fetchRecipeForMenu(menuItemId) {
@@ -90,6 +91,34 @@ router.put('/menu/:menuItemId', async (req, res, next) => {
         'INSERT INTO recipes (menu_item_id, ingredient_id, usage_quantity) VALUES ($1, $2, $3)',
         [menuItemId, ing.ingredient_id, Number(ing.usage_quantity)]
       );
+    }
+
+    // soft_floor は原価×1.2 でクランプされ得る(effectiveSoftFloor)。原価が変わったら
+    // min_price(=減衰の停止点)を再計算し、原価割れ(soft_floorが原価を下回る)を防ぐ。
+    // 変動対象(ドリンク・非時価・非ロック)かつ暴落中でない銘柄のみ。current は新minを下回るときだけ引き上げる。
+    const { rows: mrows } = await client.query(
+      `SELECT m.base_price::float AS base, m.current_price::float AS cur,
+         m.min_price::float AS minp, m.max_price::float AS maxp, m.is_drink, m.price_editable, m.is_crashed,
+         m.engine_enabled,
+         COALESCE((SELECT SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0))
+                   FROM recipes r JOIN ingredients i ON i.id = r.ingredient_id WHERE r.menu_item_id = m.id), 0)::float AS cost
+       FROM menu_items m WHERE m.id = $1 FOR UPDATE`,
+      [menuItemId]
+    );
+    const mi = mrows[0];
+    const locked = mi && mi.minp === mi.maxp;
+    if (mi && mi.is_drink && !mi.price_editable && !locked && !mi.is_crashed) {
+      const newMin = pm.effectiveSoftFloor(mi.base, mi.cost || 0);
+      const max    = pm.maxP6(mi.base);
+      if (newMin < max) {
+        // current: engine-on は新minを下回るときのみ引き上げ(原価床割れ防止)。
+        // engine-off は「常に定価」なので current を据え置く(原価×1.2>base の薄利でも定価を超えない)。
+        const newCur = mi.engine_enabled ? Math.min(max, Math.max(newMin, mi.cur)) : mi.cur;
+        await client.query(
+          'UPDATE menu_items SET min_price = $2, max_price = $3, current_price = $4 WHERE id = $1',
+          [menuItemId, newMin, max, newCur]
+        );
+      }
     }
 
     await client.query('COMMIT');

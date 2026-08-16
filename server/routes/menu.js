@@ -20,17 +20,21 @@ function computeLadder(base, cost, { locked, isDrink, priceEditable }) {
   const variable = isDrink && !priceEditable && !locked;
   const step = pm.stepForBase(base);
   if (!variable) {
-    const p = pm.softFloor(base); // = base(格子点)
+    // 固定価格(ノンアル/ボトル/フード/時価/ロック)は定価そのもの(base、格子原点)。
+    // ※soft_floor率を0.8にしたため softFloor(base)≠base。固定品は定価を保つため base を使う。
+    const p = pm.snapGrid(base, base); // = base
     return { min: p, max: p, step, current: p };
   }
-  const min = pm.softFloor(base);
+  // soft_floor = base×0.8。ただし原価×1.2(格子)が上回る薄利銘柄はそちらへクランプ(=hard_floor)。
+  const min = pm.effectiveSoftFloor(base, cost || 0);
   const max = pm.maxP6(base);
-  // A7: 低価格帯(base<約75)で格子が縮退し max<=min になる場合は固定価格として返す
-  // (変動対象でも無音でフリーズするのを明示化。実データは全て¥450以上のため通常は発生しない)
-  if (max <= min) {
-    return { min, max: min, step, current: min };
+  // 縮退(base<約75 や 原価過大で min>=max)は固定価格として返す。
+  if (min >= max) {
+    return { min: max, max, step, current: max };
   }
-  return { min, max, step, current: pm.anchorP6(base) };
+  // 寄り付き(anchor)を[min,max]にクランプ(原価クランプで anchor<min の薄利銘柄は min で上場)
+  const current = Math.min(max, Math.max(min, pm.anchorP6(base)));
+  return { min, max, step, current };
 }
 
 // 暴落中の全商品を「暴落前価格」に戻し、crash_reset を記録して解除を通知する（自動/手動解除で共用）。
@@ -778,11 +782,12 @@ router.patch('/:id', async (req, res, next) => {
     if (req.body.engine_enabled !== undefined) {
       const engV = Boolean(req.body.engine_enabled);
       updates.push(`engine_enabled = $${idx++}`); values.push(engV);
-      // true→false 切替: current_price を定価(soft_floor=base)へ固定(off銘柄は常に定価。寄り付き対象外のため
-      // 切替時に定価へ戻す)。暴落中・ladder再計算時は据え置き/そちらを優先。
+      // true→false 切替: current_price を定価(=base)へ固定(off銘柄は常に定価。寄り付き対象外のため
+      // 切替時に定価へ戻す)。※soft_floor率を0.8にしたため soft_floor≠base。定価は base を使う。
+      // 暴落中・ladder再計算時は据え置き/そちらを優先。
       if (!engV && existing[0].engine_enabled && !existing[0].is_crashed && !ladderUpdated) {
         const baseEff = base_price !== undefined ? Number(base_price) : existing[0].base_price;
-        updates.push(`current_price = $${idx++}`); values.push(pm.softFloor(baseEff));
+        updates.push(`current_price = $${idx++}`); values.push(pm.snapGrid(baseEff, baseEff)); // = 定価(base)
       }
     }
     // Phase6-5: crash_eligible(暴落対象)。deprecated crash_enabled も同値同期(保存経路のみ)。

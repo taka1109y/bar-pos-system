@@ -71,7 +71,10 @@ const STEP_TABLE = [
   { maxBase: 3000, step: 100 },     // 1000 ≤ base < 3000 → 100円
   { maxBase: Infinity, step: 200 }, // base ≥ 3000 → 200円
 ];
-const SOFT_FLOOR_RATE = 1.0;   // soft_floor = base×1.0 (通常時の下限, =min_price)
+// soft_floor_ratio(config): 通常減衰の下限率。1.0→0.8 に変更(オーナー承認)。
+// soft_floor = snapGrid(base × soft_floor_ratio)。ただし原価×1.2(格子)が上回る銘柄は
+// そちらへクランプ(effectiveSoftFloor)。減衰は effectiveSoftFloor(=stored min_price)で停止。
+const SOFT_FLOOR_RATE = 0.8;   // soft_floor = base×0.8 (原価クランプは effectiveSoftFloor 参照)
 const ANCHOR_RATE     = 1.1;   // anchor(寄り付き) = base×1.1
 const MAX_RATE_P6     = 1.2;   // max = base×1.2 (=max_price)
 const CRASH_FLOOR_RATIO_DEFAULT    = 0.5; // 暴落下限 = base×0.5 (通常)
@@ -102,18 +105,27 @@ function ceilGrid(base, price) {
   const step = stepForBase(base);
   return base + Math.ceil((price - base) / step) * step;
 }
-function softFloor(base) { return snapGrid(base, base * SOFT_FLOOR_RATE); } // = base
+function softFloor(base) { return snapGrid(base, base * SOFT_FLOOR_RATE); } // = base×0.8(格子)
 function anchorP6(base)  { return snapGrid(base, base * ANCHOR_RATE); }
 function maxP6(base)     { return snapGrid(base, base * MAX_RATE_P6); }
+// 原価床(格子)= 原価×1.2 を格子へ切上げ。原価欠損は 0。
+function costFloorGrid(base, cost) { return cost > 0 ? ceilGrid(base, cost * COST_FLOOR_MULTIPLIER) : 0; }
+// 実効soft_floor(=stored min_price / 減衰の停止点)。base×0.8 と 原価×1.2 の高い方。
+// 原価×1.2 が上回る薄利銘柄では soft_floor が hard_floor(の原価成分)と一致し、減衰でも原価割れしない。
+function effectiveSoftFloor(base, cost) { return Math.max(softFloor(base), costFloorGrid(base, cost)); }
 // 暴落下限。engineOff = (engine_enabled=false かつ crash_eligible=true)。原価欠損は base×ratio のみ。
 function hardFloor(base, cost, engineOff) {
   const ratio  = engineOff ? CRASH_FLOOR_RATIO_ENGINE_OFF : CRASH_FLOOR_RATIO_DEFAULT;
   const byCost = cost > 0 ? cost * COST_FLOOR_MULTIPLIER : 0;
   return ceilGrid(base, Math.max(base * ratio, byCost));
 }
-// 段移動(格子・[soft,max]クランプ)
-function gridStepUp(base, price)   { return Math.min(maxP6(base),   snapGrid(base, price + stepForBase(base))); }
-function gridStepDown(base, price) { return Math.max(softFloor(base), snapGrid(base, price - stepForBase(base))); }
+// 段移動(格子・[floor,max]クランプ)。floor 既定は softFloor(base) だが、減衰は stored min_price
+// (=effectiveSoftFloor)を渡して原価クランプを尊重する。
+function gridStepUp(base, price)          { return Math.min(maxP6(base), snapGrid(base, price + stepForBase(base))); }
+function gridStepDown(base, price, floor) {
+  const lo = floor != null ? floor : softFloor(base);
+  return Math.max(lo, snapGrid(base, price - stepForBase(base)));
+}
 // 現在価格を新格子へスナップし[soft,max]にクランプ(移行用)
 function snapClampP6(base, price)  { return Math.max(softFloor(base), Math.min(maxP6(base), snapGrid(base, price))); }
 
@@ -127,5 +139,5 @@ module.exports = {
   CRASH_FLOOR_RATIO_DEFAULT, CRASH_FLOOR_RATIO_ENGINE_OFF,
   PERIOD_MINUTES, DECAY_IDLE_PERIODS, CRASH_MINUTES,
   roundHalfUp, stepForBase, snapGrid, ceilGrid,
-  softFloor, anchorP6, maxP6, hardFloor, gridStepUp, gridStepDown, snapClampP6,
+  softFloor, costFloorGrid, effectiveSoftFloor, anchorP6, maxP6, hardFloor, gridStepUp, gridStepDown, snapClampP6,
 };
