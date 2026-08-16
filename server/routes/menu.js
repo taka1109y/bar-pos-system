@@ -4,6 +4,7 @@ const { pool, query } = require('../db/database');
 const { broadcast } = require('../services/socketService');
 const crashCfg = require('../services/crashSettings');
 const pm = require('../services/pricingModel');
+const logger = require('../utils/logger');
 
 // 手動暴落(フェーズ3)用の丸めヘルパー
 const _round25 = (v) => Math.round(v / crashCfg.PRICE_ROUND_UNIT) * crashCfg.PRICE_ROUND_UNIT;
@@ -48,11 +49,23 @@ async function performManualCrashReset(triggerLabel) {
   `);
   const preMap = Object.fromEntries(preRows.map((r) => [r.menu_item_id, r.price_before]));
   for (const b of before) {
+    // Phase6-4: 復帰先=暴落前の段(price_before)。price_before は crash_manual/crash に
+    // 発動時点で記録した唯一の真実(current_price 等から逆算しない)。取得不可なら base_price。
     const raw = preMap[b.id] != null ? preMap[b.id] : b.base_price;
-    // ロック(min=max)は min に、可変はラダーにスナップして復帰
-    const restore = b.minp === b.maxp
-      ? b.base_price
-      : pm.snapToLadder(raw, b.minp, b.maxp, (b.step && b.step > 0) ? b.step : pm.ladderStep(b.minp, b.maxp));
+    let restore;
+    if (b.minp === b.maxp) {
+      restore = b.base_price; // ロック(固定価格)
+    } else {
+      // 格子へスナップし[soft_floor,max]にクランプ(格子再計算に強い)。クランプが効いたらログに残す。
+      const pureSnap = pm.snapGrid(b.base_price, raw);
+      restore = pm.snapClampP6(b.base_price, raw);
+      if (restore !== pureSnap) {
+        logger.warn(
+          { id: b.id, price_before: raw, snapped: pureSnap, clamped: restore, soft: pm.softFloor(b.base_price), max: pm.maxP6(b.base_price) },
+          'crash reset: price_before が現行[soft_floor,max]外 → クランプして復帰'
+        );
+      }
+    }
     await query('UPDATE menu_items SET current_price = $1, is_crashed = FALSE WHERE id = $2', [restore, b.id]);
     await query(
       `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
@@ -69,6 +82,8 @@ async function performManualCrashReset(triggerLabel) {
   const items = allPrices.map((r) => ({ ...r, direction: r.pct_change > 0 ? 'up' : r.pct_change < 0 ? 'down' : 'flat' }));
   broadcast('prices:updated', { items, timestamp: Date.now() });
   broadcast('crash:ended', { timestamp: Date.now() });
+  // Phase6-4: 演出層イベントバスのフック。実処理は演出実装時に接続(6-3の画面イベントと同経路)。
+  broadcast('stage:effect', { type: 'crash_end', trigger: triggerLabel, timestamp: Date.now() });
   return { updated: before.length };
 }
 
@@ -514,23 +529,28 @@ router.post('/crash', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/menu/crash/reset
+// POST /api/menu/crash/reset — 手動解除。Phase6-4: 暴落前の段へ復帰(performManualCrashReset共用)。
+// ※旧実装は base_price へ復帰していたが、CrashTab の「暴落前価格へ戻す」ラベルと整合させ、
+//   自動解除(継続時間経過)と同じ「暴落前の段」復帰に統一した。
 router.post('/crash/reset', async (req, res, next) => {
   try {
-    // 計装(1-1): reset前に暴落中商品の現在価格を控える（before記録用）
+    const result = await performManualCrashReset('manual');
+    res.json({ updated: result.updated });
+  } catch (err) { next(err); }
+});
+/* 旧実装(Phase5まで・参考残置): base_price へ復帰していた
+router.post('/crash/reset', async (req, res, next) => {
+  try {
     const { rows: beforeReset } = await query(
       `SELECT id, current_price::float AS current_price, base_price::float AS base_price
        FROM menu_items WHERE is_crashed = TRUE AND is_active = TRUE`
     );
-
     const { rows } = await query(`
       UPDATE menu_items
       SET current_price = base_price, is_crashed = FALSE
       WHERE is_crashed = TRUE AND is_active = TRUE
       RETURNING id
     `);
-
-    // 計装(1-1): 暴落解除イベントを永続記録（before=暴落中価格, after=base_price）
     for (const b of beforeReset) {
       await query(
         `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
@@ -538,7 +558,6 @@ router.post('/crash/reset', async (req, res, next) => {
         [b.id, b.current_price, b.base_price]
       );
     }
-
     if (rows.length > 0) {
       const { rows: allPrices } = await query(`
         SELECT id, name, base_price::float, current_price::float,
@@ -553,10 +572,10 @@ router.post('/crash/reset', async (req, res, next) => {
       broadcast('prices:updated', { items, timestamp: Date.now() });
       broadcast('crash:ended', { timestamp: Date.now() });
     }
-
     res.json({ updated: rows.length });
   } catch (err) { next(err); }
 });
+*/
 
 // POST /api/menu/crash/manual — 手動暴落（暴落ナイト用・フェーズ3）
 // body: { scope: 'all' | 'category', category_ids?: number[] }
@@ -574,28 +593,31 @@ router.post('/crash/manual', async (req, res, next) => {
 
     const scopeFilter = scope === 'category' ? 'AND m.category_id = ANY($1::int[])' : '';
     const params = scope === 'category' ? [category_ids] : [];
+    // Phase6-4: 発動対象は crash_eligible。engine_enabled も取得(engine_off=×0.7判定に使う)。
     const { rows: targets } = await query(`
       SELECT m.id, m.name, m.base_price::float AS base_price, m.current_price::float AS current_price,
         m.min_price::float AS min_price, m.max_price::float AS max_price,
+        m.engine_enabled, m.crash_eligible,
         COALESCE((
           SELECT SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0))
           FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id
           WHERE r.menu_item_id = m.id
         ), 0)::float AS cost
       FROM menu_items m
-      WHERE m.crash_enabled = TRUE AND m.is_active = TRUE AND m.is_drink = TRUE ${scopeFilter}
+      WHERE m.crash_eligible = TRUE AND m.is_active = TRUE AND m.is_drink = TRUE ${scopeFilter}
     `, params);
 
     let updated = 0;
     const broadcastItems = [];
+    const costMissing = []; // 原価欠損(hard_floor=base×ratioのみ)で暴落した銘柄名
     for (const item of targets) {
-      // 暴落=最下段へ即時。可変商品は min_price、ロック(min=max)は原価床(原価×1.2 / base×40%)。
-      // いずれも原価×1.2 を下回らない（min_price は再計算時に原価床以上で作られている）。
-      const floor = pm.costFloor(item.base_price, item.cost);
-      const crashPrice = item.min_price === item.max_price
-        ? Math.max(floor, 0)
-        : Math.max(item.min_price, floor, 0);
-      if (crashPrice >= item.current_price) continue; // 既に最下段以下なら下げない
+      // Phase6-4: 暴落=hard_floor へ即時。hard_floor = ceilGrid(max(base×ratio, 原価×1.2))。
+      // ratio: engine_off(=engine_enabled=false かつ crash_eligible=true) は 0.7、通常 0.5。
+      // 原価欠損時は base×ratio のみ(格子点へ切上げ)。
+      const engineOff = !item.engine_enabled; // crash_eligible=true は WHERE で保証済
+      const crashPrice = pm.hardFloor(item.base_price, item.cost, engineOff);
+      if (crashPrice >= item.current_price) continue; // 既に hard_floor 以下なら下げない
+      if (!(item.cost > 0)) costMissing.push(item.name); // 原価欠損(床が base×ratio のみ)
       await query('UPDATE menu_items SET current_price = $1, is_crashed = TRUE WHERE id = $2', [crashPrice, item.id]);
       await query('INSERT INTO price_history (menu_item_id, price) VALUES ($1, $2)', [item.id, crashPrice]);
       await query(
@@ -629,12 +651,18 @@ router.post('/crash/manual', async (req, res, next) => {
         scope, category_ids, endsAt: endsAtIso,
         durationMs: crashCfg.MANUAL_CRASH_DURATION_MS, manual: true, timestamp: Date.now(),
       });
+      // Phase6-4: 演出層イベントバスのフック。実処理は演出実装時に接続。
+      broadcast('stage:effect', { type: 'crash_start', scope, endsAt: endsAtIso, timestamp: Date.now() });
       // プロセス内の自動解除タイマー。再起動時はpricingEngine tickのcrash_ends_at検知が保険。
       if (_manualCrashTimer) clearTimeout(_manualCrashTimer);
       _manualCrashTimer = setTimeout(() => { performManualCrashReset('auto').catch(() => {}); }, crashCfg.MANUAL_CRASH_DURATION_MS);
     }
 
-    res.json({ updated, endsAt: endsAtIso });
+    // Phase6-4: 原価欠損銘柄が暴落対象に含まれると hard_floor=base×ratio のみで床が守れないため警告。
+    const warning = costMissing.length
+      ? `原価未設定の銘柄が暴落しました（hard_floor=base×率のみ）。原価登録を推奨: ${costMissing.join('、')}`
+      : null;
+    res.json({ updated, endsAt: endsAtIso, cost_missing: costMissing, warning });
   } catch (err) { next(err); }
 });
 
