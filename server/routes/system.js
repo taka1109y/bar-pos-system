@@ -96,8 +96,13 @@ router.patch('/settings', async (req, res, next) => {
 
     if (req.body.register_open !== undefined) {
       const opening = !!req.body.register_open;
+      // 現在値を読み、not-true→true の「遷移時」のみ寄り付き・opened_at 更新を行う。
+      // 既に open の状態で true を再PATCHしても register_opened_at を上書きしない
+      // (当日レポートの since 前進による売上欠落・サージ消失を防ぐ)。再発火は手動 /market-open に限定。
+      const { rows: prevRows } = await query(`SELECT value FROM system_settings WHERE key = 'register_open'`);
+      const wasOpen = prevRows[0]?.value === 'true';
       await upsertSetting('register_open', opening ? 'true' : 'false');
-      if (opening) {
+      if (opening && !wasOpen) {
         await upsertSetting('register_opened_at', new Date().toISOString());
         // Phase6-3: 寄り付き(全engine品をanchorへ・期起点をオープン時刻に)。
         // 失敗してもレジオープン自体は成立させる(best-effort)。

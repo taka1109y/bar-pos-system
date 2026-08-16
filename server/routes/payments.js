@@ -143,8 +143,10 @@ router.post('/:orderId', async (req, res, next) => {
       // 2方法以上なら代表値は 'split'、1方法だけなら実質単一なのでその方法名
       representativeMethod = usedMethods.length >= 2 ? 'split' : (usedMethods[0] ?? payment_method);
     } else {
-      // 単一: 従来どおり選んだ方法のカラム = total_amount、他は0
-      methodAmounts[payment_method] = total;
+      // 単一: 金券は非現金(別枠)として扱い、方法カラムには「金券を差し引いた実支払額」を入れる。
+      // 不変条件: cash+card+emoney = total_amount − gift_cert_amount(=effective_gift_cert)。
+      // 釣り有りで金券>総額のときは負値(=釣りとして払い出す現金)になり、現金在高を正しく減算する。
+      methodAmounts[payment_method] = total - effective_gift_cert;
       representativeMethod = payment_method;
     }
 

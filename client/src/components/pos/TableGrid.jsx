@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { yen, num } from '../../utils/format';
+import { yen } from '../../utils/format';
 import { isLateNightNow } from '../../utils/lateNight';
 
 function useNow() {
@@ -12,7 +12,8 @@ function useNow() {
 }
 
 function elapsed(openedAt, now) {
-  const ms = now - new Date(openedAt).getTime();
+  // サーバ opened_at(NOW()) とクライアント時計の僅差で負値になり "-1:-1" 表示になるのを防ぐ
+  const ms = Math.max(0, now - new Date(openedAt).getTime());
   const totalMin = Math.floor(ms / 60_000);
   const hh = String(Math.floor(totalMin / 60)).padStart(2, '0');
   const mm = String(totalMin % 60).padStart(2, '0');

@@ -624,7 +624,7 @@ router.post('/:id/merge', async (req, res, next) => {
 
     // 統合先A（:id）を行ロックして open 確認
     const { rows: aRows } = await client.query(
-      `SELECT id, table_id, guest_count, charge_per_person FROM orders
+      `SELECT id, table_id, guest_count, charge_per_person, charge_amount FROM orders
        WHERE id = $1 AND status = 'open' FOR UPDATE`,
       [req.params.id]
     );
@@ -640,7 +640,7 @@ router.post('/:id/merge', async (req, res, next) => {
 
     // 統合元B（source_table_id の通常openオーダー）を行ロックして取得
     const { rows: bRows } = await client.query(
-      `SELECT id, table_id, guest_count FROM orders
+      `SELECT id, table_id, guest_count, charge_amount FROM orders
        WHERE table_id = $1 AND status = 'open'
          AND (receipt_type = 'normal' OR receipt_type IS NULL)
        FOR UPDATE`,
@@ -655,10 +655,11 @@ router.post('/:id/merge', async (req, res, next) => {
     // Bの明細をAへ移動
     await client.query('UPDATE order_items SET order_id = $1 WHERE order_id = $2', [target.id, source.id]);
 
-    // 人数を合算し、Aの着席時単価でチャージを再計算（時間帯は再解決しない）
-    const perPerson = parseFloat(target.charge_per_person) || 0;
+    // 人数を合算。チャージは両テーブルの着席時チャージを保全（合算先.charge + 合算元.charge）。
+    // これにより合算先が¥0(チャージ無効/時間帯外)でも合算元のチャージが失われない。
+    // charge_per_person は合算先の値を維持（以後の人数変更再計算は既存仕様どおり合算先単価×人数）。
     const newGuestCount = clampInt((target.guest_count || 0) + (source.guest_count || 0), 1, MAX_GUEST_COUNT, 1);
-    const newChargeAmount = perPerson * newGuestCount;
+    const newChargeAmount = (parseFloat(target.charge_amount) || 0) + (parseFloat(source.charge_amount) || 0);
     await client.query(
       `UPDATE orders SET guest_count = $1, charge_amount = $2 WHERE id = $3`,
       [newGuestCount, newChargeAmount, target.id]

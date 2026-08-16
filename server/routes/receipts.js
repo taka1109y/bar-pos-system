@@ -132,7 +132,7 @@ router.post('/:orderId/void-and-reissue', async (req, res, next) => {
 
     // 元オーダーの order_items を取得
     const { rows: originalItems } = await client.query(
-      `SELECT menu_item_id, quantity, unit_price, item_name
+      `SELECT menu_item_id, quantity, unit_price, item_name, selected_option, base_price_at_order
        FROM order_items WHERE order_id = $1`,
       [order.id]
     );
@@ -207,10 +207,11 @@ router.post('/:orderId/void-and-reissue', async (req, res, next) => {
 
     // 赤伝票に order_items をコピー
     for (const item of originalItems) {
+      // A6: selected_option / base_price_at_order も引き継ぐ(将来のred会計時の値引き費用集計・オプション表示のため)
       await client.query(
-        `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, item_name, status)
-         VALUES ($1, $2, $3, $4, $5, 'pending')`,
-        [redOrderId, item.menu_item_id, item.quantity, item.unit_price, item.item_name]
+        `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, item_name, status, selected_option, base_price_at_order)
+         VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7)`,
+        [redOrderId, item.menu_item_id, item.quantity, item.unit_price, item.item_name, item.selected_option, item.base_price_at_order]
       );
     }
 

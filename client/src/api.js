@@ -115,12 +115,8 @@ export const api = {
   // Settings
   getPriceEvents: (menuItemId, limit = 100) => req(`/reports/price-events?menu_item_id=${menuItemId}&limit=${limit}`),
   getBasePriceHistory: (menuItemId) => req(`/reports/base-price-history?menu_item_id=${menuItemId}`),
-  getPricingSettings: () => req('/settings/pricing'),
-  updatePricingSettings: (data) => req('/settings/pricing', { method: 'PATCH', body: JSON.stringify(data) }),
-  resetPricingSettings: () => req('/settings/pricing/reset', { method: 'POST' }),
 
-  // Crash
-  triggerCrash: (data) => req('/menu/crash', { method: 'POST', body: JSON.stringify(data) }),
+  // Crash（手動暴落＝暴落ナイト）。旧 triggerCrash(/menu/crash) は Phase5で廃止済み・未使用のため削除。
   resetCrash:   ()     => req('/menu/crash/reset', { method: 'POST' }),
   // 手動暴落(フェーズ3): scope='all'|'category', category_ids?
   manualCrash:  (data) => req('/menu/crash/manual', { method: 'POST', body: JSON.stringify(data) }),

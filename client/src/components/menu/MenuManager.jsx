@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from 'react';
-import { yen, num } from '../../utils/format';
+import { yen } from '../../utils/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -44,7 +44,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     subcategory_id:  item?.subcategory_id || '',
     base_price:      item?.base_price || '',
     engine_enabled:  item?.engine_enabled ?? true,
-    crash_eligible:  item?.crash_eligible ?? (item?.crash_enabled ?? true),
+    crash_eligible:  item?.crash_eligible ?? true,
     is_drink:        item?.is_drink ?? 1,
     is_active:       item?.is_active ?? 1,
     image_url:       item?.image_url || '',  // DBに保存されているファイル名

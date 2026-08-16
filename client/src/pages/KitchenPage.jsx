@@ -7,7 +7,8 @@ import KitchenHistoryModal from './kitchen/KitchenHistoryModal';
 import { getAudioCtx, playNotification } from '../utils/audioAlert';
 
 function elapsed(orderedAt) {
-  const diff = Math.floor((Date.now() - new Date(orderedAt).getTime()) / 1000);
+  // サーバ created_at とクライアント時計の僅差による負値("-1秒")を防ぐ
+  const diff = Math.max(0, Math.floor((Date.now() - new Date(orderedAt).getTime()) / 1000));
   if (diff < 60) return `${diff}秒`;
   const m = Math.floor(diff / 60);
   const s = diff % 60;

@@ -146,7 +146,7 @@ export default function CategoryManager() {
     { key: 'sort_order', label: '表示順序',       type: 'number', min: 0, placeholder: '0' },
   ];
 
-  const subcatFields = (catId) => [
+  const subcatFields = () => [
     { key: 'category_id', label: 'カテゴリ', type: 'select', required: true, options: categories.map((c) => ({ value: c.id, label: c.name })) },
     { key: 'name',        label: 'サブカテゴリ名',  required: true, placeholder: '例: 国産ビール' },
     { key: 'sort_order',  label: '表示順序',         type: 'number', min: 0, placeholder: '0' },

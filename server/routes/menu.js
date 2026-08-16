@@ -24,18 +24,26 @@ function computeLadder(base, cost, { locked, isDrink, priceEditable }) {
     return { min: p, max: p, step, current: p };
   }
   const min = pm.softFloor(base);
-  let max = pm.maxP6(base);
-  if (max < min) max = min;
+  const max = pm.maxP6(base);
+  // A7: 低価格帯(base<約75)で格子が縮退し max<=min になる場合は固定価格として返す
+  // (変動対象でも無音でフリーズするのを明示化。実データは全て¥450以上のため通常は発生しない)
+  if (max <= min) {
+    return { min, max: min, step, current: min };
+  }
   return { min, max, step, current: pm.anchorP6(base) };
 }
 
 // 暴落中の全商品を「暴落前価格」に戻し、crash_reset を記録して解除を通知する（自動/手動解除で共用）。
 // 復帰先=直近 crash_manual/crash の price_before（ラダーにスナップ）。取得できなければ base_price。
 async function performManualCrashReset(triggerLabel) {
+  // Phase6-4/A5: 原子的に is_crashed を落として対象行を確保(claim-and-flip)。
+  // 自動解除タイマーと 20s ウォッチャーが同時発火しても、対象行を確保できるのは1回だけになり、
+  // crash_reset イベント/ブロードキャストの重複を防ぐ(2回目は 0件で即return)。
   const { rows: before } = await query(
-    `SELECT id, current_price::float AS current_price, base_price::float AS base_price,
-       min_price::float AS minp, max_price::float AS maxp, price_step_up::float AS step
-     FROM menu_items WHERE is_crashed = TRUE AND is_active = TRUE`
+    `UPDATE menu_items SET is_crashed = FALSE
+       WHERE is_crashed = TRUE AND is_active = TRUE
+     RETURNING id, current_price::float AS current_price, base_price::float AS base_price,
+       min_price::float AS minp, max_price::float AS maxp, price_step_up::float AS step`
   );
   if (before.length === 0) {
     await query(`DELETE FROM system_settings WHERE key IN ('crash_started_at','crash_ends_at')`);
@@ -66,7 +74,8 @@ async function performManualCrashReset(triggerLabel) {
         );
       }
     }
-    await query('UPDATE menu_items SET current_price = $1, is_crashed = FALSE WHERE id = $2', [restore, b.id]);
+    // is_crashed は上の claim-and-flip で既に FALSE。ここでは復帰価格のみ書き戻す。
+    await query('UPDATE menu_items SET current_price = $1 WHERE id = $2', [restore, b.id]);
     await query(
       `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
        VALUES ($1, $2, $3, 'crash_reset', $4)`,
@@ -116,7 +125,7 @@ const ITEM_SELECT = `
       WHERE r.menu_item_id = m.id
     ), 0)::float AS cost_price,
     m.recipe_notes,
-    m.is_drink, m.is_active, m.crash_enabled, m.crash_eligible, m.engine_enabled, m.is_crashed,
+    m.is_drink, m.is_active, m.crash_eligible, m.engine_enabled, m.is_crashed,
     m.image_url, m.tax_category, m.is_staff_only, m.price_editable,
     m.question_text, m.question_choices, m.question_allow_multiple, m.question_allow_quantity,
     c.name  AS category_name,  c.sort_order AS category_sort_order,
@@ -176,7 +185,7 @@ router.get('/categories', async (req, res, next) => {
     const includeStaff = req.query.staff === 'true';
     const staffFilter  = includeStaff ? '' : 'WHERE is_staff_only = FALSE';
     const { rows } = await query(
-      `SELECT id, name, sort_order, crash_pct::float, is_staff_only, competition_category_wide
+      `SELECT id, name, sort_order, crash_pct::float, is_staff_only
        FROM categories ${staffFilter} ORDER BY sort_order`
     );
     res.json(rows);
@@ -186,11 +195,11 @@ router.get('/categories', async (req, res, next) => {
 // POST /api/menu/categories
 router.post('/categories', async (req, res, next) => {
   try {
-    const { name, sort_order = 0, is_staff_only = false, competition_category_wide = false } = req.body;
+    const { name, sort_order = 0, is_staff_only = false } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
     const { rows } = await query(
-      'INSERT INTO categories (name, sort_order, is_staff_only, competition_category_wide) VALUES ($1, $2, $3, $4) RETURNING id, name, sort_order, crash_pct::float, is_staff_only, competition_category_wide',
-      [name, sort_order, Boolean(is_staff_only), Boolean(competition_category_wide)]
+      'INSERT INTO categories (name, sort_order, is_staff_only) VALUES ($1, $2, $3) RETURNING id, name, sort_order, crash_pct::float, is_staff_only',
+      [name, sort_order, Boolean(is_staff_only)]
     );
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
@@ -202,7 +211,7 @@ router.patch('/categories/:id', async (req, res, next) => {
     const { rows: existing } = await query('SELECT id FROM categories WHERE id = $1', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ error: 'Category not found' });
 
-    const { name, sort_order, crash_pct, is_staff_only, competition_category_wide } = req.body;
+    const { name, sort_order, crash_pct, is_staff_only } = req.body;
     const updates = [];
     const values = [];
     let idx = 1;
@@ -210,12 +219,11 @@ router.patch('/categories/:id', async (req, res, next) => {
     if (sort_order !== undefined)    { updates.push(`sort_order = $${idx++}`);    values.push(sort_order); }
     if (crash_pct !== undefined)     { updates.push(`crash_pct = $${idx++}`);     values.push(crash_pct); }
     if (is_staff_only !== undefined) { updates.push(`is_staff_only = $${idx++}`); values.push(Boolean(is_staff_only)); }
-    if (competition_category_wide !== undefined) { updates.push(`competition_category_wide = $${idx++}`); values.push(Boolean(competition_category_wide)); }
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
     values.push(req.params.id);
     const { rows } = await query(
-      `UPDATE categories SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, name, sort_order, crash_pct::float, is_staff_only, competition_category_wide`,
+      `UPDATE categories SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, name, sort_order, crash_pct::float, is_staff_only`,
       values
     );
     res.json(rows[0]);

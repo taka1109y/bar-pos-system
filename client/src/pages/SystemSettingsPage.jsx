@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { yen, num } from '../utils/format';
+import { yen } from '../utils/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import Section from './settings/Section';

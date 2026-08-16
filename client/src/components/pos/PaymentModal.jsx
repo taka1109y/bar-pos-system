@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { yen, num } from '../../utils/format';
+import { yen } from '../../utils/format';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 import { isLateNightNow } from '../../utils/lateNight';
@@ -59,7 +59,7 @@ function Numpad({ value, onChange, onConfirm, exactAmount }) {
 }
 
 // ── 割引登録サブモーダル ──────────────────────────────────
-export function DiscountModal({ subtotal, discountType, discountInput, onTypeChange, onInputChange, discountAmount, onApply, onClose }) {
+export function DiscountModal({ subtotal, discountType, discountInput, onTypeChange, onInputChange, onApply, onClose }) {
   const tempNum = parseFloat(discountInput) || 0;
   const preview = discountType === 'amount'
     ? Math.min(tempNum, subtotal)
@@ -425,7 +425,8 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
   // 経過時間
   const elapsedTime = (() => {
     if (!order.opened_at) return '--:--';
-    const diff = Date.now() - new Date(order.opened_at).getTime();
+    // サーバ opened_at とクライアント時計の僅差による負値(-1:-1)を防ぐ
+    const diff = Math.max(0, Date.now() - new Date(order.opened_at).getTime());
     const h = Math.floor(diff / 3_600_000);
     const m = Math.floor((diff % 3_600_000) / 60_000);
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
