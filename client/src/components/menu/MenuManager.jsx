@@ -5,6 +5,7 @@ import { api } from '../../api';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Button, Modal, Field, Input, Select, Segmented, Badge } from '../ui';
 
 // 保存済みファイル名 → 表示用 URL に変換
 function toImageSrc(filename) {
@@ -12,31 +13,14 @@ function toImageSrc(filename) {
   return filename.startsWith('http') ? filename : `/uploads/${filename}`;
 }
 
-const inp = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
-const lbl = 'block text-xs font-semibold text-slate-500 mb-1.5';
+const IconEdit = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+);
+const IconTrash = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>
+);
 
-function ModalShell({ title, onClose, children, wide }) {
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className={`bg-white rounded-xl shadow-xl w-full mx-4 border border-slate-200 max-h-[90vh] flex flex-col ${wide ? 'max-w-lg' : 'max-w-md'}`}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
-          <h2 className="text-base font-bold text-slate-900">{title}</h2>
-          <button
-            onClick={onClose}
-            className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-        <div className="px-5 py-5 overflow-y-auto">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-// ─── フォームコンポーネント ───────────────────────────
+// ─── フォームコンポーネント(ロジック不変・体裁のみ ui 化) ───
 function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoading }) {
   const [form, setForm] = useState({
     name:            item?.name || '',
@@ -157,450 +141,222 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
 
   const isBusy = isLoading || uploading;
 
+  // 価格フラグのバッジ(5状態)
+  const selCat = categories.find((c) => String(c.id) === String(form.category_id));
+  const isNonAlc = (selCat?.name || item?.category_name || '').includes('ノンアル');
+  const eng = Boolean(form.engine_enabled), crash = Boolean(form.crash_eligible);
+  const flagBadge = isNonAlc
+    ? { tone: 'neutral', label: '定価（ノンアル）' }
+    : eng && crash ? { tone: 'success', label: '変動＋暴落' }
+    : eng && !crash ? { tone: 'info', label: '変動のみ' }
+    : !eng && crash ? { tone: 'warning', label: '定価＋暴落（目玉枠）' }
+    : { tone: 'neutral', label: '定価固定' };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className={lbl}>商品名</label>
-        <input
-          className={inp}
-          value={form.name}
-          onChange={(e) => set('name', e.target.value)}
-          placeholder="例: スーパードライ"
-          required
-        />
-      </div>
+      <Field label="商品名" required>
+        <Input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="例: スーパードライ" required />
+      </Field>
 
       {/* 画像アップロード */}
-      <div>
-        <label className={lbl}>商品画像（任意・5MB以下）</label>
+      <Field label="商品画像（任意・5MB以下）">
         {previewSrc ? (
           <div className="flex items-start gap-3">
-            <img
-              src={previewSrc}
-              alt="プレビュー"
-              className="h-24 w-24 object-cover rounded-lg border border-slate-200 flex-shrink-0"
-              onError={(e) => { e.currentTarget.style.opacity = '0.3'; }}
-            />
-            <div className="flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="h-11 px-4 text-sm font-medium bg-white border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 cursor-pointer"
-              >
-                画像を変更
-              </button>
-              <button
-                type="button"
-                onClick={handleRemoveImage}
-                className="h-11 px-4 text-sm font-medium bg-red-50 border border-red-200 text-red-600 rounded-lg hover:bg-red-100 cursor-pointer"
-              >
-                画像を削除
-              </button>
+            <img src={previewSrc} alt="プレビュー" className="h-24 w-24 object-cover rounded-lg border border-line flex-shrink-0"
+              onError={(e) => { e.currentTarget.style.opacity = '0.3'; }} />
+            <div className="flex flex-col gap-2">
+              <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()}>画像を変更</Button>
+              <Button type="button" variant="secondary" className="text-danger border-red-200 hover:bg-red-50" onClick={handleRemoveImage}>画像を削除</Button>
             </div>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full h-24 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center gap-1.5 text-slate-400 hover:border-primary-400 hover:text-primary-500 transition-colors cursor-pointer"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
-              <polyline points="21 15 16 10 5 21"/>
-            </svg>
+          <button type="button" onClick={() => fileInputRef.current?.click()}
+            className="w-full h-24 border-2 border-dashed border-line-strong rounded-lg flex flex-col items-center justify-center gap-1.5 text-muted hover:border-primary-400 hover:text-primary-500 transition-colors cursor-pointer">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
             <span className="text-xs font-medium">クリックして画像を選択</span>
           </button>
         )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFileChange}
-        />
-        {uploadError && (
-          <p className="text-xs text-red-600 mt-1.5">{uploadError}</p>
-        )}
-      </div>
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+        {uploadError && <p className="text-xs text-danger mt-1.5">{uploadError}</p>}
+      </Field>
+
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={lbl}>カテゴリ</label>
-          <div className="relative">
-            <select className={`${inp} appearance-none pr-8`} value={form.category_id} onChange={(e) => handleCategoryChange(e.target.value)}>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </div>
-        </div>
-        <div>
-          <label className={lbl}>サブカテゴリ</label>
-          <div className="relative">
-            <select className={`${inp} appearance-none pr-8`} value={form.subcategory_id} onChange={(e) => set('subcategory_id', e.target.value)}>
-              <option value="">なし（価格競合なし）</option>
-              {filteredSubcats.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </div>
-        </div>
+        <Field label="カテゴリ">
+          <Select value={form.category_id} onChange={(e) => handleCategoryChange(e.target.value)}>
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
+        </Field>
+        <Field label="サブカテゴリ">
+          <Select value={form.subcategory_id} onChange={(e) => set('subcategory_id', e.target.value)}>
+            <option value="">なし（価格競合なし）</option>
+            {filteredSubcats.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </Select>
+        </Field>
       </div>
+
       <div className="grid grid-cols-2 gap-3 items-end">
-        <div>
-          <label className={lbl}>基準価格</label>
-          <input className={inp} type="number" value={form.base_price} onChange={(e) => set('base_price', e.target.value)} placeholder="500" required min={0} />
-        </div>
+        <Field label="基準価格">
+          <Input type="number" prefix="¥" value={form.base_price} onChange={(e) => set('base_price', e.target.value)} placeholder="500" required min={0} />
+        </Field>
       </div>
+
       {/* 下限/上限/呼値(段幅)は基準価格から自動計算（読み取り表示） */}
       {item && item.is_drink && item.max_price > item.min_price ? (
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 grid grid-cols-4 gap-2 text-center">
-          <div><p className="text-[11px] text-slate-400">下限</p><p className="text-sm font-bold text-slate-800">¥{yen(Math.round(item.min_price))}</p></div>
-          <div><p className="text-[11px] text-slate-400">上限</p><p className="text-sm font-bold text-slate-800">¥{yen(Math.round(item.max_price))}</p></div>
-          <div><p className="text-[11px] text-slate-400">呼値(段幅)</p><p className="text-sm font-bold text-slate-800">¥{yen(Math.round(item.price_step_up))}</p></div>
-          <div><p className="text-[11px] text-slate-400">現在</p><p className="text-sm font-bold text-primary-600">¥{yen(Math.round(item.current_price))}</p></div>
+        <div className="bg-surface-sunken border border-line rounded-lg p-3 grid grid-cols-4 gap-2 text-center">
+          <div><p className="text-2xs text-muted">下限</p><p className="text-sm font-bold text-heading">¥{yen(Math.round(item.min_price))}</p></div>
+          <div><p className="text-2xs text-muted">上限</p><p className="text-sm font-bold text-heading">¥{yen(Math.round(item.max_price))}</p></div>
+          <div><p className="text-2xs text-muted">呼値(段幅)</p><p className="text-sm font-bold text-heading">¥{yen(Math.round(item.price_step_up))}</p></div>
+          <div><p className="text-2xs text-muted">現在</p><p className="text-sm font-bold text-primary-600">¥{yen(Math.round(item.current_price))}</p></div>
         </div>
       ) : (
-        <p className="text-xs text-slate-400">下限・上限・呼値(段幅)は基準価格から自動計算されます（呼値ラダー）。自動変動の有無は下の「価格変動させる」で切り替えます。</p>
+        <p className="text-xs text-muted">下限・上限・呼値(段幅)は基準価格から自動計算されます（呼値ラダー）。自動変動の有無は下の「価格変動させる」で切り替えます。</p>
       )}
+
       {item && item.cost_price > 0 && (
         <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
           <p className="text-xs font-semibold text-amber-700 mb-1">原価（レシピから自動計算）</p>
           <p className="text-base font-bold text-amber-700">¥{yen(Math.round(item.cost_price))}</p>
           {item.base_price > 0 && (
-            <p className="text-xs text-amber-600 mt-0.5">
-              原価率 {Math.round(item.cost_price / item.base_price * 100)}%
-              ／粗利 ¥{yen(Math.round(item.base_price - item.cost_price))}
-            </p>
+            <p className="text-xs text-amber-600 mt-0.5">原価率 {Math.round(item.cost_price / item.base_price * 100)}% ／粗利 ¥{yen(Math.round(item.base_price - item.cost_price))}</p>
           )}
           <p className="text-xs text-amber-500 mt-1">レシピ管理で材料を設定すると更新されます</p>
         </div>
       )}
+
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={lbl}>種別</label>
-          <div className="flex gap-3">
-            {[{ value: 1, label: 'ドリンク' }, { value: 0, label: 'フード' }].map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => set('is_drink', value)}
-                className={`flex-1 py-3 rounded-lg border-2 text-sm font-medium transition-colors ${
-                  form.is_drink === value
-                    ? 'border-primary-500 bg-primary-50 text-primary-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <label className={lbl}>税率区分</label>
-          <div className="flex gap-3">
-            {[{ value: 'standard', label: '標準 (10%)' }, { value: 'reduced', label: '軽減 (8%)' }].map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => set('tax_category', value)}
-                className={`flex-1 py-3 rounded-lg border-2 text-sm font-medium transition-colors ${
-                  form.tax_category === value
-                    ? 'border-primary-500 bg-primary-50 text-primary-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <Field label="種別">
+          <Segmented className="w-full [&>button]:flex-1" value={form.is_drink} onChange={(v) => set('is_drink', v)}
+            options={[{ value: 1, label: 'ドリンク' }, { value: 0, label: 'フード' }]} />
+        </Field>
+        <Field label="税率区分">
+          <Segmented className="w-full [&>button]:flex-1" value={form.tax_category} onChange={(v) => set('tax_category', v)}
+            options={[{ value: 'standard', label: '標準 (10%)' }, { value: 'reduced', label: '軽減 (8%)' }]} />
+        </Field>
         {item && (
-          <div>
-            <label className={lbl}>状態</label>
-            <div className="flex gap-3">
-              {[{ value: 1, label: '有効' }, { value: 0, label: '無効' }].map(({ value, label }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => set('is_active', value)}
-                  className={`flex-1 py-3 rounded-lg border-2 text-sm font-medium transition-colors ${
-                    form.is_active === value
-                      ? 'border-primary-500 bg-primary-50 text-primary-700'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
+          <Field label="状態">
+            <Segmented className="w-full [&>button]:flex-1" value={form.is_active} onChange={(v) => set('is_active', v)}
+              options={[{ value: 1, label: '有効' }, { value: 0, label: '無効' }]} />
+          </Field>
         )}
       </div>
-      {Boolean(form.is_drink) && (() => {
-        // ノンアル判定は 6-2 の判定(ノンアルコールカテゴリ)を再利用。off/off と区別して「定価（ノンアル）」表示。
-        const selCat = categories.find((c) => String(c.id) === String(form.category_id));
-        const isNonAlc = (selCat?.name || item?.category_name || '').includes('ノンアル');
-        const eng = Boolean(form.engine_enabled), crash = Boolean(form.crash_eligible);
-        const badge = isNonAlc
-          ? { label: '定価（ノンアル）', cls: 'bg-slate-100 text-slate-600 border-slate-200' }
-          : eng && crash ? { label: '変動＋暴落', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
-          : eng && !crash ? { label: '変動のみ', cls: 'bg-primary-50 text-primary-700 border-primary-200' }
-          : !eng && crash ? { label: '定価＋暴落（目玉枠）', cls: 'bg-amber-50 text-amber-700 border-amber-200' }
-          : { label: '定価固定', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
-        return (
-          <div className="grid grid-cols-1 gap-3 bg-primary-50 border border-primary-100 rounded-lg p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-700">価格フラグ</span>
-              <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium border ${badge.cls}`}>{badge.label}</span>
-            </div>
-            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-              <input type="checkbox" checked={eng} onChange={(e) => set('engine_enabled', e.target.checked)} className="w-4 h-4 accent-primary-500 rounded" />
-              価格変動させる（エンジンで自動変動。OFF＝定価固定）
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-              <input type="checkbox" checked={crash} onChange={(e) => set('crash_eligible', e.target.checked)} className="w-4 h-4 accent-red-600 rounded" />
-              暴落対象（暴落発動の対象にする）
-            </label>
+
+      {Boolean(form.is_drink) && (
+        <div className="grid grid-cols-1 gap-3 bg-primary-50 border border-primary-100 rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-heading">価格フラグ</span>
+            <Badge tone={flagBadge.tone}>{flagBadge.label}</Badge>
           </div>
-        );
-      })()}
-      <div className="border-t border-slate-100 pt-3">
+          <label className="flex items-center gap-2 text-sm text-body cursor-pointer">
+            <input type="checkbox" checked={eng} onChange={(e) => set('engine_enabled', e.target.checked)} className="w-4 h-4 accent-primary-500 rounded" />
+            価格変動させる（エンジンで自動変動。OFF＝定価固定）
+          </label>
+          <label className="flex items-center gap-2 text-sm text-body cursor-pointer">
+            <input type="checkbox" checked={crash} onChange={(e) => set('crash_eligible', e.target.checked)} className="w-4 h-4 accent-red-600 rounded" />
+            暴落対象（暴落発動の対象にする）
+          </label>
+        </div>
+      )}
+
+      <div className="border-t border-line pt-3">
         <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={Boolean(form.is_staff_only)}
-            onChange={(e) => set('is_staff_only', e.target.checked)}
-            className="w-4 h-4 accent-amber-600 rounded"
-          />
-          <span className="text-sm text-slate-700">従業員専用（お客様注文画面に表示しない）</span>
+          <input type="checkbox" checked={Boolean(form.is_staff_only)} onChange={(e) => set('is_staff_only', e.target.checked)} className="w-4 h-4 accent-amber-600 rounded" />
+          <span className="text-sm text-body">従業員専用（お客様注文画面に表示しない）</span>
         </label>
-        {form.is_staff_only && (
-          <p className="text-xs text-amber-600 mt-1 ml-6">この商品はPOS画面にのみ表示されます</p>
-        )}
+        {form.is_staff_only && <p className="text-xs text-warning mt-1 ml-6">この商品はPOS画面にのみ表示されます</p>}
         <label className="flex items-center gap-2 cursor-pointer mt-3">
-          <input
-            type="checkbox"
-            checked={Boolean(form.price_editable)}
-            onChange={(e) => set('price_editable', e.target.checked)}
-            className="w-4 h-4 accent-amber-600 rounded"
-          />
-          <span className="text-sm text-slate-700">価格変更可（時価）：注文時に価格・商品名を編集</span>
+          <input type="checkbox" checked={Boolean(form.price_editable)} onChange={(e) => set('price_editable', e.target.checked)} className="w-4 h-4 accent-amber-600 rounded" />
+          <span className="text-sm text-body">価格変更可（時価）：注文時に価格・商品名を編集</span>
         </label>
-        {form.price_editable && (
-          <p className="text-xs text-amber-600 mt-1 ml-6">スタッフ注文画面でタップ時に価格・商品名の入力画面が表示されます</p>
-        )}
+        {form.price_editable && <p className="text-xs text-warning mt-1 ml-6">スタッフ注文画面でタップ時に価格・商品名の入力画面が表示されます</p>}
       </div>
-      <div className="border-t border-slate-100 pt-3">
-        <label className={lbl}>追加質問（任意）</label>
-        <input
-          className={inp}
-          value={form.question_text}
-          onChange={(e) => set('question_text', e.target.value)}
-          placeholder="例: ソースの種類をお選びください（空欄なら質問なし）"
-          maxLength={200}
-        />
+
+      <div className="border-t border-line pt-3">
+        <Field label="追加質問（任意）">
+          <Input value={form.question_text} onChange={(e) => set('question_text', e.target.value)}
+            placeholder="例: ソースの種類をお選びください（空欄なら質問なし）" maxLength={200} />
+        </Field>
         {form.question_text.trim() && (
           <div className="mt-2 space-y-2">
-            <p className="text-xs text-slate-500">選択肢（2つ以上）・追加料金は0円可</p>
+            <p className="text-xs text-muted">選択肢（2つ以上）・追加料金は0円可</p>
             {form.question_choices.map((choice, i) => (
               <div key={i} className="flex gap-2">
-                <input
-                  className={inp}
-                  value={choice.label}
-                  onChange={(e) => {
-                    const next = [...form.question_choices];
-                    next[i] = { ...next[i], label: e.target.value };
-                    set('question_choices', next);
-                  }}
-                  maxLength={50}
-                  placeholder={`選択肢 ${i + 1}`}
-                />
-                <div className="flex items-center bg-white border border-slate-300 rounded-lg overflow-hidden flex-shrink-0 focus-within:ring-2 focus-within:ring-primary-500/50 focus-within:border-primary-500" style={{ width: 110 }}>
-                  <span className="pl-2 pr-1 text-slate-400 text-sm">+¥</span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    step={1}
-                    value={choice.priceDelta}
-                    onChange={(e) => {
-                      const next = [...form.question_choices];
-                      next[i] = { ...next[i], priceDelta: e.target.value };
-                      set('question_choices', next);
-                    }}
-                    placeholder="0"
-                    className="flex-1 w-0 bg-transparent px-1 py-2 text-slate-900 text-sm focus:outline-none caret-primary-500"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => set('question_choices', form.question_choices.filter((_, idx) => idx !== i))}
-                  className="w-11 h-11 flex-shrink-0 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-lg"
-                  title="削除"
-                >
-                  ×
-                </button>
+                <Input value={choice.label} maxLength={50} placeholder={`選択肢 ${i + 1}`}
+                  onChange={(e) => { const next = [...form.question_choices]; next[i] = { ...next[i], label: e.target.value }; set('question_choices', next); }} />
+                <Input type="number" inputMode="numeric" step={1} prefix="+¥" className="flex-shrink-0 w-28" value={choice.priceDelta} placeholder="0"
+                  onChange={(e) => { const next = [...form.question_choices]; next[i] = { ...next[i], priceDelta: e.target.value }; set('question_choices', next); }} />
+                <Button type="button" variant="ghost" size="md" iconOnly aria-label={`選択肢 ${i + 1} を削除`} title="削除" className="text-danger flex-shrink-0"
+                  onClick={() => set('question_choices', form.question_choices.filter((_, idx) => idx !== i))}>×</Button>
               </div>
             ))}
-            <button
-              type="button"
-              onClick={() => set('question_choices', [...form.question_choices, { label: '', priceDelta: 0 }])}
-              className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-            >
-              ＋ 選択肢を追加
-            </button>
+            <button type="button" onClick={() => set('question_choices', [...form.question_choices, { label: '', priceDelta: 0 }])}
+              className="text-sm text-primary-600 hover:text-primary-700 font-medium cursor-pointer">＋ 選択肢を追加</button>
             <label className="flex items-center gap-2 pt-1 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={form.question_allow_multiple}
-                onChange={(e) => set('question_allow_multiple', e.target.checked)}
-                className="w-4 h-4 accent-primary-500"
-              />
-              <span className="text-sm text-slate-700">複数選択を許可（選んだ分を1明細にまとめ、追加料金を合算）</span>
+              <input type="checkbox" checked={form.question_allow_multiple} onChange={(e) => set('question_allow_multiple', e.target.checked)} className="w-4 h-4 accent-primary-500" />
+              <span className="text-sm text-body">複数選択を許可（選んだ分を1明細にまとめ、追加料金を合算）</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={form.question_allow_quantity}
-                onChange={(e) => set('question_allow_quantity', e.target.checked)}
-                className="w-4 h-4 accent-primary-500"
-              />
-              <span className="text-sm text-slate-700">数量指定を許可（同じ選択肢を複数個・A×2 など。ONのとき複数選択より優先）</span>
+              <input type="checkbox" checked={form.question_allow_quantity} onChange={(e) => set('question_allow_quantity', e.target.checked)} className="w-4 h-4 accent-primary-500" />
+              <span className="text-sm text-body">数量指定を許可（同じ選択肢を複数個・A×2 など。ONのとき複数選択より優先）</span>
             </label>
-            {questionError && <p className="text-xs text-red-600">{questionError}</p>}
+            {questionError && <p className="text-xs text-danger">{questionError}</p>}
           </div>
         )}
       </div>
-      <div className="flex gap-3 pt-1">
-        <button type="button" onClick={onCancel} disabled={isBusy} className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
-          キャンセル
-        </button>
-        <button type="submit" disabled={isBusy} className="flex-1 py-4 bg-primary-500 hover:bg-primary-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
-          {uploading ? 'アップロード中...' : isLoading ? '保存中...' : '保存'}
-        </button>
+
+      <div className="flex gap-2 justify-end pt-1">
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={isBusy}>キャンセル</Button>
+        <Button type="submit" loading={isBusy}>{uploading ? 'アップロード中...' : isLoading ? '保存中...' : '保存'}</Button>
       </div>
     </form>
   );
 }
 
-// ─── 並び替え可能な商品行 ─────────────────────────────
+// ─── 並び替え可能な商品行(dnd-kit維持・体裁のみ ui 化) ───
 function SortableMenuItemRow({ item, idx, dragDisabled, onEdit, onDelete }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
     disabled: dragDisabled,
   });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-  };
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`flex items-center gap-4 px-6 py-5 ${item.is_active ? '' : 'opacity-40'} ${idx !== 0 ? 'border-t border-slate-50' : ''}`}
-    >
+    <div ref={setNodeRef} style={style}
+      className={`flex items-center gap-3 px-4 py-2 ${item.is_active ? '' : 'opacity-40'} ${idx !== 0 ? 'border-t border-line' : ''}`}>
       {!dragDisabled && (
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className="w-6 h-6 flex items-center justify-center text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
-          aria-label="ドラッグして並び替え"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/>
-            <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
-            <circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/>
-          </svg>
+        <button type="button" {...attributes} {...listeners}
+          className="w-6 h-6 flex items-center justify-center text-faint hover:text-muted cursor-grab active:cursor-grabbing flex-shrink-0 touch-none" aria-label="ドラッグして並び替え">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" /><circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" /><circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" /></svg>
         </button>
       )}
       {toImageSrc(item.image_url) ? (
-        <img
-          src={toImageSrc(item.image_url)}
-          alt={item.name}
-          className="w-10 h-10 object-cover rounded-lg border border-slate-100 flex-shrink-0"
-          onError={(e) => { e.currentTarget.style.display = 'none'; }}
-        />
+        <img src={toImageSrc(item.image_url)} alt={item.name} className="w-10 h-10 object-cover rounded-lg border border-line flex-shrink-0"
+          onError={(e) => { e.currentTarget.style.display = 'none'; }} />
       ) : (
-        <div className="w-10 h-10 bg-slate-100 rounded-lg flex-shrink-0" />
+        <div className="w-10 h-10 bg-surface-sunken rounded-lg flex-shrink-0" />
       )}
       <div className="flex-1 min-w-0">
-        <span className="text-sm font-semibold text-slate-900 block truncate">{item.name}</span>
-        <span className="text-xs text-slate-400 mt-1 block">
+        <span className="text-sm font-semibold text-heading block truncate">{item.name}</span>
+        <span className="text-xs text-muted mt-0.5 block">
           ¥{yen(item.base_price)}
-          {item.cost_price > 0 && (
-            <span className="ml-2 text-amber-500">
-              原価¥{yen(item.cost_price)} ({Math.round(item.cost_price / item.base_price * 100)}%)
-            </span>
-          )}
-          {item.subcategory_name && (
-            <span className="ml-2 text-primary-400">{item.subcategory_name}</span>
-          )}
+          {item.cost_price > 0 && <span className="ml-2 text-amber-500">原価¥{yen(item.cost_price)} ({Math.round(item.cost_price / item.base_price * 100)}%)</span>}
+          {item.subcategory_name && <span className="ml-2 text-primary-500">{item.subcategory_name}</span>}
         </span>
       </div>
-      <span className={`text-xs px-3 py-1.5 rounded-full font-medium flex-shrink-0 ${
-        item.is_drink ? 'bg-primary-50 text-primary-600' : 'bg-slate-100 text-slate-600'
-      }`}>
-        {item.is_drink ? 'ドリンク' : 'フード'}
-      </span>
-      <span className={`text-xs px-2.5 py-1.5 rounded-full font-medium flex-shrink-0 ${
-        item.tax_category === 'reduced'
-          ? 'bg-green-50 text-green-700'
-          : 'bg-slate-50 text-slate-500'
-      }`}>
-        {item.tax_category === 'reduced' ? '軽減8%' : '標準10%'}
-      </span>
-      {item.is_staff_only && (
-        <span className="text-xs px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-700 font-medium flex-shrink-0">
-          従業員専用
-        </span>
-      )}
-      {item.price_editable && (
-        <span className="text-xs px-2.5 py-1.5 rounded-full bg-amber-50 text-amber-700 font-medium flex-shrink-0">
-          時価
-        </span>
-      )}
-      {item.question_text && (
-        <span className="text-xs px-2.5 py-1.5 rounded-full bg-primary-50 text-primary-700 font-medium flex-shrink-0">
-          質問あり
-        </span>
-      )}
-      {!item.is_active && (
-        <span className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-400 flex-shrink-0">
-          無効
-        </span>
-      )}
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <button
-          onClick={onEdit}
-          className="w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer"
-          title="編集"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-          </svg>
-        </button>
-        <button
-          onClick={onDelete}
-          className="w-9 h-9 flex items-center justify-center border border-red-200 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer"
-          title="削除"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-            <path d="M10 11v6"/><path d="M14 11v6"/>
-          </svg>
-        </button>
+      <Badge tone={item.is_drink ? 'info' : 'neutral'}>{item.is_drink ? 'ドリンク' : 'フード'}</Badge>
+      <Badge tone={item.tax_category === 'reduced' ? 'success' : 'neutral'}>{item.tax_category === 'reduced' ? '軽減8%' : '標準10%'}</Badge>
+      {item.is_staff_only && <Badge tone="neutral">従業員専用</Badge>}
+      {item.price_editable && <Badge tone="warning">時価</Badge>}
+      {item.question_text && <Badge tone="info">質問あり</Badge>}
+      {!item.is_active && <Badge tone="neutral">無効</Badge>}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <Button variant="secondary" size="sm" iconOnly aria-label={`${item.name} を編集`} title="編集" onClick={onEdit}><IconEdit /></Button>
+        <Button variant="secondary" size="sm" iconOnly aria-label={`${item.name} を削除`} title="削除" className="text-danger border-red-200 hover:bg-red-50" onClick={onDelete}><IconTrash /></Button>
       </div>
     </div>
   );
 }
 
-// ─── メインコンポーネント ────────────────────────────
+// ─── 商品タブ本体(商品管理ビュー。ページ枠は親が供給) ───
 export default function MenuManager() {
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
@@ -685,7 +441,6 @@ export default function MenuManager() {
   });
 
   // 1つのSortableContext（同一サブカテゴリグループ）内でのドロップのみ扱う。
-  // listItemsはドロップが発生したグループの商品配列（DndContextごとに固定）。
   const handleDragEnd = (event, listItems) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -699,69 +454,48 @@ export default function MenuManager() {
     });
   };
 
+  const searchIcon = (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+  );
+
   return (
-    <div className="px-8 py-12 max-w-7xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">商品管理</h1>
-        <p className="text-base text-body leading-relaxed mt-2">メニュー商品の追加・編集・削除</p>
-      </div>
-      <div className="flex items-center gap-3 mb-6">
-        <div className="relative flex-1 max-w-xs">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input
-            type="search"
-            placeholder="商品名で検索..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors"
-          />
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="w-full max-w-xs">
+          <Input type="search" placeholder="商品名で検索..." prefix={searchIcon} value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         {search.trim() && (
-          <span className="text-xs text-slate-400 flex-shrink-0">
-            {displayGroupedByCat.reduce((n, c) => n + c.subGroups.reduce((m, sg) => m + sg.items.length, 0), 0)} 件
-            ・検索中は並び替えできません
+          <span className="text-xs text-muted flex-shrink-0">
+            {displayGroupedByCat.reduce((n, c) => n + c.subGroups.reduce((m, sg) => m + sg.items.length, 0), 0)} 件・検索中は並び替えできません
           </span>
         )}
-        <button
-          onClick={() => setAddOpen(true)}
-          className="inline-flex items-center gap-2 h-11 px-4 text-sm font-semibold bg-primary-500 text-white rounded-lg hover:bg-primary-700 cursor-pointer flex-shrink-0"
-        >
-          + 商品を追加
-        </button>
+        <div className="ml-auto flex-shrink-0">
+          <Button onClick={() => setAddOpen(true)}>＋ 商品を追加</Button>
+        </div>
       </div>
 
       {/* カテゴリ別商品一覧 */}
       {search.trim() && displayGroupedByCat.length === 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-          <p className="text-slate-400 text-sm">「{search}」に一致する商品がありません</p>
+        <div className="bg-surface rounded-xl border border-line p-12 text-center">
+          <p className="text-muted text-sm">「{search}」に一致する商品がありません</p>
         </div>
       )}
-      <div className="space-y-10">
+      <div className="space-y-6">
         {displayGroupedByCat.map((catGroup) => (
           <div key={catGroup.category.id}>
-            <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-200">
-              <h3 className="text-sm font-bold text-slate-700 tracking-wide">{catGroup.category.name}</h3>
-              <span className="text-xs text-slate-400">
-                ({catGroup.subGroups.reduce((n, sg) => n + sg.items.length, 0)}件)
-              </span>
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-line">
+              <h3 className="text-sm font-bold text-heading tracking-wide">{catGroup.category.name}</h3>
+              <span className="text-xs text-muted">({catGroup.subGroups.reduce((n, sg) => n + sg.items.length, 0)}件)</span>
             </div>
-            <div className="space-y-5">
+            <div className="space-y-4">
               {catGroup.subGroups.map((sg) => (
                 <div key={sg.id}>
-                  {sg.label && (
-                    <p className="text-xs font-semibold text-slate-500 mb-2 ml-1">{sg.label}</p>
-                  )}
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                  {sg.label && <p className="text-xs font-semibold text-muted mb-1.5 ml-1">{sg.label}</p>}
+                  <div className="bg-surface rounded-xl border border-line overflow-hidden">
                     {sg.items.length === 0 ? (
-                      <p className="px-6 py-5 text-sm text-slate-400">商品がありません</p>
+                      <p className="px-4 py-3 text-sm text-muted">商品がありません</p>
                     ) : (
-                      <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={(event) => handleDragEnd(event, sg.items)}
-                      >
+                      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => handleDragEnd(event, sg.items)}>
                         <SortableContext items={sg.items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
                           {sg.items.map((item, idx) => (
                             <SortableMenuItemRow
@@ -786,7 +520,7 @@ export default function MenuManager() {
 
       {/* 追加モーダル */}
       {addOpen && categories.length > 0 && (
-        <ModalShell title="商品を追加" onClose={() => setAddOpen(false)} wide>
+        <Modal title="商品を追加" size="lg" onClose={() => setAddOpen(false)}>
           <MenuItemForm
             categories={categories}
             subcategories={subcategories}
@@ -794,12 +528,12 @@ export default function MenuManager() {
             onCancel={() => setAddOpen(false)}
             isLoading={createMutation.isPending}
           />
-        </ModalShell>
+        </Modal>
       )}
 
       {/* 編集モーダル */}
       {editItem && (
-        <ModalShell title={`「${editItem.name}」を編集`} onClose={() => setEditItem(null)} wide>
+        <Modal title={`「${editItem.name}」を編集`} size="lg" onClose={() => setEditItem(null)}>
           <MenuItemForm
             item={editItem}
             categories={categories}
@@ -808,7 +542,7 @@ export default function MenuManager() {
             onCancel={() => setEditItem(null)}
             isLoading={updateMutation.isPending}
           />
-        </ModalShell>
+        </Modal>
       )}
     </div>
   );

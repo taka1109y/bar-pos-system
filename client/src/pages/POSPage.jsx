@@ -10,8 +10,7 @@ import PanelBoundary from '../components/PanelBoundary';
 import Sidebar from '../components/shell/Sidebar';
 import TableGrid from '../components/pos/TableGrid';
 import OrderPanel from '../components/pos/OrderPanel';
-import MenuManager from '../components/menu/MenuManager';
-import CategoryManager from '../components/menu/CategoryManager';
+import MenuAdminView from '../components/menu/MenuAdminView';
 import ReportsPage from './ReportsPage';
 import TableManager from '../components/tables/TableManager';
 import ReceiptsPage from './ReceiptsPage';
@@ -49,12 +48,8 @@ const NAV_GROUPS = [
         icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>,
       },
       {
-        id: 'menu', label: '商品管理', desc: 'メニュー・価格設定',
+        id: 'menu', label: '商品管理', desc: 'メニュー・カテゴリ・価格',
         icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>,
-      },
-      {
-        id: 'categories', label: 'カテゴリ管理', desc: 'カテゴリ・サブカテゴリ',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
       },
       {
         id: 'inventory', label: '在庫管理', desc: '棚卸し・仕入れ',
@@ -356,8 +351,7 @@ export default function POSPage() {
           </div>
         )}
         {view === 'tables'     && <div className="flex-1 overflow-y-auto"><TableManager /></div>}
-        {view === 'menu'       && <div className="flex-1 overflow-y-auto"><MenuManager /></div>}
-        {view === 'categories' && <div className="flex-1 overflow-y-auto"><CategoryManager /></div>}
+        {view === 'menu'       && <div className="flex-1 overflow-y-auto"><MenuAdminView /></div>}
         {view === 'reports'    && <div className="flex-1 overflow-y-auto"><ReportsPage inline /></div>}
         {view === 'receipts'   && <div className="flex-1 overflow-y-auto"><ReceiptsPage /></div>}
         {view === 'close'      && <div className="flex-1 flex flex-col overflow-hidden"><RegisterClosePage /></div>}
