@@ -14,6 +14,39 @@
   --color-primary-950: #07194e;
 
   --font-family-sans: 'Inter', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+
+  /* ── 管理画面リデザイン: セマンティックトークン層(加算のみ) ──────────────
+     既存の primary-* / body / global spacing は不変。ここは新しい名前付きカラー/
+     タイポを「追加」するだけなので、客向けダーク画面(board/table/kitchen)には影響しない。
+     Tailwind v4 は --color-{name} から bg-/text-/border-/ring-{name} を自動生成する。 */
+
+  /* Surface 階層 (Background → Surface → Object) */
+  --color-canvas:         #f8fafc; /* アプリ背景 bg-canvas */
+  --color-surface:        #ffffff; /* カード/パネル bg-surface */
+  --color-surface-sunken: #f1f5f9; /* 入力溝・テーブルヘッダ bg-surface-sunken */
+  --color-surface-hover:  #f8fafc; /* 行/ボタン hover bg-surface-hover */
+
+  /* Border / Line */
+  --color-line:        #e2e8f0; /* border-line (= slate-200) */
+  --color-line-strong: #cbd5e1; /* border-line-strong (= slate-300, 入力枠) */
+
+  /* Text 階層 (本文4.5:1担保) */
+  --color-body:    #3d4b5f; /* text-body ← 従来デッドだったクラスの正式定義。既存使用箇所が置換ゼロで正常化 */
+  --color-heading: #0f172a; /* text-heading (= slate-900) 見出し */
+  --color-muted:   #64748b; /* text-muted (= slate-500) 副次ラベル */
+  --color-faint:   #94a3b8; /* text-faint (= slate-400) 補助 */
+
+  /* 状態色 (色のみに依存せずアイコン/テキスト併用が運用ルール) */
+  --color-success: #059669; /* emerald-600 */
+  --color-warning: #d97706; /* amber-600 */
+  --color-danger:  #dc2626; /* red-600 */
+  --color-info:    #2b70ef; /* = primary-500 */
+
+  /* 高密度タイポ (業務用・情報密度重視。11px/13px を名前付き化) */
+  --text-2xs:                0.6875rem; /* 11px: 密ラベル/バッジ */
+  --text-2xs--line-height:   1rem;
+  --text-dense:              0.8125rem; /* 13px: 密テーブル本文(xs=12とsm=14の中間) */
+  --text-dense--line-height: 1.15rem;
 }
 
 * {

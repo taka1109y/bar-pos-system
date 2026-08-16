@@ -29,6 +29,8 @@ yarn-error.log*
 # 開発ツールの生成物
 .superpowers/
 raspberrypi.txt
+# 開発用 docker compose オーバーライド（ローカルのポート公開など）
+docker-compose.override.yml
 
 # 業務データ・機密（publicリポジトリのため厳守：売上/個人情報/認証情報をコミットしない）
 # ※gitignoreは行末コメント非対応。コメントは必ず独立行に書く
