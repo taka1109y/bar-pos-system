@@ -74,6 +74,17 @@ body {
   min-height: 100vh;
 }
 
+/* 管理画面リデザイン: .app-shell 配下でのみ Tailwind の padding ユーティリティを有効化する。
+   このプロジェクトの `* { padding: 0 }`(非レイヤー)は Tailwind の padding ユーティリティ
+   (@layer utilities)を常に打ち消してしまう(px-3 等が効かない既存の癖)。管理画面ルートだけ
+   revert-layer でその 0 リセットを解除し、ユーティリティ値へ戻す。padding ユーティリティを
+   持たない要素は従来どおり 0 のまま。客向け画面(board/table/kitchen, .app-shell 外)は
+   一切変更されず視覚不変。revert-layer は iPad Safari/Chrome の対象バージョンで対応済み。 */
+.app-shell,
+.app-shell * {
+  padding: revert-layer;
+}
+
 @keyframes ticker-scroll {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
