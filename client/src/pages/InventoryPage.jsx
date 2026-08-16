@@ -2,33 +2,22 @@ import { useState } from 'react';
 import { yen, num } from '../utils/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { Button, Modal, Field, Input, Select, DataTable, Badge, Tabs, Toolbar, Alert, StatTile } from '../components/ui';
 
-const inp = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
-const lbl = 'block text-xs font-semibold text-slate-500 mb-1';
-
-const REASON_LABELS = { order: '販売', adjustment: '棚卸し調整', purchase: '仕入れ' };
-const REASON_COLORS = {
-  order:      'bg-blue-50 text-blue-700',
-  adjustment: 'bg-amber-50 text-amber-700',
-  purchase:   'bg-emerald-50 text-emerald-700',
+const REASON = {
+  order:      { label: '販売',       tone: 'info' },
+  adjustment: { label: '棚卸し調整', tone: 'warning' },
+  purchase:   { label: '仕入れ',     tone: 'success' },
 };
 
-function ModalShell({ title, onClose, children }) {
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 border border-slate-200 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
-          <h2 className="text-base font-bold text-slate-900">{title}</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-        <div className="px-5 py-5 overflow-y-auto">{children}</div>
-      </div>
-    </div>
-  );
-}
+const IconEdit = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+);
+const IconTrash = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" /></svg>
+);
 
+// ─── 材料マスター 追加/編集モーダル ───
 function IngredientModal({ item, onClose }) {
   const queryClient = useQueryClient();
   const isEdit = !!item;
@@ -59,48 +48,31 @@ function IngredientModal({ item, onClose }) {
   };
 
   return (
-    <ModalShell title={isEdit ? '材料を編集' : '材料を追加'} onClose={onClose}>
-      <div className="space-y-4">
-        <div>
-          <label className={lbl}>材料名 *</label>
-          <input type="text" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} className={inp} placeholder="例: ウイスキー角" />
-        </div>
+    <Modal title={isEdit ? '材料を編集' : '材料を追加'} size="sm" onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="材料名" required><Input value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="例: ウイスキー角" /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={lbl}>仕入れ単位</label>
-            <input type="text" value={form.purchase_unit} onChange={(e) => setForm(f => ({ ...f, purchase_unit: e.target.value }))} className={inp} placeholder="本、缶、袋" />
-          </div>
-          <div>
-            <label className={lbl}>1単位あたりの容量</label>
-            <input type="number" min="0.001" step="any" value={form.purchase_quantity} onChange={(e) => setForm(f => ({ ...f, purchase_quantity: e.target.value }))} className={inp} placeholder="700" />
-          </div>
+          <Field label="仕入れ単位"><Input value={form.purchase_unit} onChange={(e) => setForm(f => ({ ...f, purchase_unit: e.target.value }))} placeholder="本、缶、袋" /></Field>
+          <Field label="1単位あたりの容量"><Input type="number" min="0.001" step="any" value={form.purchase_quantity} onChange={(e) => setForm(f => ({ ...f, purchase_quantity: e.target.value }))} placeholder="700" /></Field>
         </div>
-        <div>
-          <label className={lbl}>レシピ使用単位</label>
-          <input type="text" value={form.quantity_unit} onChange={(e) => setForm(f => ({ ...f, quantity_unit: e.target.value }))} className={inp} placeholder="ml、g、個" />
-          <p className="text-xs text-slate-400 mt-1">レシピで「何ml使うか」を記録する単位</p>
-        </div>
-        <div>
-          <label className={lbl}>1単位あたりの仕入れ値（円）</label>
-          <input type="number" min="0" step="1" value={form.cost_per_purchase_unit} onChange={(e) => setForm(f => ({ ...f, cost_per_purchase_unit: e.target.value }))} className={inp} placeholder="1500" />
+        <Field label="レシピ使用単位" hint="レシピで「何ml使うか」を記録する単位"><Input value={form.quantity_unit} onChange={(e) => setForm(f => ({ ...f, quantity_unit: e.target.value }))} placeholder="ml、g、個" /></Field>
+        <Field label="1単位あたりの仕入れ値（円）">
+          <Input type="number" min="0" step="1" prefix="¥" value={form.cost_per_purchase_unit} onChange={(e) => setForm(f => ({ ...f, cost_per_purchase_unit: e.target.value }))} placeholder="1500" />
           {Number(form.purchase_quantity) > 0 && Number(form.cost_per_purchase_unit) > 0 && (
-            <p className="text-xs text-amber-600 mt-1">
-              1{form.quantity_unit}あたり ¥{num((Number(form.cost_per_purchase_unit) / Number(form.purchase_quantity)), 2)}
-            </p>
+            <p className="text-xs text-amber-600 mt-1">1{form.quantity_unit}あたり ¥{num((Number(form.cost_per_purchase_unit) / Number(form.purchase_quantity)), 2)}</p>
           )}
-        </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <div className="flex gap-3 pt-1">
-          <button onClick={onClose} className="flex-1 h-10 text-sm font-medium bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-gray-50 transition-colors">キャンセル</button>
-          <button onClick={handleSave} disabled={mutation.isPending} className="flex-1 h-10 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors">
-            {mutation.isPending ? '保存中...' : '保存'}
-          </button>
+        </Field>
+        {error && <Alert tone="danger">{error}</Alert>}
+        <div className="flex gap-2 justify-end pt-1">
+          <Button variant="secondary" onClick={onClose}>キャンセル</Button>
+          <Button loading={mutation.isPending} onClick={handleSave}>保存</Button>
         </div>
       </div>
-    </ModalShell>
+    </Modal>
   );
 }
 
+// ─── 在庫初期設定モーダル ───
 function InitModal({ ingredient, onClose }) {
   const queryClient = useQueryClient();
   const [qty, setQty] = useState(ingredient.quantity_current ?? 0);
@@ -113,28 +85,24 @@ function InitModal({ ingredient, onClose }) {
   });
 
   return (
-    <ModalShell title="在庫初期設定" onClose={onClose}>
-      <div className="space-y-4">
-        <div className="bg-slate-50 rounded-lg p-3">
-          <p className="text-sm font-medium text-slate-900">{ingredient.name}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{ingredient.purchase_unit} / {ingredient.quantity_unit}単位で管理</p>
+    <Modal title="在庫初期設定" size="sm" onClose={onClose}>
+      <div className="space-y-3">
+        <div className="bg-surface-sunken rounded-lg p-3">
+          <p className="text-sm font-medium text-heading">{ingredient.name}</p>
+          <p className="text-xs text-muted mt-0.5">{ingredient.purchase_unit} / {ingredient.quantity_unit}単位で管理</p>
         </div>
-        <div>
-          <label className={lbl}>現在の在庫量（{ingredient.quantity_unit}）</label>
-          <input type="number" min="0" step="any" value={qty} onChange={(e) => setQty(e.target.value)} className={inp} />
-        </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 h-10 text-sm font-medium bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-gray-50 transition-colors">キャンセル</button>
-          <button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="flex-1 h-10 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors">
-            {mutation.isPending ? '保存中...' : '設定'}
-          </button>
+        <Field label={`現在の在庫量（${ingredient.quantity_unit}）`}><Input type="number" min="0" step="any" value={qty} onChange={(e) => setQty(e.target.value)} /></Field>
+        {error && <Alert tone="danger">{error}</Alert>}
+        <div className="flex gap-2 justify-end">
+          <Button variant="secondary" onClick={onClose}>キャンセル</Button>
+          <Button loading={mutation.isPending} onClick={() => mutation.mutate()}>設定</Button>
         </div>
       </div>
-    </ModalShell>
+    </Modal>
   );
 }
 
+// ─── 仕入れ入力モーダル ───
 function PurchaseModal({ ingredients, onClose }) {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState('');
@@ -164,38 +132,62 @@ function PurchaseModal({ ingredients, onClose }) {
   const selected = stockedIngredients.find(i => i.ingredient_id === Number(selectedId));
 
   return (
-    <ModalShell title="仕入れ入力" onClose={onClose}>
-      <div className="space-y-4">
-        <div>
-          <label className={lbl}>材料 *</label>
-          <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)} className={inp}>
+    <Modal title="仕入れ入力" size="sm" onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="材料" required>
+          <Select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
             <option value="">選択してください</option>
-            {stockedIngredients.map(i => (
-              <option key={i.ingredient_id} value={i.ingredient_id}>{i.name}（現在: {i.quantity_current ?? 0}{i.quantity_unit}）</option>
-            ))}
-          </select>
+            {stockedIngredients.map(i => <option key={i.ingredient_id} value={i.ingredient_id}>{i.name}（現在: {i.quantity_current ?? 0}{i.quantity_unit}）</option>)}
+          </Select>
           {stockedIngredients.length === 0 && <p className="text-xs text-amber-600 mt-1">在庫設定済みの材料がありません。先に「材料在庫」タブで初期設定してください。</p>}
-        </div>
-        <div>
-          <label className={lbl}>入庫数量（{selected?.quantity_unit || '単位'}）*</label>
-          <input type="number" min="0" step="any" value={qty} onChange={(e) => setQty(e.target.value)} className={inp} placeholder="例: 700（ml）または 1（本）" />
-          {selected && qty && Number(qty) > 0 && (
-            <p className="text-xs text-emerald-600 mt-1">入庫後: {num((Number(selected.quantity_current) + Number(qty)), 1)}{selected.quantity_unit}</p>
-          )}
-        </div>
-        <div>
-          <label className={lbl}>メモ（任意）</label>
-          <input type="text" value={note} onChange={(e) => setNote(e.target.value)} className={inp} placeholder="例: 〇〇酒店から仕入れ" />
-        </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 h-10 text-sm font-medium bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-gray-50 transition-colors">キャンセル</button>
-          <button onClick={handleSave} disabled={mutation.isPending} className="flex-1 h-10 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors">
-            {mutation.isPending ? '処理中...' : '仕入れ入力'}
-          </button>
+        </Field>
+        <Field label={`入庫数量（${selected?.quantity_unit || '単位'}）`} required>
+          <Input type="number" min="0" step="any" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="例: 700（ml）または 1（本）" />
+          {selected && qty && Number(qty) > 0 && <p className="text-xs text-emerald-600 mt-1">入庫後: {num((Number(selected.quantity_current) + Number(qty)), 1)}{selected.quantity_unit}</p>}
+        </Field>
+        <Field label="メモ（任意）"><Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="例: 〇〇酒店から仕入れ" /></Field>
+        {error && <Alert tone="danger">{error}</Alert>}
+        <div className="flex gap-2 justify-end">
+          <Button variant="secondary" onClick={onClose}>キャンセル</Button>
+          <Button variant="success" loading={mutation.isPending} onClick={handleSave}>仕入れ入力</Button>
         </div>
       </div>
-    </ModalShell>
+    </Modal>
+  );
+}
+
+// ─── 在庫評価タブ(原価分析から移設。['inventory'] 同源) ───
+function StockValuationTab({ inventory, isLoading }) {
+  const rows = (inventory ?? [])
+    .filter(r => r.quantity_current != null)
+    .map(r => ({
+      ...r,
+      unit_cost: r.purchase_quantity > 0 ? r.cost_per_purchase_unit / r.purchase_quantity : 0,
+      valuation: r.quantity_current > 0 && r.purchase_quantity > 0 ? r.quantity_current * r.cost_per_purchase_unit / r.purchase_quantity : 0,
+    }))
+    .sort((a, b) => b.valuation - a.valuation);
+  const totalValuation = rows.reduce((sum, r) => sum + r.valuation, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <StatTile label="在庫評価額合計" value={`¥${yen(Math.round(totalValuation))}`} />
+        <StatTile label="管理材料数" value={`${rows.length} 種`} />
+        <Alert tone="warning" title="計算式">現在在庫量 × (仕入れ値 ÷ 仕入れ容量)</Alert>
+      </div>
+      <DataTable
+        rowKey={(r) => r.ingredient_id}
+        empty={<div className="py-12 text-center text-sm text-muted">{isLoading ? '読み込み中...' : '在庫設定済みの材料がありません'}</div>}
+        columns={[
+          { key: 'name', header: '材料名', render: (r) => <span className="font-medium text-heading">{r.name}</span> },
+          { key: 'stock', header: '現在在庫', align: 'right', render: (r) => `${yen(r.quantity_current)}${r.quantity_unit}` },
+          { key: 'unit', header: '単価(/単位)', align: 'right', render: (r) => `¥${num(r.unit_cost, 4)}/${r.quantity_unit}` },
+          { key: 'val', header: '評価額', align: 'right', render: (r) => <span className="font-semibold text-heading">¥{yen(Math.round(r.valuation))}</span> },
+          { key: 'conv', header: '仕入れ換算', align: 'right', render: (r) => `${r.purchase_quantity > 0 ? num((r.quantity_current / r.purchase_quantity), 2) : '—'}${r.purchase_unit}` },
+        ]}
+        rows={rows}
+      />
+    </div>
   );
 }
 
@@ -247,100 +239,61 @@ export default function InventoryPage() {
   const handleAdjust = () => {
     const adjustments = Object.entries(adjustInputs)
       .filter(([, v]) => v !== '' && v != null)
-      .map(([ingredient_id, actual_quantity]) => ({
-        ingredient_id: Number(ingredient_id),
-        actual_quantity: Number(actual_quantity),
-      }));
+      .map(([ingredient_id, actual_quantity]) => ({ ingredient_id: Number(ingredient_id), actual_quantity: Number(actual_quantity) }));
     if (adjustments.length === 0) return setAdjustError('実在庫を入力してください');
     setAdjusting(true);
     setAdjustError('');
     adjustMutation.mutate(adjustments);
   };
 
-  return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">在庫管理</h1>
-          <p className="text-sm text-slate-500 mt-0.5">材料の在庫状況と仕入れ記録</p>
-        </div>
-        <button
-          onClick={() => setPurchaseOpen(true)}
-          className="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          仕入れ入力
-        </button>
-      </div>
+  const hasAdjustInput = Object.keys(adjustInputs).filter(k => adjustInputs[k] !== '').length > 0;
 
-      <div className="flex border-b border-slate-200 mb-6 gap-4">
-        {[['stock', '材料在庫'], ['master', '材料マスター'], ['logs', '異動ログ']].map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)}
-            className={`px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === id ? 'border-primary-500 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
+  return (
+    <div className="ui-pad p-4 md:p-6 space-y-4">
+      <Toolbar title="在庫管理" subtitle="材料の在庫状況と仕入れ記録">
+        <Button variant="success" onClick={() => setPurchaseOpen(true)}>＋ 仕入れ入力</Button>
+      </Toolbar>
+
+      <Tabs
+        activeId={tab}
+        onChange={setTab}
+        tabs={[{ id: 'stock', label: '材料在庫' }, { id: 'master', label: '材料マスター' }, { id: 'logs', label: '異動ログ' }, { id: 'valuation', label: '在庫評価' }]}
+      />
 
       {tab === 'stock' && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {invLoading ? (
-            <div className="text-sm text-slate-400 py-8 text-center">読み込み中...</div>
+            <div className="text-sm text-muted py-8 text-center">読み込み中...</div>
           ) : (
             <>
               {managed.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-sm font-semibold text-slate-700">在庫設定済み ({managed.length}件)</h2>
-                    <p className="text-xs text-slate-400">「実在庫」欄に実際の数量を入力して棚卸しを実施</p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-heading">在庫設定済み ({managed.length}件)</h2>
+                    <p className="text-xs text-muted">「実在庫」欄に実際の数量を入力して棚卸しを実施</p>
                   </div>
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-slate-200 bg-gray-50">
-                          <th scope="col" className="text-left py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">材料</th>
-                          <th scope="col" className="text-right py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">理論在庫</th>
-                          <th scope="col" className="text-right py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">実在庫入力</th>
-                          <th scope="col" className="text-right py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">最終更新</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {managed.map((item, idx) => (
-                          <tr key={item.ingredient_id} className={`hover:bg-gray-50 ${idx < managed.length - 1 ? 'border-b border-slate-100' : ''}`}>
-                            <td className="py-3 px-4">
-                              <p className="text-sm font-medium text-slate-900">{item.name}</p>
-                              <p className="text-xs text-slate-400">{item.purchase_unit} / {item.quantity_unit}単位</p>
-                            </td>
-                            <td className="py-3 px-4 text-sm text-slate-700 text-right font-mono">
-                              {item.quantity_current?.toFixed(1)} <span className="text-xs text-slate-400">{item.quantity_unit}</span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-1 justify-end">
-                                <input
-                                  type="number" min="0" step="any" placeholder="実在庫"
-                                  value={adjustInputs[item.ingredient_id] ?? ''}
-                                  onChange={(e) => setAdjustInputs(prev => ({ ...prev, [item.ingredient_id]: e.target.value }))}
-                                  className="w-24 border border-slate-300 rounded-md px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-primary-500"
-                                />
-                                <span className="text-xs text-slate-400">{item.quantity_unit}</span>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 text-xs text-slate-400 text-right">
-                              {item.last_updated ? new Date(item.last_updated).toLocaleDateString('ja-JP') : '-'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="flex items-center justify-between mt-3">
-                    {adjustError && <p className="text-sm text-red-600">{adjustError}</p>}
+                  <DataTable
+                    rowKey={(i) => i.ingredient_id}
+                    columns={[
+                      { key: 'name', header: '材料', render: (i) => (<div><p className="text-sm font-medium text-heading">{i.name}</p><p className="text-2xs text-muted">{i.purchase_unit} / {i.quantity_unit}単位</p></div>) },
+                      { key: 'theory', header: '理論在庫', align: 'right', render: (i) => <span className="font-mono">{i.quantity_current?.toFixed(1)} <span className="text-2xs text-muted">{i.quantity_unit}</span></span> },
+                      { key: 'input', header: '実在庫入力', align: 'right', render: (i) => (
+                        <div className="flex items-center gap-1 justify-end">
+                          <Input size="sm" type="number" min="0" step="any" placeholder="実在庫" className="w-24 text-right"
+                            value={adjustInputs[i.ingredient_id] ?? ''}
+                            onChange={(e) => setAdjustInputs(prev => ({ ...prev, [i.ingredient_id]: e.target.value }))} />
+                          <span className="text-2xs text-muted">{i.quantity_unit}</span>
+                        </div>
+                      ) },
+                      { key: 'updated', header: '最終更新', align: 'right', render: (i) => <span className="text-2xs text-muted">{i.last_updated ? new Date(i.last_updated).toLocaleDateString('ja-JP') : '-'}</span> },
+                    ]}
+                    rows={managed}
+                  />
+                  <div className="flex items-center justify-between">
+                    {adjustError && <p className="text-sm text-danger">{adjustError}</p>}
                     <div className="ml-auto">
-                      <button
-                        onClick={handleAdjust}
-                        disabled={adjusting || Object.keys(adjustInputs).filter(k => adjustInputs[k] !== '').length === 0}
-                        className="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                      >
+                      <button onClick={handleAdjust} disabled={adjusting || !hasAdjustInput}
+                        className="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer">
                         棚卸し実施
                       </button>
                     </div>
@@ -349,38 +302,21 @@ export default function InventoryPage() {
               )}
 
               {unmanaged.length > 0 && (
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-700 mb-3">在庫未設定 ({unmanaged.length}件)</h2>
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-slate-200 bg-gray-50">
-                          <th scope="col" className="text-left py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">材料</th>
-                          <th scope="col" className="py-2.5 px-4" />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {unmanaged.map((item, idx) => (
-                          <tr key={item.ingredient_id} className={idx < unmanaged.length - 1 ? 'border-b border-slate-100' : ''}>
-                            <td className="py-3 px-4">
-                              <p className="text-sm text-slate-900">{item.name}</p>
-                              <p className="text-xs text-slate-400">{item.quantity_unit}単位 / 仕入れ値 ¥{item.cost_per_purchase_unit}/{item.purchase_unit}</p>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <button onClick={() => setInitTarget(item)} className="h-7 px-3 text-xs font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors">
-                                在庫設定
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                <div className="space-y-2">
+                  <h2 className="text-sm font-semibold text-heading">在庫未設定 ({unmanaged.length}件)</h2>
+                  <DataTable
+                    rowKey={(i) => i.ingredient_id}
+                    columns={[
+                      { key: 'name', header: '材料', render: (i) => (<div><p className="text-sm text-heading">{i.name}</p><p className="text-2xs text-muted">{i.quantity_unit}単位 / 仕入れ値 ¥{i.cost_per_purchase_unit}/{i.purchase_unit}</p></div>) },
+                      { key: 'act', header: '', align: 'right', width: 100, render: (i) => <Button variant="secondary" size="sm" onClick={() => setInitTarget(i)}>在庫設定</Button> },
+                    ]}
+                    rows={unmanaged}
+                  />
                 </div>
               )}
 
               {managed.length === 0 && unmanaged.length === 0 && (
-                <div className="text-center py-16 text-slate-400">
+                <div className="text-center py-16 text-muted">
                   <p className="text-sm">材料が登録されていません</p>
                   <p className="text-xs mt-1">「材料マスター」タブから材料を追加してください</p>
                 </div>
@@ -391,64 +327,33 @@ export default function InventoryPage() {
       )}
 
       {tab === 'master' && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-slate-500">{inventory.length}件</p>
-            <button
-              onClick={() => setIngredientModal({})}
-              className="inline-flex items-center gap-1.5 h-8 px-3 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-700 transition-colors"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              材料を追加
-            </button>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted">{inventory.length}件</p>
+            <Button size="sm" onClick={() => setIngredientModal({})}>＋ 材料を追加</Button>
           </div>
           {invLoading ? (
-            <div className="text-sm text-slate-400 py-8 text-center">読み込み中...</div>
-          ) : inventory.length === 0 ? (
-            <div className="text-center py-16 text-slate-400 text-sm">材料が登録されていません</div>
+            <div className="text-sm text-muted py-8 text-center">読み込み中...</div>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-gray-50">
-                    <th scope="col" className="text-left py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">材料名</th>
-                    <th scope="col" className="text-right py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">仕入れ単位</th>
-                    <th scope="col" className="text-right py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">容量</th>
-                    <th scope="col" className="text-right py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">仕入れ値</th>
-                    <th scope="col" className="text-right py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">単位原価</th>
-                    <th scope="col" className="py-2.5 px-4 w-20" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {inventory.map((item, idx) => {
-                    const unitCost = item.purchase_quantity > 0
-                      ? num((item.cost_per_purchase_unit / item.purchase_quantity), 2) : '-';
-                    return (
-                      <tr key={item.ingredient_id} className={`hover:bg-gray-50 ${idx < inventory.length - 1 ? 'border-b border-slate-100' : ''}`}>
-                        <td className="py-3 px-4 text-sm font-medium text-slate-900">{item.name}</td>
-                        <td className="py-3 px-4 text-sm text-slate-600 text-right">{item.purchase_unit}</td>
-                        <td className="py-3 px-4 text-sm text-slate-600 text-right">{item.purchase_quantity}{item.quantity_unit}</td>
-                        <td className="py-3 px-4 text-sm text-slate-600 text-right">¥{yen(item.cost_per_purchase_unit)}</td>
-                        <td className="py-3 px-4 text-sm text-amber-600 text-right">¥{unitCost}/{item.quantity_unit}</td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => setIngredientModal(item)} className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors" aria-label="編集">
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                            </button>
-                            <button
-                              onClick={() => { if (window.confirm(`「${item.name}」を削除しますか？`)) deleteMutation.mutate(item.ingredient_id); }}
-                              className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" aria-label="削除"
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              rowKey={(i) => i.ingredient_id}
+              empty={<div className="py-12 text-center text-sm text-muted">材料が登録されていません</div>}
+              columns={[
+                { key: 'name', header: '材料名', render: (i) => <span className="font-medium text-heading">{i.name}</span> },
+                { key: 'pu', header: '仕入れ単位', align: 'right', render: (i) => i.purchase_unit },
+                { key: 'cap', header: '容量', align: 'right', render: (i) => `${i.purchase_quantity}${i.quantity_unit}` },
+                { key: 'cost', header: '仕入れ値', align: 'right', render: (i) => `¥${yen(i.cost_per_purchase_unit)}` },
+                { key: 'unit', header: '単位原価', align: 'right', render: (i) => <span className="text-amber-600">¥{i.purchase_quantity > 0 ? num((i.cost_per_purchase_unit / i.purchase_quantity), 2) : '-'}/{i.quantity_unit}</span> },
+                { key: 'act', header: '', align: 'right', width: 90, render: (i) => (
+                  <div className="flex items-center justify-end gap-1.5">
+                    <Button variant="secondary" size="sm" iconOnly aria-label={`${i.name} を編集`} title="編集" onClick={() => setIngredientModal(i)}><IconEdit /></Button>
+                    <Button variant="secondary" size="sm" iconOnly aria-label={`${i.name} を削除`} title="削除" className="text-danger border-red-200 hover:bg-red-50"
+                      onClick={() => { if (window.confirm(`「${i.name}」を削除しますか？`)) deleteMutation.mutate(i.ingredient_id); }}><IconTrash /></Button>
+                  </div>
+                ) },
+              ]}
+              rows={inventory}
+            />
           )}
         </div>
       )}
@@ -456,57 +361,31 @@ export default function InventoryPage() {
       {tab === 'logs' && (
         <div>
           {logsLoading ? (
-            <div className="text-sm text-slate-400 py-8 text-center">読み込み中...</div>
-          ) : logs.length === 0 ? (
-            <div className="text-center py-16 text-slate-400 text-sm">異動ログがありません</div>
+            <div className="text-sm text-muted py-8 text-center">読み込み中...</div>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-gray-50">
-                    <th scope="col" className="text-left py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">日時</th>
-                    <th scope="col" className="text-left py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">材料</th>
-                    <th scope="col" className="text-center py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">種別</th>
-                    <th scope="col" className="text-right py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">変動</th>
-                    <th scope="col" className="text-right py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">在庫後</th>
-                    <th scope="col" className="text-left py-2.5 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">メモ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs.map((log, idx) => (
-                    <tr key={log.id} className={`hover:bg-gray-50 ${idx < logs.length - 1 ? 'border-b border-slate-100' : ''}`}>
-                      <td className="py-3 px-4 text-xs text-slate-500">
-                        {new Date(log.log_date).toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-slate-900">{log.ingredient_name}</td>
-                      <td className="py-3 px-4 text-center">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${REASON_COLORS[log.reason] || 'bg-slate-100 text-slate-600'}`}>
-                          {REASON_LABELS[log.reason] || log.reason}
-                        </span>
-                      </td>
-                      <td className={`py-3 px-4 text-sm text-right font-mono ${log.quantity_change >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {log.quantity_change >= 0 ? '+' : ''}{log.quantity_change?.toFixed(1)} {log.quantity_unit}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-slate-700 text-right font-mono">
-                        {log.quantity_after?.toFixed(1)} {log.quantity_unit}
-                      </td>
-                      <td className="py-3 px-4 text-xs text-slate-400">{log.note || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              rowKey={(l) => l.id}
+              empty={<div className="py-12 text-center text-sm text-muted">異動ログがありません</div>}
+              columns={[
+                { key: 'date', header: '日時', render: (l) => <span className="text-2xs text-muted">{new Date(l.log_date).toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span> },
+                { key: 'name', header: '材料', render: (l) => l.ingredient_name },
+                { key: 'reason', header: '種別', align: 'center', render: (l) => { const r = REASON[l.reason] || { label: l.reason, tone: 'neutral' }; return <Badge tone={r.tone}>{r.label}</Badge>; } },
+                { key: 'change', header: '変動', align: 'right', render: (l) => <span className={`font-mono ${l.quantity_change >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{l.quantity_change >= 0 ? '+' : ''}{l.quantity_change?.toFixed(1)} {l.quantity_unit}</span> },
+                { key: 'after', header: '在庫後', align: 'right', render: (l) => <span className="font-mono">{l.quantity_after?.toFixed(1)} {l.quantity_unit}</span> },
+                { key: 'note', header: 'メモ', render: (l) => <span className="text-2xs text-muted">{l.note || '-'}</span> },
+              ]}
+              rows={logs}
+            />
           )}
         </div>
       )}
 
+      {tab === 'valuation' && <StockValuationTab inventory={inventory} isLoading={invLoading} />}
+
       {initTarget && <InitModal ingredient={initTarget} onClose={() => setInitTarget(null)} />}
       {purchaseOpen && <PurchaseModal ingredients={inventory} onClose={() => setPurchaseOpen(false)} />}
       {ingredientModal !== null && (
-        <IngredientModal
-          item={ingredientModal.ingredient_id ? ingredientModal : null}
-          onClose={() => setIngredientModal(null)}
-        />
+        <IngredientModal item={ingredientModal.ingredient_id ? ingredientModal : null} onClose={() => setIngredientModal(null)} />
       )}
     </div>
   );
