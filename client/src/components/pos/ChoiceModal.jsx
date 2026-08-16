@@ -28,21 +28,21 @@ export default function ChoiceModal({ title, choices, allowMultiple = false, all
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in">
-      <div className="bg-white rounded-xl p-5 w-80 shadow-xl pop-in border border-slate-200">
+    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 fade-in">
+      <div className="bg-surface rounded-xl p-5 w-80 shadow-xl pop-in border border-line">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold text-slate-900">{title}</h3>
+          <h3 className="text-sm font-bold text-heading">{title}</h3>
           <button onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-faint hover:bg-surface-sunken transition-colors">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
         </div>
         {allowQuantity ? (
-          <p className="text-xs text-slate-400 mb-2">個数を指定できます</p>
+          <p className="text-xs text-faint mb-2">個数を指定できます</p>
         ) : allowMultiple ? (
-          <p className="text-xs text-slate-400 mb-2">複数選択できます</p>
+          <p className="text-xs text-faint mb-2">複数選択できます</p>
         ) : null}
         <div className="space-y-2">
           {choices.map((choice) => {
@@ -52,10 +52,10 @@ export default function ChoiceModal({ title, choices, allowMultiple = false, all
                 <div
                   key={choice.label}
                   className={`w-full px-4 py-3 rounded-xl border text-sm font-medium flex items-center justify-between ${
-                    cnt > 0 ? 'bg-primary-50 border-primary-300' : 'bg-slate-50 border-slate-200'
+                    cnt > 0 ? 'bg-primary-50 border-primary-300' : 'bg-surface-sunken border-line'
                   }`}
                 >
-                  <span className="text-slate-800">
+                  <span className="text-body">
                     {choice.label}
                     {choice.priceDelta > 0 && (
                       <span className="ml-2 text-xs font-semibold text-primary-600">+¥{yen(choice.priceDelta)}</span>
@@ -66,11 +66,11 @@ export default function ChoiceModal({ title, choices, allowMultiple = false, all
                       onClick={() => setCount(choice.label, -1)}
                       disabled={cnt === 0}
                       aria-label={`${choice.label}を減らす`}
-                      className="w-7 h-7 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-base font-bold flex items-center justify-center disabled:opacity-40"
+                      className="w-7 h-7 rounded-lg bg-slate-200 hover:bg-slate-300 text-body text-base font-bold flex items-center justify-center disabled:opacity-40"
                     >
                       −
                     </button>
-                    <span className="w-6 text-center text-sm font-bold text-slate-900">{cnt}</span>
+                    <span className="w-6 text-center text-sm font-bold text-heading">{cnt}</span>
                     <button
                       onClick={() => setCount(choice.label, 1)}
                       aria-label={`${choice.label}を増やす`}
@@ -90,7 +90,7 @@ export default function ChoiceModal({ title, choices, allowMultiple = false, all
                 className={`w-full text-left px-4 py-3 rounded-xl border text-sm font-medium transition-all active:scale-[0.98] flex items-center justify-between ${
                   isSel
                     ? 'bg-primary-50 border-primary-300 text-primary-700'
-                    : 'bg-slate-50 border-slate-200 hover:bg-primary-50 hover:border-primary-300 text-slate-800'
+                    : 'bg-surface-sunken border-line hover:bg-primary-50 hover:border-primary-300 text-body'
                 }`}
               >
                 <span>
@@ -101,7 +101,7 @@ export default function ChoiceModal({ title, choices, allowMultiple = false, all
                 </span>
                 {allowMultiple && (
                   <span className={`w-5 h-5 flex items-center justify-center rounded border flex-shrink-0 ${
-                    isSel ? 'bg-primary-500 border-primary-500 text-white' : 'border-slate-300'
+                    isSel ? 'bg-primary-500 border-primary-500 text-white' : 'border-line-strong'
                   }`}>
                     {isSel && (
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">

@@ -26,7 +26,7 @@ function Numpad({ value, onChange, onConfirm, exactAmount }) {
       key={label}
       type="button"
       onClick={() => handleKey(label)}
-      className="h-14 rounded-xl text-base font-bold bg-white border border-slate-200 hover:bg-slate-50 text-slate-900 shadow-sm transition-all active:scale-95"
+      className="h-14 rounded-xl text-base font-bold bg-surface border border-line hover:bg-surface-sunken text-heading shadow-sm transition-all active:scale-95"
     >
       {label}
     </button>
@@ -36,7 +36,7 @@ function Numpad({ value, onChange, onConfirm, exactAmount }) {
     <div className="space-y-2.5">
       <div className="grid grid-cols-3 gap-2.5">
         <button type="button" onClick={() => handleKey('C')}
-          className="h-14 rounded-xl text-base font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all active:scale-95">
+          className="h-14 rounded-xl text-base font-bold bg-surface-sunken hover:bg-surface-hover text-body transition-all active:scale-95">
           C
         </button>
         <button type="button" onClick={() => handleKey('残額')}
@@ -371,7 +371,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
         </div>
 
         {/* ─── 右パネル: 会計 ─── */}
-        <div className="w-80 border-l border-slate-200 bg-white flex flex-col flex-shrink-0 relative">
+        <div className="w-80 border-l border-line bg-surface flex flex-col flex-shrink-0 relative">
 
           {/* 割引モーダル（右パネル内に絶対配置） */}
           {showDiscountModal && (
@@ -413,36 +413,36 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
           )}
 
           {/* ヘッダー */}
-          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex-shrink-0">
-            <p className="text-sm font-bold text-slate-900">即会計</p>
-            <p className="text-[11px] text-slate-400">チャージなし・即時会計</p>
+          <div className="px-4 py-3 border-b border-line bg-surface-sunken flex-shrink-0">
+            <p className="text-sm font-bold text-heading">即会計</p>
+            <p className="text-[11px] text-faint">チャージなし・即時会計</p>
           </div>
 
           {/* 商品リスト */}
           <div className="flex-1 overflow-y-auto min-h-0">
             {items.length === 0 ? (
               <div className="flex items-center justify-center h-full">
-                <p className="text-xs text-slate-400 text-center px-6">
+                <p className="text-xs text-faint text-center px-6">
                   左のメニューから商品を追加してください
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-slate-50">
+              <div className="divide-y divide-line">
                 {items.map((item) => (
                   <div key={item.id} className="flex items-center gap-2 px-3 py-2.5">
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-slate-800 truncate">{item.item_name}</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">¥{yen(item.unit_price)}</p>
+                      <p className="text-xs font-medium text-body truncate">{item.item_name}</p>
+                      <p className="text-[11px] text-faint mt-0.5">¥{yen(item.unit_price)}</p>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <button
                         onClick={() => handleQtyDecrease(item)}
                         disabled={updateItemMutation.isPending}
-                        className="w-9 h-9 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-bold flex items-center justify-center transition-colors disabled:opacity-50"
+                        className="w-9 h-9 rounded-lg bg-slate-200 hover:bg-slate-300 text-body text-sm font-bold flex items-center justify-center transition-colors disabled:opacity-50"
                       >
                         −
                       </button>
-                      <span className="w-5 text-center text-xs font-bold text-slate-900">{item.quantity}</span>
+                      <span className="w-5 text-center text-xs font-bold text-heading">{item.quantity}</span>
                       <button
                         onClick={() => handleQtyIncrease(item)}
                         disabled={addItemMutation.isPending}
@@ -461,20 +461,20 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
           </div>
 
           {/* 合計 + 支払いUI */}
-          <div className="flex-shrink-0 border-t border-slate-200">
+          <div className="flex-shrink-0 border-t border-line">
             {/* 合計行 */}
-            <div className="px-4 py-3.5 flex justify-between items-center bg-slate-50">
-              <span className="text-xs font-semibold text-slate-500">
+            <div className="px-4 py-3.5 flex justify-between items-center bg-surface-sunken">
+              <span className="text-xs font-semibold text-muted">
                 {discountAmount > 0 && (
                   <span className="text-red-500 mr-1.5">−¥{yen(discountAmount)}</span>
                 )}
                 合計
               </span>
-              <span className="text-xl font-black text-slate-900">¥{yen(finalTotal)}</span>
+              <span className="text-xl font-black text-heading">¥{yen(finalTotal)}</span>
             </div>
 
             {/* 割引登録 / 金券 */}
-            <div className="px-4 pt-4 pb-4 flex gap-4 border-b border-slate-100">
+            <div className="px-4 pt-4 pb-4 flex gap-4 border-b border-line">
               <button
                 onClick={() => {
                   setDiscountType(savedDiscountType);
@@ -484,7 +484,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                 className={`flex-1 py-5 text-sm font-semibold rounded-lg border transition-colors relative ${
                   discountAmount > 0
                     ? 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    : 'bg-surface-sunken border-line text-body hover:bg-surface-sunken'
                 }`}
               >
                 割引登録
@@ -503,10 +503,10 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                 disabled={splitMode}
                 className={`flex-1 py-5 text-sm font-semibold rounded-lg border transition-colors relative ${
                   splitMode
-                    ? 'bg-slate-50 border-slate-200 text-slate-300 cursor-not-allowed'
+                    ? 'bg-surface-sunken border-line text-faint cursor-not-allowed'
                     : effectiveGiftCert > 0
                       ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      : 'bg-surface-sunken border-line text-body hover:bg-surface-sunken'
                 }`}
               >
                 金券
@@ -521,16 +521,16 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
             {/* 支払い方法 + テンキー */}
             <div className="p-4 space-y-4">
               {/* 通常 / 分割 切替 */}
-              <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm font-semibold">
+              <div className="flex rounded-lg border border-line overflow-hidden text-sm font-semibold">
                 <button
                   onClick={() => switchSplitMode(false)}
-                  className={`flex-1 py-2.5 transition-colors ${!splitMode ? 'bg-primary-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                  className={`flex-1 py-2.5 transition-colors ${!splitMode ? 'bg-primary-600 text-white' : 'bg-surface text-muted hover:bg-surface-sunken'}`}
                 >
                   通常
                 </button>
                 <button
                   onClick={() => switchSplitMode(true)}
-                  className={`flex-1 py-2.5 transition-colors ${splitMode ? 'bg-primary-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                  className={`flex-1 py-2.5 transition-colors ${splitMode ? 'bg-primary-600 text-white' : 'bg-surface text-muted hover:bg-surface-sunken'}`}
                 >
                   分割
                 </button>
@@ -544,7 +544,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                 className={`w-full py-6 rounded-xl text-xl font-bold transition-all ${
                   paymentMethod === 'cash'
                     ? 'bg-primary-600 text-white shadow-md'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    : 'bg-surface-sunken text-body hover:bg-surface-hover'
                 }`}
               >
                 現金
@@ -562,7 +562,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                 className={`w-full py-5 rounded-xl text-sm font-medium transition-all border ${
                   paymentMethod !== 'cash'
                     ? 'border-primary-500 bg-primary-50 text-primary-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    : 'border-line bg-surface text-body hover:bg-surface-sunken'
                 }`}
               >
                 その他支払
@@ -578,7 +578,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                       className={`flex-1 py-3.5 rounded-xl text-sm font-semibold border transition-all ${
                         paymentMethod === m.id
                           ? 'border-primary-500 bg-primary-50 text-primary-700'
-                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                          : 'border-line bg-surface text-body hover:bg-surface-sunken'
                       }`}
                     >
                       {m.label}
@@ -588,30 +588,30 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
               )}
 
               {/* 受取金額ディスプレイ + 残高・おつり */}
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div className="bg-surface border border-line rounded-xl overflow-hidden">
                 <div className="px-4 py-3 text-right">
-                  <p className="text-[10px] text-slate-400 mb-0.5">
+                  <p className="text-[10px] text-faint mb-0.5">
                     {isCash ? 'お預かり（現金）' : ({ card: 'カード', emoney: '電子マネー' }[paymentMethod] ?? 'その他')}
                   </p>
-                  <p className="text-xl font-black text-slate-900 tracking-wider">
+                  <p className="text-xl font-black text-heading tracking-wider">
                     ¥{receivedInput ? yen(parseInt(receivedInput, 10)) : '0'}
                   </p>
                   {isCash && remainingAfterGift > 0 && effectiveGiftCert > 0 && (
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="text-xs text-faint mt-0.5">
                       金券後残額 ¥{yen(remainingAfterGift)}
                     </p>
                   )}
                 </div>
-                <div className="border-t border-slate-100 px-4 py-2.5 space-y-1.5">
+                <div className="border-t border-line px-4 py-2.5 space-y-1.5">
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">残高</span>
+                    <span className="text-muted">残高</span>
                     <span className={`font-semibold ${balance > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
                       ¥{yen(balance)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">おつり</span>
-                    <span className="font-bold text-slate-900">¥{yen(change)}</span>
+                    <span className="text-muted">おつり</span>
+                    <span className="font-bold text-heading">¥{yen(change)}</span>
                   </div>
                 </div>
               </div>
@@ -638,13 +638,13 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                           className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border transition-all ${
                             isActive
                               ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-300'
-                              : 'border-slate-200 bg-white hover:bg-slate-50'
+                              : 'border-line bg-surface hover:bg-surface-sunken'
                           }`}
                         >
-                          <span className={`text-sm font-semibold ${isActive ? 'text-primary-700' : 'text-slate-700'}`}>
+                          <span className={`text-sm font-semibold ${isActive ? 'text-primary-700' : 'text-body'}`}>
                             {m.label}
                           </span>
-                          <span className={`text-lg font-black ${isActive && splitInput !== '' ? 'text-primary-600' : 'text-slate-900'}`}>
+                          <span className={`text-lg font-black ${isActive && splitInput !== '' ? 'text-primary-600' : 'text-heading'}`}>
                             ¥{yen(shown)}
                           </span>
                         </button>
@@ -653,14 +653,14 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                   </div>
 
                   {/* 分割サマリ（差額 / おつり） */}
-                  <div className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 space-y-1">
+                  <div className="bg-surface border border-line rounded-xl px-4 py-2.5 space-y-1">
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">会計総額</span>
-                      <span className="font-semibold text-slate-900">¥{yen(finalTotal)}</span>
+                      <span className="text-muted">会計総額</span>
+                      <span className="font-semibold text-heading">¥{yen(finalTotal)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">入力済</span>
-                      <span className="font-semibold text-slate-900">¥{yen(enteredSum)}</span>
+                      <span className="text-muted">入力済</span>
+                      <span className="font-semibold text-heading">¥{yen(enteredSum)}</span>
                     </div>
                     {splitChange > 0 ? (
                       <div className="flex justify-between text-sm">
@@ -669,7 +669,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                       </div>
                     ) : (
                       <div className="flex justify-between text-sm">
-                        <span className="text-slate-500">差額</span>
+                        <span className="text-muted">差額</span>
                         <span className={`font-bold ${splitRemaining === 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                           ¥{yen(splitRemaining)}
                         </span>
@@ -683,7 +683,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
                   {/* 分割クリア */}
                   <button
                     onClick={clearSplit}
-                    className="w-full py-2.5 text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
+                    className="w-full py-2.5 text-sm font-medium bg-surface-sunken hover:bg-surface-hover text-body rounded-lg transition-colors"
                   >
                     分割クリア
                   </button>
@@ -700,7 +700,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
             </div>
 
             {/* 会計ボタン */}
-            <div className="px-4 pb-6 pt-2 border-t border-slate-200">
+            <div className="px-4 pb-6 pt-2 border-t border-line">
               {payError && (
                 <div className="flex items-start gap-2 p-3 mb-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
                   ⚠ {payError}

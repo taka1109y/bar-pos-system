@@ -46,8 +46,8 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-      <div className="bg-white rounded-xl shadow-xl overflow-hidden flex flex-col" style={{ width: 780 }}>
+    <div className="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center">
+      <div className="bg-surface rounded-xl shadow-xl overflow-hidden flex flex-col" style={{ width: 780 }}>
         {/* ヘッダー */}
         <div className={`px-6 py-3 flex-shrink-0 ${BLUE_HEADER}`}>
           <h3 className="text-[16px] font-bold">{title ?? '現金在高　金種入力'}</h3>
@@ -56,12 +56,12 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
         {/* ボディ: 内側4辺に余白 */}
         <div className="flex p-4 gap-4 overflow-hidden">
           {/* ══ 左: 金種リスト ══ */}
-          <div className="flex flex-col border border-slate-200 rounded-lg overflow-hidden" style={{ width: 440 }}>
+          <div className="flex flex-col border border-line rounded-lg overflow-hidden" style={{ width: 440 }}>
             {/* 列ヘッダー */}
-            <div className="flex items-center px-5 py-2 bg-slate-50 border-b border-slate-200 flex-shrink-0">
-              <span className="w-16 text-[13px] font-bold text-slate-400">金種</span>
-              <span className="flex-1 text-right text-[13px] font-bold text-slate-400 pr-2">枚数</span>
-              <span className="w-28 text-right text-[13px] font-bold text-slate-400">小計</span>
+            <div className="flex items-center px-5 py-2 bg-surface-sunken border-b border-line flex-shrink-0">
+              <span className="w-16 text-[13px] font-bold text-faint">金種</span>
+              <span className="flex-1 text-right text-[13px] font-bold text-faint pr-2">枚数</span>
+              <span className="w-28 text-right text-[13px] font-bold text-faint">小計</span>
             </div>
 
             {/* 金種行 */}
@@ -73,10 +73,10 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
                 return (
                   <div
                     key={d.value}
-                    className={`flex items-center gap-3 px-5 py-3 border-b border-slate-100 last:border-0 cursor-pointer ${isFocused ? 'bg-primary-50' : 'hover:bg-slate-50'}`}
+                    className={`flex items-center gap-3 px-5 py-3 border-b border-line last:border-0 cursor-pointer ${isFocused ? 'bg-primary-50' : 'hover:bg-surface-sunken'}`}
                     onClick={() => setFocusedDenom(d.value)}
                   >
-                    <span className={`w-16 text-[15px] flex-shrink-0 ${isFocused ? 'text-primary-600 font-bold' : 'text-slate-700'}`}>
+                    <span className={`w-16 text-[15px] flex-shrink-0 ${isFocused ? 'text-primary-600 font-bold' : 'text-body'}`}>
                       {d.label}
                     </span>
                     <div className="flex-1">
@@ -88,10 +88,10 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
                         tabIndex={-1}
                         value={denomCounts[d.value] ?? ''}
                         placeholder="0"
-                        className={`w-full text-right text-[15px] tabular-nums border rounded bg-white px-2 py-1 focus:outline-none cursor-default ${isFocused ? 'border-primary-400 ring-1 ring-primary-400' : 'border-slate-200'}`}
+                        className={`w-full text-right text-[15px] tabular-nums border rounded bg-surface px-2 py-1 focus:outline-none cursor-default ${isFocused ? 'border-primary-400 ring-1 ring-primary-400' : 'border-line'}`}
                       />
                     </div>
-                    <span className="w-28 text-right text-[15px] tabular-nums text-slate-700 flex-shrink-0">
+                    <span className="w-28 text-right text-[15px] tabular-nums text-body flex-shrink-0">
                       {subtotal > 0 ? `¥${yen(subtotal)}` : ''}
                     </span>
                   </div>
@@ -101,7 +101,7 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
 
             {/* 合計 */}
             <div className="flex items-center px-5 py-2.5 border-t-2 border-primary-400 bg-primary-50 flex-shrink-0">
-              <span className="flex-1 text-[15px] font-bold text-slate-700">合計</span>
+              <span className="flex-1 text-[15px] font-bold text-body">合計</span>
               <span className="text-[19px] font-black text-primary-600 tabular-nums">
                 ¥{yen(total)}
               </span>
@@ -111,10 +111,10 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
           {/* ══ 右: テンキー ══ */}
           <div className="flex flex-col gap-3" style={{ width: 300 }}>
             {/* 選択中の金種・入力値表示 */}
-            <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 min-h-[60px] flex flex-col justify-center">
+            <div className="bg-surface-sunken border border-line rounded-lg px-4 py-3 min-h-[60px] flex flex-col justify-center">
               {focusedDenom ? (
                 <>
-                  <span className="text-[13px] text-slate-400">
+                  <span className="text-[13px] text-faint">
                     {DENOMS.find(d => d.value === focusedDenom)?.label}
                   </span>
                   <span className="text-[20px] font-bold text-primary-600 tabular-nums text-right leading-tight">
@@ -122,7 +122,7 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
                   </span>
                 </>
               ) : (
-                <span className="text-[14px] text-slate-400 text-center">← 金種を選択</span>
+                <span className="text-[14px] text-faint text-center">← 金種を選択</span>
               )}
             </div>
 
@@ -138,10 +138,10 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
                     disabled={isDisabled}
                     className={`flex items-center justify-center rounded-lg text-[18px] font-bold h-16 select-none transition-colors
                       ${isDisabled
-                        ? 'bg-slate-100 text-slate-300 cursor-default'
+                        ? 'bg-surface-sunken text-faint cursor-default'
                         : isSpecial
-                          ? 'bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-600'
-                          : 'bg-white border border-slate-200 hover:bg-primary-50 hover:border-primary-300 active:bg-primary-100 text-slate-800'
+                          ? 'bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-body'
+                          : 'bg-surface border border-line hover:bg-primary-50 hover:border-primary-300 active:bg-primary-100 text-body'
                       }`}
                   >
                     {key}
@@ -154,7 +154,7 @@ export default function CashDenomModal({ denomCounts, onChange, onConfirm, onCan
             <div className="flex gap-2">
               <button
                 onClick={onCancel}
-                className="flex-1 py-3 text-[14px] font-bold border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                className="flex-1 py-3 text-[14px] font-bold border border-line-strong rounded-lg text-body hover:bg-surface-sunken transition-colors"
               >
                 キャンセル
               </button>

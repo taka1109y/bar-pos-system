@@ -24,7 +24,7 @@ const MOCK_STATIC = {
 // ── 青テーマのスタイル定数 ──────────────────────────────────
 const BLUE_HEADER = 'bg-primary-500 text-white';
 const BLUE_BTN    = 'bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white font-bold rounded transition-colors';
-const INPUT_CLS   = 'w-full text-right text-sm tabular-nums border border-slate-300 rounded bg-white px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500/50';
+const INPUT_CLS   = 'w-full text-right text-sm tabular-nums border border-line-strong rounded bg-surface px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500/50';
 
 // ── PDF出力用行（インラインスタイル・html2canvas用） ────────────
 function PRow({ label, value, sub, indent, dot }) {
@@ -49,16 +49,16 @@ function PRow({ label, value, sub, indent, dot }) {
 // ── 精算レポート行 ──────────────────────────────────────────
 function LRow({ label, value, sub, dot }) {
   return (
-    <div className="flex items-start justify-between px-2 py-1.5 border-b border-slate-100 last:border-0 min-h-[32px]">
+    <div className="flex items-start justify-between px-2 py-1.5 border-b border-line last:border-0 min-h-[32px]">
       <div className="flex items-center gap-1">
         {dot && <span className="text-primary-500 text-base leading-none">●</span>}
-        <span className="text-[13px] text-slate-600">{label}</span>
+        <span className="text-[13px] text-body">{label}</span>
       </div>
       <div className="text-right">
         {value !== '' && value !== undefined && (
-          <span className="text-[13px] font-bold text-slate-800 block tabular-nums">{value}</span>
+          <span className="text-[13px] font-bold text-body block tabular-nums">{value}</span>
         )}
-        {sub && <span className="text-[12px] text-slate-400 block">{sub}</span>}
+        {sub && <span className="text-[12px] text-faint block">{sub}</span>}
       </div>
     </div>
   );
@@ -68,14 +68,14 @@ function LRow({ label, value, sub, dot }) {
 function IRow({ label, value, onChange, onBlur, diff, indent, readOnly, onClick }) {
   return (
     <div
-      className={`flex items-center gap-1.5 px-3 py-1 border-b border-slate-100 last:border-0 min-h-[34px] ${indent ? 'bg-slate-50' : ''} ${onClick ? 'cursor-pointer hover:bg-primary-500 transition-colors' : ''}`}
+      className={`flex items-center gap-1.5 px-3 py-1 border-b border-line last:border-0 min-h-[34px] ${indent ? 'bg-surface-sunken' : ''} ${onClick ? 'cursor-pointer hover:bg-primary-500 transition-colors' : ''}`}
       onClick={onClick}
     >
-      <span className={`flex-shrink-0 w-24 text-[13px] ${indent ? 'pl-3 text-slate-400' : 'text-slate-600'}`}>
+      <span className={`flex-shrink-0 w-24 text-[13px] ${indent ? 'pl-3 text-faint' : 'text-body'}`}>
         {indent && '└ '}{label}
       </span>
       {readOnly ? (
-        <span className="flex-1 text-right text-[13px] text-slate-700 tabular-nums pr-1">
+        <span className="flex-1 text-right text-[13px] text-body tabular-nums pr-1">
           ¥{yen(Number(value || 0))}
         </span>
       ) : (
@@ -92,7 +92,7 @@ function IRow({ label, value, onChange, onBlur, diff, indent, readOnly, onClick 
         </div>
       )}
       <span className={`flex-shrink-0 w-14 text-right text-[13px] tabular-nums ${
-        diff === undefined || diff === 0 ? 'text-slate-400' : diff > 0 ? 'text-amber-600 font-bold' : 'text-red-600 font-bold'
+        diff === undefined || diff === 0 ? 'text-faint' : diff > 0 ? 'text-amber-600 font-bold' : 'text-red-600 font-bold'
       }`}>
         {diff !== undefined ? `¥${yen(diff)}` : ''}
       </span>
@@ -103,19 +103,19 @@ function IRow({ label, value, onChange, onBlur, diff, indent, readOnly, onClick 
 // ── レジクローズ確認ダイアログ ───────────────────────────────
 function CloseConfirmDialog({ onConfirm, onCancel }) {
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-      <div className="bg-white rounded-xl shadow-xl overflow-hidden w-80">
+    <div className="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center">
+      <div className="bg-surface rounded-xl shadow-xl overflow-hidden w-80">
         <div className="bg-primary-500 text-white px-4 py-3">
           <h3 className="text-[16px] font-bold">レジクローズ確認</h3>
         </div>
         <div className="px-5 py-5">
-          <p className="text-[15px] text-slate-700 text-center mb-6">
+          <p className="text-[15px] text-body text-center mb-6">
             レジクローズしますか？
           </p>
           <div className="flex gap-3">
             <button
               onClick={onCancel}
-              className="flex-1 py-4 text-[15px] font-bold border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+              className="flex-1 py-4 text-[15px] font-bold border border-line-strong rounded-lg text-body hover:bg-surface-sunken transition-colors"
             >
               いいえ
             </button>
@@ -336,23 +336,23 @@ export default function RegisterClosePage() {
 
 
   return (
-    <div className="flex flex-col h-full bg-slate-100">
+    <div className="flex flex-col h-full bg-surface-sunken">
       {/* ── 2列コンテンツ ── */}
       <div className="flex-1 flex gap-0 overflow-hidden min-h-0 p-1.5 gap-1.5">
 
         {/* ══ 左列: 精算レポート ══ */}
-        <div className="flex flex-col rounded-lg overflow-hidden shadow-sm bg-white" style={{ width: '72%' }}>
+        <div className="flex flex-col rounded-lg overflow-hidden shadow-sm bg-surface" style={{ width: '72%' }}>
           <div className={`flex items-center justify-between px-3 py-2 flex-shrink-0 ${BLUE_HEADER}`}>
             <h2 className="text-[15px] font-bold">精算レポート</h2>
           </div>
 
           {isLoading ? (
-            <div className="flex-1 flex items-center justify-center text-[14px] text-slate-400">
+            <div className="flex-1 flex items-center justify-center text-[14px] text-faint">
               読み込み中...
             </div>
           ) : (
             <div className="flex-1 flex overflow-hidden mx-2">
-              <div className="flex-1 overflow-y-auto border-r border-slate-100 pr-2">
+              <div className="flex-1 overflow-y-auto border-r border-line pr-2">
                 <LRow label="件数"             value={`${kenCount}件`} />
                 <LRow label="客数"             value={`${guestCount}名様`} />
                 <LRow label="客単価"           value={`¥${yen(avgPerGuest)}`} />
@@ -360,11 +360,11 @@ export default function RegisterClosePage() {
                 <LRow label="売上"             value={`¥${yen(Math.floor(sales))}`} />
                 <LRow label="消費税"           value={`¥${yen(Math.floor(tax))}`} />
                 {/* 売上・消費税 内訳トグル */}
-                <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100 min-h-[32px]">
-                  <span className="text-[13px] text-slate-600">売上・消費税 内訳</span>
+                <div className="flex items-center justify-between px-2 py-1.5 border-b border-line min-h-[32px]">
+                  <span className="text-[13px] text-body">売上・消費税 内訳</span>
                   <button
                     onClick={() => setShowTaxDetail(v => !v)}
-                    className="w-5 h-5 flex items-center justify-center rounded bg-slate-100 hover:bg-slate-200 text-slate-500 text-[13px] font-bold leading-none transition-colors"
+                    className="w-5 h-5 flex items-center justify-center rounded bg-surface-sunken hover:bg-surface-hover text-muted text-[13px] font-bold leading-none transition-colors"
                   >
                     {showTaxDetail ? '−' : '+'}
                   </button>
@@ -408,16 +408,16 @@ export default function RegisterClosePage() {
         </div>
 
         {/* ══ 右列: レジクローズ時レジ実績入力 ══ */}
-        <div className="flex flex-col rounded-lg overflow-hidden shadow-sm bg-white ml-1" style={{ width: '28%' }}>
+        <div className="flex flex-col rounded-lg overflow-hidden shadow-sm bg-surface ml-1" style={{ width: '28%' }}>
           <div className={`flex items-center px-3 py-2 flex-shrink-0 ${BLUE_HEADER}`}>
             <span className="text-[14px] font-bold">レジクローズ時レジ実績入力</span>
           </div>
 
-          <div className="flex items-center px-3 py-0.5 bg-slate-50 border-b border-slate-200 flex-shrink-0">
+          <div className="flex items-center px-3 py-0.5 bg-surface-sunken border-b border-line flex-shrink-0">
             <span className="flex-shrink-0 w-24" />
             <div className="flex-1" />
             <span className="flex-shrink-0 w-14" />
-            <span className="flex-shrink-0 w-14 text-right text-[12px] font-bold text-slate-400 uppercase tracking-wider">差異</span>
+            <span className="flex-shrink-0 w-14 text-right text-[12px] font-bold text-faint uppercase tracking-wider">差異</span>
           </div>
 
           <div className="flex-1 overflow-y-auto mx-2">
@@ -455,7 +455,7 @@ export default function RegisterClosePage() {
       </div>
 
       {/* ── 下部アクションバー ── */}
-      <div className="flex-shrink-0 bg-white border-t border-slate-200 px-3 py-2 flex items-center gap-2">
+      <div className="flex-shrink-0 bg-surface border-t border-line px-3 py-2 flex items-center gap-2">
         <button
           onClick={() => setShowPdfConfirm(true)}
           disabled={pdfGenerating}
@@ -562,19 +562,19 @@ export default function RegisterClosePage() {
 
       {/* ── PDF出力確認ダイアログ ── */}
       {showPdfConfirm && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl shadow-xl overflow-hidden w-80">
+        <div className="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center">
+          <div className="bg-surface rounded-xl shadow-xl overflow-hidden w-80">
             <div className="bg-primary-500 text-white px-4 py-3">
               <h3 className="text-[16px] font-bold">日計レポート出力</h3>
             </div>
             <div className="px-5 py-5">
-              <p className="text-[15px] text-slate-700 text-center mb-6">
+              <p className="text-[15px] text-body text-center mb-6">
                 日計レポートを出力しますか？
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowPdfConfirm(false)}
-                  className="flex-1 py-4 text-[15px] font-bold border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="flex-1 py-4 text-[15px] font-bold border border-line-strong rounded-lg text-body hover:bg-surface-sunken transition-colors"
                 >
                   いいえ
                 </button>

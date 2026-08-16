@@ -21,14 +21,14 @@ export default function GuestCountPicker({ currentCount, onSelect, disabled }) {
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') submitManual(); }}
             placeholder="人数を入力"
-            className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-base focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500"
+            className="w-full bg-surface border border-line-strong rounded-lg px-3 py-2 text-heading text-base focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500"
           />
-          <span className="text-sm text-slate-500 flex-shrink-0">名</span>
+          <span className="text-sm text-muted flex-shrink-0">名</span>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => { setManual(false); setValue(''); }}
-            className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium rounded-lg transition-colors"
+            className="flex-1 py-2.5 bg-surface-sunken hover:bg-surface-hover text-body text-sm font-medium rounded-lg transition-colors"
           >
             戻る
           </button>
@@ -54,20 +54,20 @@ export default function GuestCountPicker({ currentCount, onSelect, disabled }) {
           className={`aspect-square flex flex-col items-center justify-center rounded-xl border transition-all active:scale-95 disabled:opacity-50 ${
             n === currentCount
               ? 'bg-primary-50 border-primary-300 text-primary-700'
-              : 'bg-slate-50 border-slate-200 hover:bg-primary-50 hover:border-primary-300'
+              : 'bg-surface-sunken border-line hover:bg-primary-50 hover:border-primary-300'
           }`}
         >
-          <span className="text-lg font-black text-slate-900">{n}</span>
-          <span className="text-[10px] text-slate-400">名</span>
+          <span className="text-lg font-black text-heading">{n}</span>
+          <span className="text-[10px] text-faint">名</span>
         </button>
       ))}
       <button
         onClick={() => setManual(true)}
         disabled={disabled}
-        className="aspect-square flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white hover:bg-primary-50 hover:border-primary-300 transition-all active:scale-95 disabled:opacity-50"
+        className="aspect-square flex flex-col items-center justify-center rounded-xl border border-dashed border-line-strong bg-surface hover:bg-primary-50 hover:border-primary-300 transition-all active:scale-95 disabled:opacity-50"
       >
-        <span className="text-sm font-bold text-slate-600">その他</span>
-        <span className="text-[10px] text-slate-400">手入力</span>
+        <span className="text-sm font-bold text-body">その他</span>
+        <span className="text-[10px] text-faint">手入力</span>
       </button>
     </div>
   );

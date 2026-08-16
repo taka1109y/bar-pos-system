@@ -177,18 +177,18 @@ function StaffMenuItem({ item, onAdd }) {
   return (
     <button
       onClick={() => onAdd(item)}
-      className={`flex flex-col justify-between bg-white hover:bg-primary-50 active:scale-95 rounded-xl border border-slate-200 hover:border-primary-300 hover:shadow-sm transition-all text-left w-full overflow-hidden p-3.5 ${
+      className={`flex flex-col justify-between bg-surface hover:bg-primary-50 active:scale-95 rounded-xl border border-line hover:border-primary-300 hover:shadow-sm transition-all text-left w-full overflow-hidden p-3.5 ${
         flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : ''
       }`}
     >
       {item.price_editable && (
         <span className="inline-flex self-start items-center px-1.5 py-0.5 mb-1.5 rounded bg-amber-50 text-amber-700 text-[10px] font-bold">時価</span>
       )}
-      <span className="text-sm font-semibold text-slate-700 leading-snug mb-3 line-clamp-2">{item.name}</span>
+      <span className="text-sm font-semibold text-body leading-snug mb-3 line-clamp-2">{item.name}</span>
       <div className="flex items-baseline gap-1.5">
         <span className="text-base font-black text-primary-600">¥{yen(price)}</span>
         {item.is_drink && (
-          <span className={`text-xs font-bold ${isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
+          <span className={`text-xs font-bold ${isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-faint'}`}>
             {isUp ? '▲' : isDown ? '▼' : '—'}{pctChange !== 0 ? `${Math.abs(pctChange).toFixed(1)}%` : ''}
           </span>
         )}
@@ -231,7 +231,7 @@ export default function MenuGrid({
                 key={cat.id}
                 onClick={() => { setInternalActiveCategory(cat.id); setInternalActiveSubcategory(null); }}
                 className={`px-5 py-3 rounded-full text-sm font-bold whitespace-nowrap transition-all flex-shrink-0 ${
-                  activeCat === cat.id ? 'bg-primary-500 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-slate-200'
+                  activeCat === cat.id ? 'bg-primary-500 text-white' : 'text-muted hover:bg-surface-sunken hover:text-body border border-line'
                 }`}
               >
                 {cat.name}
@@ -243,7 +243,7 @@ export default function MenuGrid({
               <button
                 onClick={() => setInternalActiveSubcategory(null)}
                 className={`px-4 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
-                  activeSub === null ? 'bg-primary-100 text-primary-700' : 'text-slate-400 hover:bg-slate-100'
+                  activeSub === null ? 'bg-primary-100 text-primary-700' : 'text-faint hover:bg-surface-sunken'
                 }`}
               >
                 すべて
@@ -253,7 +253,7 @@ export default function MenuGrid({
                   key={sub.id}
                   onClick={() => setInternalActiveSubcategory(sub.id)}
                   className={`px-4 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
-                    activeSub === sub.id ? 'bg-primary-100 text-primary-700' : 'text-slate-400 hover:bg-slate-100'
+                    activeSub === sub.id ? 'bg-primary-100 text-primary-700' : 'text-faint hover:bg-surface-sunken'
                   }`}
                 >
                   {sub.name}

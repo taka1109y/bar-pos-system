@@ -33,7 +33,7 @@ export default function TableGrid({ tables, openOrders = [], selectedTableId, on
 
   if (tables.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-slate-400 text-sm">
+      <div className="flex items-center justify-center h-64 text-faint text-sm">
         テーブルがありません
       </div>
     );
@@ -57,8 +57,8 @@ export default function TableGrid({ tables, openOrders = [], selectedTableId, on
             className={`
               relative rounded-xl text-left transition-all duration-150 overflow-hidden
               ${isOccupied
-                ? 'bg-white border-[1.5px] border-primary-200 shadow-sm'
-                : 'bg-white border border-slate-200 shadow-sm'
+                ? 'bg-surface border-[1.5px] border-primary-200 shadow-sm'
+                : 'bg-surface border border-line shadow-sm'
               }
               ${isSelected
                 ? 'ring-2 ring-offset-2 ring-primary-400'
@@ -70,14 +70,14 @@ export default function TableGrid({ tables, openOrders = [], selectedTableId, on
             <div className={`px-3 py-1.5 border-b text-[10px] font-bold tracking-wider uppercase ${
               isOccupied
                 ? 'bg-primary-50 border-primary-100 text-primary-600'
-                : 'bg-slate-50 border-slate-100 text-slate-400'
+                : 'bg-surface-sunken border-line text-faint'
             }`}>
               {isCounter ? 'カウンター' : 'テーブル'}
             </div>
 
             {/* コンテンツ */}
             <div className="px-4 py-3">
-              <p className={`font-bold text-sm ${isOccupied ? 'text-slate-900' : 'text-slate-500'}`}>
+              <p className={`font-bold text-sm ${isOccupied ? 'text-heading' : 'text-muted'}`}>
                 {table.name}
               </p>
 
@@ -86,12 +86,12 @@ export default function TableGrid({ tables, openOrders = [], selectedTableId, on
                   {order ? `¥${yen(Math.floor(order.total_amount + (order.charge_amount ?? 0) + lateNightAmt))}` : '¥0'}
                 </p>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <p className="text-xs text-slate-400 flex items-center gap-1">
+                  <p className="text-xs text-faint flex items-center gap-1">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                     {order ? elapsed(order.opened_at, now) : '00:00'}
                   </p>
                   {order?.guest_count > 0 && (
-                    <p className="text-xs text-slate-400 flex items-center gap-0.5">
+                    <p className="text-xs text-faint flex items-center gap-0.5">
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                       {order.guest_count}名
                     </p>
