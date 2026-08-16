@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { yen, num } from '../../utils/format';
 
 export default function PriceRow({ item }) {
@@ -8,31 +9,47 @@ export default function PriceRow({ item }) {
   const rowBg       = isUp ? 'bg-green-950/70' : isDown ? 'bg-red-950/70' : 'bg-slate-800/60';
   const changeColor = isUp ? 'text-green-400' : isDown ? 'text-red-400' : 'text-slate-500';
 
-  const amtChange  = (Number(item.current_price) || 0) - (Number(item.base_price) || 0);
-  // 上昇時は符号なし、下降時のみ「-」を付ける
+  // 時価(price_editable / base_price 0・null)は金額を出さず「時価」表示(¥0で無料に見えないように)
+  const isJika = !item.base_price;
+  const curPrice = Math.max(0, Number(item.current_price) || 0); // 負値ガード
+
+  const amtChange  = curPrice - (Number(item.base_price) || 0);
   const amtDisplay = amtChange < 0 ? `-${yen(Math.abs(amtChange))}` : `${yen(amtChange)}`;
   const pctDisplay = pct < 0 ? `-${num(Math.abs(pct), 1)}%` : `${num(Math.abs(pct), 1)}%`;
 
+  // 価格変化時に現在値セルをフラッシュ(値更新が「生きている」ように見せる。同方向連続でも再発火)
+  const prevPrice = useRef(curPrice);
+  const [flashDir, setFlashDir] = useState('');
+  const [flashKey, setFlashKey] = useState(0);
+  useEffect(() => {
+    const prev = Number(prevPrice.current) || 0;
+    if (curPrice !== prev) {
+      setFlashDir(curPrice > prev ? 'flash-up' : 'flash-down');
+      setFlashKey((k) => k + 1); // key を変えてアニメーションを毎回リスタート
+      prevPrice.current = curPrice;
+    }
+  }, [curPrice]);
+
   return (
     <tr className={`${rowBg} border-b border-slate-700/50 transition-colors duration-700`}>
-      <td className="px-4 py-3 text-slate-400 font-semibold">{item.name}</td>
+      <td className="px-4 py-3 text-slate-400 font-semibold whitespace-nowrap overflow-hidden text-ellipsis max-w-[22vw]">{item.name}</td>
       <td className="px-4 py-3 text-slate-400 text-right tabular-nums">
-        ¥{yen(item.base_price)}
+        {isJika ? '時価' : `¥${yen(item.base_price)}`}
       </td>
-      <td className="px-4 py-3 text-amber-300 font-bold text-right tabular-nums">
-        ¥{yen(item.current_price)}
+      <td key={flashKey} className={`px-4 py-3 text-amber-300 font-bold text-right tabular-nums ${flashDir}`}>
+        {isJika ? '時価' : `¥${yen(curPrice)}`}
       </td>
       <td className={`px-4 py-3 font-bold text-right tabular-nums ${changeColor}`}>
-        {amtDisplay}
+        {isJika ? '—' : amtDisplay}
       </td>
       <td className={`px-4 py-3 font-bold text-right tabular-nums ${changeColor}`}>
-        {pctDisplay}
+        {isJika ? '—' : pctDisplay}
       </td>
       <td className="px-4 py-3 text-slate-400 text-right tabular-nums">
-        ¥{yen(item.day_high ?? item.current_price)}
+        {isJika ? '—' : `¥${yen(item.day_high ?? curPrice)}`}
       </td>
       <td className="px-4 py-3 text-slate-400 text-right tabular-nums">
-        ¥{yen(item.day_low ?? item.current_price)}
+        {isJika ? '—' : `¥${yen(item.day_low ?? curPrice)}`}
       </td>
     </tr>
   );

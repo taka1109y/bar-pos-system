@@ -16,7 +16,10 @@ export default function Sparkline({ itemId, basePrice, isUp, isDown, darkBg = fa
     refetchInterval: 35_000,
   });
 
-  const prices = [...history.map((h) => h.price), livePrice];
+  // 非有限値(null/NaN)を除外(チャートの潰れ・歪みを防ぐ)
+  const prices = [...history.map((h) => h.price), livePrice]
+    .map(Number)
+    .filter((p) => Number.isFinite(p) && p >= 0);
   if (prices.length < 2) return null;
 
   const color  = isUp ? '#00e5a0' : isDown ? '#ff4466' : '#3a3a50';

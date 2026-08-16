@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import socket from '../socket';
 import usePriceStore from '../store/usePriceStore';
+import { useConnStore } from '../store/useConnStore';
 import PriceRow from '../components/board/PriceRow';
 import CategoryHeaderRow from '../components/board/CategoryHeaderRow';
 import { yen, num } from '../utils/format';
@@ -106,20 +107,31 @@ export default function BoardPage() {
   const [maxRows, setMaxRows] = useState(8);
   const [pageIndex, setPageIndex] = useState(0);
 
+  // 切断/スタール検知(お客様が古い価格を「ライブ」と誤認しないための表示)
+  const connected = useConnStore((s) => s.connected);
+  const [stale, setStale] = useState(false);
+  const lastUpdateRef = useRef(Date.now());
+
+  // 初回取得 + 20秒ポーリング保険(broadcast取りこぼし・emit失敗でも価格を最新化)
   useEffect(() => {
-    api.getPrices().then(initPrices).catch(console.error);
+    const fetchPrices = () => api.getPrices()
+      .then((p) => { initPrices(p); lastUpdateRef.current = Date.now(); })
+      .catch(console.error);
+    fetchPrices();
+    const id = setInterval(fetchPrices, 20_000);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
-    const handle = ({ items }) => updatePrices(items);
+    const handle = ({ items }) => { updatePrices(items); lastUpdateRef.current = Date.now(); };
     socket.on('prices:updated', handle);
     return () => socket.off('prices:updated', handle);
   }, []);
 
   // 初回取得の失敗やソケット切断に対する自己修復(TablePage.jsxと同じパターン)
   useEffect(() => {
-    const handlePricesSync = ({ items }) => initPrices(items);
-    const handleReconnect  = () => { api.getPrices().then(initPrices).catch(console.error); };
+    const handlePricesSync = ({ items }) => { initPrices(items); lastUpdateRef.current = Date.now(); };
+    const handleReconnect  = () => { api.getPrices().then((p) => { initPrices(p); lastUpdateRef.current = Date.now(); }).catch(console.error); };
     socket.on('prices:sync', handlePricesSync);
     socket.on('connect',     handleReconnect);
     return () => {
@@ -127,6 +139,13 @@ export default function BoardPage() {
       socket.off('connect',     handleReconnect);
     };
   }, []);
+
+  // 45秒以上更新が無ければスタール(サーバ応答なし)とみなす
+  useEffect(() => {
+    const id = setInterval(() => setStale(Date.now() - lastUpdateRef.current > 45_000), 5_000);
+    return () => clearInterval(id);
+  }, []);
+  const priceOffline = !connected || stale;
 
   // 暴落演出(フェーズ3): crash:started/ended と 初期状態(crash_ends_at)から暴落中フラグ・終了時刻を管理
   const [crashEndsAt, setCrashEndsAt] = useState(null); // ISO文字列 or null
@@ -252,7 +271,7 @@ export default function BoardPage() {
         </>
       )}
       {/* 開場演出オーバーレイ（Phase6-3）: 寄り付き */}
-      {marketOpenShow && (
+      {marketOpenShow && !crashActive && (
         <>
           <div className="pointer-events-none fixed inset-0 z-40 border-[10px] border-emerald-500 animate-pulse" style={{ boxShadow: 'inset 0 0 120px rgba(16,185,129,0.5)' }} />
           <div className="fixed top-0 left-1/2 -translate-x-1/2 z-50 mt-3 px-8 py-2 rounded-full bg-emerald-500 text-white font-black text-2xl shadow-lg flex items-center gap-3">
@@ -276,7 +295,9 @@ export default function BoardPage() {
         </div>
         <div className="text-right">
           <Clock />
-          {periodEndsAt ? (
+          {priceOffline ? (
+            <p className="text-red-400 text-sm mt-1 tracking-wider font-bold">⚠ 接続が切れています・価格更新停止中</p>
+          ) : periodEndsAt ? (
             <p className="text-amber-400 text-sm mt-1 tracking-wider font-bold tabular-nums">次の変動まで {periodMMSS}</p>
           ) : (
             <p className="text-slate-600 text-xs mt-1 tracking-wider">価格変動中</p>

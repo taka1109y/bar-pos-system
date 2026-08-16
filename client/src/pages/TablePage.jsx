@@ -174,7 +174,19 @@ function CrashBanner({ crashState, categories, subcategories, onSelectCategory, 
               {cat.name} ▶
             </button>
           ))}
-          {crashedCats.length > 0 && (
+          {/* カテゴリチップが無い(サブカテゴリ限定暴落)ときはサブカテゴリのチップを出す(行き止まり防止) */}
+          {crashedCats.length === 0 && crashedSubs.map((sub) => (
+            <button
+              key={`sub-${sub.id}`}
+              onClick={() => onSelectSubcategory(sub)}
+              style={chipStyle}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.3)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.18)'; }}
+            >
+              {sub.name} ▶
+            </button>
+          ))}
+          {(crashedCats.length > 0 || crashedSubs.length > 0) && (
             <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', fontFamily: "'Noto Sans JP', sans-serif" }}>
               タップして移動
             </span>
@@ -443,7 +455,7 @@ function OrderToast({ toast }) {
 // ───────────────────────────────────────────
 // トップバー
 // ───────────────────────────────────────────
-function TopBar({ tableName, tableId, guestCount, timeStr }) {
+function TopBar({ tableId, guestCount, timeStr }) {
   return (
     <div
       className="flex items-center justify-between flex-shrink-0 px-5"
@@ -570,6 +582,7 @@ export default function TablePage() {
   const [activeCategory,    setActiveCategory]    = useState(null);
   const [activeSubcategory, setActiveSubcategory] = useState(null);
   const [crashState,        setCrashState]        = useState(null);
+  const [crashEndsAt,       setCrashEndsAt]       = useState(null); // 暴落終了時刻(安全自動解除用)
   const [bannerDismissed,   setBannerDismissed]   = useState(false);
   const toastTimerRef = useRef(null);
   const connected = useConnStore((s) => s.connected);
@@ -594,16 +607,34 @@ export default function TablePage() {
 
   useEffect(() => { api.getPrices().then(initPrices).catch(console.error); }, []);
 
-  // menuItems取得後に暴落中アイテムを検出して初期バナー表示
+  // menuItems取得後に暴落中アイテムを検出して初期バナー表示。
+  // ただし crash_ends_at が未来のときのみ(is_crashed の stale で終了済み暴落のバナーを出さない)。
   useEffect(() => {
     if (menuItems.length === 0) return;
+    const endsAt = sysSettings?.crash_ends_at;
+    const active = endsAt && new Date(endsAt).getTime() > Date.now();
     const crashed = menuItems.filter((i) => i.is_crashed);
-    if (crashed.length > 0) {
+    if (active && crashed.length > 0) {
       const catIds = [...new Set(crashed.map((i) => i.category_id).filter(Boolean))];
       const subIds = [...new Set(crashed.map((i) => i.subcategory_id).filter(Boolean))];
       setCrashState({ category_ids: catIds, subcategory_ids: subIds });
+      setCrashEndsAt(endsAt);
+    } else if (!active) {
+      setCrashState(null);
+      setCrashEndsAt(null);
     }
-  }, [menuItems]);
+  }, [menuItems, sysSettings?.crash_ends_at]);
+
+  // 安全自動解除: crash_ends_at を過ぎたらバナーを消す(crash:ended を取りこぼしても固まらない)
+  useEffect(() => {
+    if (!crashEndsAt) return;
+    const check = () => {
+      if (new Date(crashEndsAt).getTime() <= Date.now()) { setCrashState(null); setCrashEndsAt(null); }
+    };
+    check();
+    const id = setInterval(check, 1000);
+    return () => clearInterval(id);
+  }, [crashEndsAt]);
 
   useEffect(() => {
     socket.emit('client:subscribe_table', { tableId: tableIdNum });
@@ -613,6 +644,9 @@ export default function TablePage() {
       api.getPrices().then(initPrices).catch(console.error);
       socket.emit('client:subscribe_table', { tableId: tableIdNum });
       queryClient.invalidateQueries({ queryKey: orderKey });
+      // 再接続時に暴落/システム状態も再取得(crash:ended 取りこぼしからの復帰)
+      queryClient.invalidateQueries({ queryKey: ['system-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['menu'] });
     };
     const handleOrderUpdated  = (data) => {
       if (data.tableId === tableIdNum) {
@@ -632,11 +666,12 @@ export default function TablePage() {
         navigate('/table');
       }
     };
-    const handleCrashStarted = ({ category_ids, subcategory_ids }) => {
+    const handleCrashStarted = ({ category_ids, subcategory_ids, endsAt }) => {
       setCrashState({ category_ids, subcategory_ids });
+      setCrashEndsAt(endsAt ?? null);
       setBannerDismissed(false);
     };
-    const handleCrashEnded = () => setCrashState(null);
+    const handleCrashEnded = () => { setCrashState(null); setCrashEndsAt(null); };
     socket.on('prices:updated',       handlePricesUpdated);
     socket.on('prices:sync',          handlePricesSync);
     socket.on('connect',              handleReconnect);
@@ -737,7 +772,10 @@ export default function TablePage() {
       } catch {
         await queryClient.invalidateQueries({ queryKey: orderKey });
         currentOrder = queryClient.getQueryData(orderKey);
-        if (!currentOrder) return;
+        if (!currentOrder) {
+          showErrorToast('注文を開始できませんでした。もう一度お試しください');
+          return;
+        }
       }
     }
     addItemMutation.mutate({ orderId: currentOrder.id, menu_item_id: item.id, quantity: qty, price, name: item.name, selected_option: item.selected_option ?? null, selected_options: item.selected_options, selected_option_counts: item.selected_option_counts });
