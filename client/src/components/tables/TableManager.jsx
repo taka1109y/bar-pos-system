@@ -1,30 +1,15 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
+import { Button, Modal, Field, Input, Segmented, Alert, Badge, DataTable, Toolbar } from '../ui';
 
-const inp = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 caret-primary-500 transition-colors';
-const lbl = 'block text-xs font-semibold text-slate-500 mb-1.5';
-
-function ModalShell({ title, onClose, children }) {
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 border border-slate-200 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
-          <h2 className="text-base font-bold text-slate-900">{title}</h2>
-          <button
-            onClick={onClose}
-            className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-        <div className="px-5 py-5 overflow-y-auto">{children}</div>
-      </div>
-    </div>
-  );
-}
+// アイコン(小)
+const IconEdit = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+);
+const IconTrash = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>
+);
 
 function TableForm({ table, onSave, onCancel, isLoading }) {
   const [form, setForm] = useState({
@@ -35,44 +20,71 @@ function TableForm({ table, onSave, onCancel, isLoading }) {
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSave({ name: form.name.trim(), table_type: form.table_type }); }} className="space-y-4">
-      <div>
-        <label className={lbl}>テーブル名</label>
-        <input
-          className={inp}
+      <Field label="テーブル名" required htmlFor="tbl-name">
+        <Input
+          id="tbl-name"
           value={form.name}
           onChange={(e) => set('name', e.target.value)}
           placeholder="例: テーブル1、カウンターA"
           required
         />
-      </div>
-      <div>
-        <label className={lbl}>種別</label>
-        <div className="flex gap-3">
-          {[{ value: 'table', label: 'テーブル' }, { value: 'counter', label: 'カウンター' }].map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => set('table_type', value)}
-              className={`flex-1 py-4 rounded-lg border-2 text-sm font-medium transition-colors ${
-                form.table_type === value
-                  ? 'border-primary-500 bg-primary-50 text-primary-700'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="flex gap-3 pt-1">
-        <button type="button" onClick={onCancel} className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors">
-          キャンセル
-        </button>
-        <button type="submit" disabled={isLoading} className="flex-1 py-4 bg-primary-500 hover:bg-primary-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50">
-          保存
-        </button>
+      </Field>
+      <Field label="種別">
+        <Segmented
+          className="w-full [&>button]:flex-1"
+          value={form.table_type}
+          onChange={(v) => set('table_type', v)}
+          options={[{ value: 'table', label: 'テーブル' }, { value: 'counter', label: 'カウンター' }]}
+        />
+      </Field>
+      <div className="flex gap-2 justify-end pt-1">
+        <Button type="button" variant="secondary" onClick={onCancel}>キャンセル</Button>
+        <Button type="submit" loading={isLoading}>保存</Button>
       </div>
     </form>
+  );
+}
+
+// テーブル状態 → バッジ表現
+const STATUS = {
+  available: { tone: 'success', label: '空席' },
+  occupied:  { tone: 'warning', label: '使用中' },
+  closing:   { tone: 'danger',  label: '会計中' },
+};
+
+// テーブル/カウンター一覧(モジュールレベル: render 内でコンポーネントを再生成しない)
+function TableSection({ title, rows, typeLabel, typeTone, onEdit, onDelete }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <h3 className="text-sm font-bold text-heading tracking-wide">{title}</h3>
+        <span className="text-xs text-muted">({rows.length}件)</span>
+      </div>
+      <DataTable
+        rowKey={(t) => t.id}
+        empty={<div className="py-6 text-center text-sm text-muted">登録なし</div>}
+        columns={[
+          { key: 'name', header: '名前', render: (t) => <span className="font-semibold text-heading">{t.name}</span> },
+          { key: 'type', header: '種別', width: 120, render: () => <Badge tone={typeTone}>{typeLabel}</Badge> },
+          { key: 'status', header: '状態', width: 110, render: (t) => {
+            const s = STATUS[t.status] || STATUS.available;
+            return <Badge tone={s.tone} dot>{s.label}</Badge>;
+          } },
+          { key: 'actions', header: '操作', align: 'right', width: 110, render: (t) => (
+            <div className="flex items-center gap-1.5 justify-end">
+              <Button variant="secondary" size="sm" iconOnly aria-label={`${t.name} を編集`} title="編集" onClick={() => onEdit(t)}>
+                <IconEdit />
+              </Button>
+              <Button variant="secondary" size="sm" iconOnly aria-label={`${t.name} を削除`} title="削除"
+                className="text-danger border-red-200 hover:bg-red-50" onClick={() => onDelete(t)}>
+                <IconTrash />
+              </Button>
+            </div>
+          ) },
+        ]}
+        rows={rows}
+      />
+    </div>
   );
 }
 
@@ -128,151 +140,74 @@ export default function TableManager() {
   const tableRows   = activeTables.filter((t) => t.table_type === 'table');
   const counterRows = activeTables.filter((t) => t.table_type === 'counter');
 
-  const statusLabel = (s) => s === 'occupied' ? '使用中' : s === 'closing' ? '会計中' : '空席';
-  const statusCls   = (s) => s === 'occupied' ? 'bg-amber-100 text-amber-700' : s === 'closing' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700';
+  const handleDelete = (table) => {
+    if (table.status !== 'available') {
+      setError(`「${table.name}」は使用中のため削除できません`);
+      return;
+    }
+    if (confirm(`「${table.name}」を削除しますか？`)) {
+      deleteMutation.mutate(table.id);
+    }
+  };
 
-  const TableSection = ({ title, rows, typeLabel, typeCls }) => (
-    <div>
-      <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-200">
-        <h3 className="text-sm font-bold text-slate-700 tracking-wide">{title}</h3>
-        <span className="text-xs text-slate-400">({rows.length}件)</span>
-      </div>
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        {rows.length === 0 ? (
-          <p className="px-6 py-5 text-sm text-slate-400">登録なし</p>
-        ) : (
-          rows.map((table, idx) => (
-            <div key={table.id} className={`flex items-center gap-4 px-6 py-5 border-b border-slate-50 hover:bg-slate-50 transition-colors ${idx === rows.length - 1 ? 'border-b-0' : ''}`}>
-              <div className="flex-1 min-w-0">
-                <span className="text-sm font-semibold text-slate-900">{table.name}</span>
-              </div>
-              <span className={`${typeCls} text-xs font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0`}>
-                {typeLabel}
-              </span>
-              <span className={`text-xs px-3 py-1.5 rounded-full font-medium flex-shrink-0 ${statusCls(table.status)}`}>
-                {statusLabel(table.status)}
-              </span>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <button
-                  onClick={() => { setEditTable(table); setError(''); }}
-                  className="w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg bg-white text-slate-500 hover:bg-slate-50 cursor-pointer"
-                  title="編集"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                  </svg>
-                </button>
-                <button
-                  onClick={() => {
-                    if (table.status !== 'available') {
-                      setError(`「${table.name}」は使用中のため削除できません`);
-                      return;
-                    }
-                    if (confirm(`「${table.name}」を削除しますか？`)) {
-                      deleteMutation.mutate(table.id);
-                    }
-                  }}
-                  className="w-9 h-9 flex items-center justify-center border border-red-200 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer"
-                  title="削除"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                    <path d="M10 11v6"/><path d="M14 11v6"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
+  const onEdit = (t) => { setEditTable(t); setError(''); };
 
   return (
-    <div className="px-8 py-12 max-w-7xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">テーブル管理</h1>
-        <p className="text-base text-body leading-relaxed mt-2">テーブル・カウンターの追加・編集・削除</p>
-      </div>
-      <div className="flex items-center justify-end mb-6">
-        <button
-          onClick={() => { setAddOpen(true); setError(''); }}
-          className="inline-flex items-center gap-2 h-11 px-4 text-sm font-semibold bg-primary-500 text-white rounded-lg hover:bg-primary-700 cursor-pointer"
-        >
-          + テーブル / カウンターを追加
-        </button>
-      </div>
+    <div className="p-4 md:p-6 space-y-4">
+      <Toolbar title="テーブル管理" subtitle="テーブル・カウンターの追加・編集・削除">
+        <Button onClick={() => { setAddOpen(true); setError(''); }}>
+          ＋ テーブル / カウンターを追加
+        </Button>
+      </Toolbar>
 
-      {error && (
-        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-          {error}
-        </div>
-      )}
+      {error && <Alert tone="danger">{error}</Alert>}
       {notice && (
-        <div className="mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-800 flex items-start justify-between gap-3">
-          <span>{notice}</span>
-          <button onClick={() => setNotice('')} aria-label="閉じる" className="text-emerald-600 hover:text-emerald-800 flex-shrink-0">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
+        <Alert tone="success">
+          <div className="flex items-start justify-between gap-3">
+            <span>{notice}</span>
+            <button onClick={() => setNotice('')} aria-label="閉じる" className="text-emerald-600 hover:text-emerald-800 flex-shrink-0 cursor-pointer">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+          </div>
+        </Alert>
       )}
 
-      <div className="space-y-7">
-        <TableSection
-          title="テーブル"
-          rows={tableRows}
-          typeLabel="テーブル"
-          typeCls="bg-primary-50 text-primary-600"
-        />
-        <TableSection
-          title="カウンター"
-          rows={counterRows}
-          typeLabel="カウンター"
-          typeCls="bg-emerald-50 text-emerald-700"
-        />
+      <div className="space-y-5">
+        <TableSection title="テーブル" rows={tableRows} typeLabel="テーブル" typeTone="info" onEdit={onEdit} onDelete={handleDelete} />
+        <TableSection title="カウンター" rows={counterRows} typeLabel="カウンター" typeTone="success" onEdit={onEdit} onDelete={handleDelete} />
 
         {/* アーカイブ済み（非表示）テーブル。売上履歴があり物理削除できなかったものが入る */}
         {archivedTables.length > 0 && (
-          <div>
+          <div className="space-y-2">
             <button
               onClick={() => setArchivedOpen((v) => !v)}
-              className="w-full flex items-center justify-between py-2 mb-2 text-left cursor-pointer"
+              className="w-full flex items-center justify-between py-1 text-left cursor-pointer"
+              aria-expanded={archivedOpen}
             >
               <span className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-500 tracking-wide">アーカイブ済み（非表示）</h3>
-                <span className="text-xs text-slate-400">({archivedTables.length}件)</span>
+                <h3 className="text-sm font-bold text-muted tracking-wide">アーカイブ済み（非表示）</h3>
+                <span className="text-xs text-faint">({archivedTables.length}件)</span>
               </span>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                   className={`text-slate-400 transition-transform ${archivedOpen ? 'rotate-180' : ''}`}>
-                <polyline points="6 9 12 15 18 9"/>
+                   className={`text-faint transition-transform ${archivedOpen ? 'rotate-180' : ''}`}>
+                <polyline points="6 9 12 15 18 9" />
               </svg>
             </button>
             {archivedOpen && (
-              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                {archivedTables.map((table, idx) => (
-                  <div key={table.id} className={`flex items-center gap-4 px-6 py-5 border-b border-slate-50 ${idx === archivedTables.length - 1 ? 'border-b-0' : ''}`}>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-semibold text-slate-500">{table.name}</span>
-                    </div>
-                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0 bg-slate-100 text-slate-500">
-                      {table.table_type === 'counter' ? 'カウンター' : 'テーブル'}
-                    </span>
-                    <button
-                      onClick={() => restoreMutation.mutate(table.id)}
-                      disabled={restoreMutation.isPending}
-                      className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-medium bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-gray-50 cursor-pointer disabled:opacity-50 flex-shrink-0"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-                      </svg>
+              <DataTable
+                rowKey={(t) => t.id}
+                columns={[
+                  { key: 'name', header: '名前', render: (t) => <span className="font-semibold text-muted">{t.name}</span> },
+                  { key: 'type', header: '種別', width: 120, render: (t) => <Badge tone="neutral">{t.table_type === 'counter' ? 'カウンター' : 'テーブル'}</Badge> },
+                  { key: 'restore', header: '操作', align: 'right', width: 120, render: (t) => (
+                    <Button variant="secondary" size="sm" loading={restoreMutation.isPending} onClick={() => restoreMutation.mutate(t.id)}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>
                       復元
-                    </button>
-                  </div>
-                ))}
-              </div>
+                    </Button>
+                  ) },
+                ]}
+                rows={archivedTables}
+              />
             )}
           </div>
         )}
@@ -280,25 +215,25 @@ export default function TableManager() {
 
       {/* 追加モーダル */}
       {addOpen && (
-        <ModalShell title="テーブル / カウンターを追加" onClose={() => setAddOpen(false)}>
+        <Modal title="テーブル / カウンターを追加" onClose={() => setAddOpen(false)} size="sm">
           <TableForm
             onSave={(data) => createMutation.mutate(data)}
             onCancel={() => setAddOpen(false)}
             isLoading={createMutation.isPending}
           />
-        </ModalShell>
+        </Modal>
       )}
 
       {/* 編集モーダル */}
       {editTable && (
-        <ModalShell title={`「${editTable.name}」を編集`} onClose={() => setEditTable(null)}>
+        <Modal title={`「${editTable.name}」を編集`} onClose={() => setEditTable(null)} size="sm">
           <TableForm
             table={editTable}
             onSave={(data) => updateMutation.mutate({ id: editTable.id, data })}
             onCancel={() => setEditTable(null)}
             isLoading={updateMutation.isPending}
           />
-        </ModalShell>
+        </Modal>
       )}
     </div>
   );
