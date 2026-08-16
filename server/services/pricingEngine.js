@@ -34,13 +34,14 @@ async function broadcastPricesSync() {
 }
 
 // 価格変更を記録し、price_events / price_history に残す共通処理（整数前提）
-async function applyPriceChange(item, before, after, trigger) {
+// eventType は price_events.event_type（既定 'tick'。Phase6-3 の寄り付きは 'market_open' を渡す）
+async function applyPriceChange(item, before, after, trigger, eventType = 'tick') {
   await query('UPDATE menu_items SET current_price = $1 WHERE id = $2', [after, item.id]);
   await query('INSERT INTO price_history (menu_item_id, price) VALUES ($1, $2)', [item.id, after]);
   await query(
     `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
-     VALUES ($1, $2, $3, 'tick', $4)`,
-    [item.id, before, after, trigger]
+     VALUES ($1, $2, $3, $5, $4)`,
+    [item.id, before, after, trigger, eventType]
   );
   // price_history を商品ごと HISTORY_KEEP 件に剪定（従来踏襲）
   const { HISTORY_KEEP } = pricingSettings.getSettings();
@@ -232,7 +233,41 @@ function restartInterval() {
 // 互換: 旧 triggerTick は Phase4 では未使用(全体tickは廃止)。呼ばれても無害。
 function triggerTick() { /* deprecated in Phase4; per-item step-up is via stepUpOnOrder */ }
 
+// Phase6(6-3) 寄り付き(market open):
+// ・engine_enabled=TRUE の非crashedドリンクを anchor(base×1.1) にリセット・idle_periods=0。
+//   off品(ボトル/高額グラス/ノンアル/フード/裏/時価/薄利=定価固定)は据置。
+// ・期起点 period_started_at を寄り付き時刻に合わせる(6-2の減衰期をオープン起点で刻む)。
+// ・price_events に event_type='market_open' を記録。prices:sync と market:open を通知。
+// trigger: レジオープン='auto' / 手動リセット='manual'。
+async function doMarketOpen(trigger = 'auto') {
+  const startedAt = new Date().toISOString();
+  const { rows: items } = await query(`
+    SELECT id, name, base_price::float AS base_price, current_price::float AS cp
+    FROM menu_items
+    WHERE is_drink = TRUE AND is_active = TRUE AND engine_enabled = TRUE AND is_crashed = FALSE
+  `);
+  let changed = 0;
+  for (const it of items) {
+    const anchor = pm.anchorP6(it.base_price);
+    await query('UPDATE menu_items SET idle_periods = 0 WHERE id = $1', [it.id]);
+    if (anchor !== it.cp) {
+      await applyPriceChange(it, it.cp, anchor, trigger, 'market_open');
+      changed++;
+    }
+  }
+  const endsAt = new Date(Date.now() + pm.PERIOD_MS).toISOString();
+  await query(`INSERT INTO system_settings (key, value) VALUES ('period_started_at', $1)
+               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [startedAt]);
+  await query(`INSERT INTO system_settings (key, value) VALUES ('period_ends_at', $1)
+               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [endsAt]);
+  await broadcastPricesSync();
+  broadcast('market:open', { timestamp: Date.now(), endsAt });
+  broadcast('period:tick', { endsAt, timestamp: Date.now() });
+  logger.info({ changed, total: items.length, trigger }, 'PricingEngine market open (寄り付き)');
+  return { changed, total: items.length };
+}
+
 module.exports = {
   startPricingEngine, restartInterval, triggerTick,
-  stepUpOnOrder, runPeriodDecay, broadcastPricesSync,
+  stepUpOnOrder, runPeriodDecay, broadcastPricesSync, doMarketOpen,
 };

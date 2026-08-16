@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../db/database');
 const pm = require('../services/pricingModel');
+const { doMarketOpen } = require('../services/pricingEngine');
+const logger = require('../utils/logger');
 
 const upsertSetting = (key, value) =>
   query(
@@ -92,9 +94,17 @@ router.patch('/settings', async (req, res, next) => {
     }
 
     if (req.body.register_open !== undefined) {
-      await upsertSetting('register_open', req.body.register_open ? 'true' : 'false');
-      if (req.body.register_open) {
+      const opening = !!req.body.register_open;
+      await upsertSetting('register_open', opening ? 'true' : 'false');
+      if (opening) {
         await upsertSetting('register_opened_at', new Date().toISOString());
+        // Phase6-3: 寄り付き(全engine品をanchorへ・期起点をオープン時刻に)。
+        // 失敗してもレジオープン自体は成立させる(best-effort)。
+        try {
+          await doMarketOpen('auto');
+        } catch (e) {
+          logger.error({ err: e }, 'market open (寄り付き) on register_open failed');
+        }
       }
     }
 
@@ -106,6 +116,17 @@ router.patch('/settings', async (req, res, next) => {
 
     const { rows } = await query('SELECT key, value FROM system_settings');
     res.json(parseSettings(rows));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/system/market-open — 手動で寄り付きリセット(確認付き・例外用)。
+// engine_enabled のドリンクを anchor へ戻し、期起点を今に合わせる。
+router.post('/market-open', async (req, res, next) => {
+  try {
+    const result = await doMarketOpen('manual');
+    res.json({ ok: true, ...result });
   } catch (err) {
     next(err);
   }

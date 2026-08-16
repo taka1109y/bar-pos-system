@@ -149,6 +149,20 @@ export default function BoardPage() {
     };
   }, []);
 
+  // 開場演出(Phase6-3): 寄り付き(market:open)を数秒間オーバーレイ表示(音源はプレースホルダ)
+  const [marketOpenShow, setMarketOpenShow] = useState(false);
+  useEffect(() => {
+    let t = null;
+    const handleOpen = () => {
+      setMarketOpenShow(true);
+      try { playNotification(); } catch { /* 音源はプレースホルダ */ }
+      if (t) clearTimeout(t);
+      t = setTimeout(() => setMarketOpenShow(false), 6000);
+    };
+    socket.on('market:open', handleOpen);
+    return () => { socket.off('market:open', handleOpen); if (t) clearTimeout(t); };
+  }, []);
+
   // 残り時間カウントダウン
   useEffect(() => {
     if (!crashEndsAt) { setCrashRemaining(0); return; }
@@ -234,6 +248,16 @@ export default function BoardPage() {
           <div className="fixed top-0 left-1/2 -translate-x-1/2 z-50 mt-3 px-6 py-2 rounded-full bg-red-600 text-white font-black text-xl shadow-lg flex items-center gap-3">
             <span className="animate-pulse">🔻 暴落中</span>
             <span className="tabular-nums">残り {crashMMSS}</span>
+          </div>
+        </>
+      )}
+      {/* 開場演出オーバーレイ（Phase6-3）: 寄り付き */}
+      {marketOpenShow && (
+        <>
+          <div className="pointer-events-none fixed inset-0 z-40 border-[10px] border-emerald-500 animate-pulse" style={{ boxShadow: 'inset 0 0 120px rgba(16,185,129,0.5)' }} />
+          <div className="fixed top-0 left-1/2 -translate-x-1/2 z-50 mt-3 px-8 py-2 rounded-full bg-emerald-500 text-white font-black text-2xl shadow-lg flex items-center gap-3">
+            <span className="animate-pulse">🔔 OPEN</span>
+            <span className="tracking-widest">寄り付き</span>
           </div>
         </>
       )}

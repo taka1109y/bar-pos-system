@@ -264,6 +264,19 @@ function PriceModelTab() {
     return () => clearInterval(id);
   }, []);
 
+  // Phase6-3: 手動 寄り付きリセット
+  const queryClient = useQueryClient();
+  const [openMsg, setOpenMsg] = useState('');
+  const marketOpenMutation = useMutation({
+    mutationFn: api.marketOpen,
+    onSuccess: (r) => {
+      queryClient.invalidateQueries({ queryKey: ['system-settings'] });
+      setOpenMsg(`寄り付きを実行しました（${r?.changed ?? 0}銘柄をanchorへ）`);
+      setTimeout(() => setOpenMsg(''), 4000);
+    },
+    onError: () => { setOpenMsg('エラーが発生しました'); setTimeout(() => setOpenMsg(''), 4000); },
+  });
+
   if (isLoading || !settings) return <p className="text-sm text-slate-400">読み込み中...</p>;
 
   const model         = settings.price_model ?? {};
@@ -299,6 +312,23 @@ function PriceModelTab() {
           isCrashing ? `暴落中 残り ${crashRemain}` : '通常',
           isCrashing ? '最下段へ急落中。時間経過で暴落前価格へ復帰' : '暴落は発生していません',
         )}
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="text-sm font-semibold text-slate-800">手動 寄り付きリセット（例外用）</div>
+        <p className="text-xs text-slate-400 mt-1">
+          通常はレジオープン時に自動実行されます。全ての変動対象銘柄を寄り付き値（基準価格×1.1）へ戻し、期の起点を今に合わせます。
+        </p>
+        <div className="flex items-center gap-3 mt-3">
+          <button
+            onClick={() => { if (window.confirm('全ての変動対象銘柄を寄り付き値へ戻します。よろしいですか？')) marketOpenMutation.mutate(); }}
+            disabled={marketOpenMutation.isPending}
+            className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-700 cursor-pointer disabled:opacity-40 transition-colors"
+          >
+            {marketOpenMutation.isPending ? '実行中...' : '寄り付きリセットを実行'}
+          </button>
+          {openMsg && <span className="text-xs text-emerald-700">{openMsg}</span>}
+        </div>
       </div>
 
       <p className="text-xs text-slate-400">

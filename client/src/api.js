@@ -95,6 +95,8 @@ export const api = {
   // System
   getSystemSettings: () => req('/system/settings'),
   updateSystemSettings: (data) => req('/system/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+  // Phase6-3: 手動 寄り付きリセット(engine品をanchorへ・期起点を今に)
+  marketOpen: () => req('/system/market-open', { method: 'POST' }),
 
   // Prices
   getPrices: () => req('/prices'),
