@@ -21,6 +21,13 @@ export default function ReportsPage({ onClose, inline = false }) {
     staleTime: 60_000,
   });
 
+  // Phase6-7: 値引き費用(暴落原資)
+  const { data: discount } = useQuery({
+    queryKey: ['discount-cost', range.start, range.end],
+    queryFn: () => api.getDiscountCost(range.start, range.end),
+    staleTime: 60_000,
+  });
+
   // 開始日を終了日より後にされたら範囲を潰す（サーバの400を待たずに整合させる）
   const handleRangeChange = (start, end) => {
     setRange(start > end ? { start, end: start } : { start, end });
@@ -63,6 +70,35 @@ export default function ReportsPage({ onClose, inline = false }) {
           <HourlyChart hourly={report?.hourly} />
 
           <CategoryBreakdown categories={report?.categories} />
+
+          {discount && (
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-sm font-bold text-slate-700">値引き費用（暴落原資）</h3>
+                <span className="text-2xl font-bold text-slate-900 tabular-nums">{yen(discount.total)}</span>
+              </div>
+              <p className="text-xs text-slate-400">期間内の値引き（約定 &lt; 定価）の合計。{discount.note}</p>
+              {discount.cap > 0 && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-slate-500">今月累計 {yen(discount.month_total)} / 上限 {yen(discount.cap)}</span>
+                    <span className={discount.over_cap ? 'text-amber-700 font-semibold' : 'text-slate-500'}>到達率 {discount.cap_reach_pct}%</span>
+                  </div>
+                  <div className="bg-slate-100 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${discount.over_cap ? 'bg-amber-500' : 'bg-primary-400'}`}
+                      style={{ width: `${Math.min(100, discount.cap_reach_pct ?? 0)}%` }}
+                    />
+                  </div>
+                  {discount.over_cap && (
+                    <div className="flex items-start gap-3 p-3 mt-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs">
+                      ⚠ 今月の値引き費用が上限（{yen(discount.cap)}）を超過しています（累計 {yen(discount.month_total)}）。暴落の頻度・幅を見直してください。
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {breakdown.length > 0 && (
             <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">

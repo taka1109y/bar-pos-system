@@ -199,7 +199,7 @@ router.post('/:id/items', async (req, res, next) => {
     }
 
     const { rows: menuRows } = await client.query(
-      'SELECT id, name, current_price::float, is_drink, price_editable, question_text, question_choices, question_allow_multiple, question_allow_quantity FROM menu_items WHERE id = $1 AND is_active = TRUE',
+      'SELECT id, name, current_price::float, base_price::float, is_drink, price_editable, question_text, question_choices, question_allow_multiple, question_allow_quantity FROM menu_items WHERE id = $1 AND is_active = TRUE',
       [menu_item_id]
     );
     const menuItem = menuRows[0];
@@ -291,10 +291,11 @@ router.post('/:id/items', async (req, res, next) => {
     }
 
     // 注文アクションごとに必ず新しい行を追加する（マージしない）
+    // Phase6-7: 約定時点の base_price をスナップ保存(値引き費用集計用)
     await client.query(
-      `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, item_name, selected_option)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [order.id, menu_item_id, qty, finalPrice, finalName, finalSelectedOption]
+      `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, item_name, selected_option, base_price_at_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [order.id, menu_item_id, qty, finalPrice, finalName, finalSelectedOption, menuItem.base_price]
     );
 
     await recalcTotal(client, order.id);

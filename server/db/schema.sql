@@ -254,6 +254,8 @@ ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_allow_multiple BOOLEAN
 -- 同じ選択肢を個数指定できる商品（TRUE で数量指定→1明細に "A×2, B×1" 併記・価格差×個数合算。複数選択より優先）
 ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_allow_quantity BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS selected_option TEXT;
+-- Phase6-7: 約定時点の base_price スナップ(値引き費用集計用)。列追加以前の注文はNULL→現行base参照で近似
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS base_price_at_order NUMERIC(10,2);
 
 -- question_choices を文字列配列からオブジェクト配列 {label, priceDelta} へ移行（選択肢ごとの追加料金対応）
 -- 冪等: 既にオブジェクト配列（priceDelta設定済み）の行は jsonb_typeof が'object'になるためスキップされる

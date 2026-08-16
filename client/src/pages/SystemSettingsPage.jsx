@@ -277,6 +277,18 @@ function PriceModelTab() {
     onError: () => { setOpenMsg('エラーが発生しました'); setTimeout(() => setOpenMsg(''), 4000); },
   });
 
+  // Phase6-7: 月次値引き費用上限(0=無効)
+  const [capInput, setCapInput] = useState(null); // null=未編集
+  const [capMsg, setCapMsg] = useState('');
+  const saveCapMutation = useMutation({
+    mutationFn: (v) => api.updateSystemSettings({ monthly_discount_cap: v }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['system-settings'] });
+      setCapMsg('保存しました'); setTimeout(() => setCapMsg(''), 3000);
+    },
+    onError: () => { setCapMsg('エラーが発生しました'); setTimeout(() => setCapMsg(''), 3000); },
+  });
+
   if (isLoading || !settings) return <p className="text-sm text-slate-400">読み込み中...</p>;
 
   const model         = settings.price_model ?? {};
@@ -328,6 +340,32 @@ function PriceModelTab() {
             {marketOpenMutation.isPending ? '実行中...' : '寄り付きリセットを実行'}
           </button>
           {openMsg && <span className="text-xs text-emerald-700">{openMsg}</span>}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="text-sm font-semibold text-slate-800">月次 値引き費用の上限（暴落原資）</div>
+        <p className="text-xs text-slate-400 mt-1">
+          値引き費用（約定＜定価の合計）の月次上限。0 で無効。超過すると売上管理の「値引き費用」カードに警告が出ます。
+        </p>
+        <div className="flex items-end gap-3 mt-3 leading-normal">
+          <label className="leading-normal">
+            <span className="block text-xs font-medium text-slate-500 mb-1">上限（円 / 0=無効）</span>
+            <input
+              type="number" min={0} step={1000}
+              value={capInput ?? settings.monthly_discount_cap ?? 0}
+              onChange={(e) => setCapInput(e.target.value)}
+              className="w-40 h-11 px-3 text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500/50 leading-normal text-right"
+            />
+          </label>
+          <button
+            onClick={() => saveCapMutation.mutate(Math.max(0, parseInt(capInput ?? settings.monthly_discount_cap ?? 0, 10) || 0))}
+            disabled={saveCapMutation.isPending}
+            className="inline-flex items-center justify-center gap-2 h-11 px-4 text-sm font-medium bg-primary-500 text-white rounded-lg hover:bg-primary-700 cursor-pointer disabled:opacity-40 transition-colors"
+          >
+            {saveCapMutation.isPending ? '保存中...' : '保存'}
+          </button>
+          {capMsg && <span className="text-xs text-emerald-700 mb-3">{capMsg}</span>}
         </div>
       </div>
 

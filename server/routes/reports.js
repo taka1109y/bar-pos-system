@@ -574,4 +574,61 @@ router.get('/base-price-history', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/reports/discount-cost?start=&end= — 値引き費用(暴落原資)の日次集計＋月次上限アラート
+// 値引き費用 = Σ max(0, base − 約定単価) × 数量。base は約定時スナップ(base_price_at_order)優先、
+// 無ければ現行 base_price(列追加以前の注文は近似)。新モデルでは通常 base割れは暴落時のみ。
+router.get('/discount-cost', async (req, res, next) => {
+  try {
+    const today = todayJST();
+    const start = req.query.start || today;
+    const end = req.query.end || today;
+    try {
+      assertDateFormat(start, 'start');
+      assertDateFormat(end, 'end');
+    } catch (e) { return res.status(e.status).json({ error: e.error }); }
+
+    const COST_EXPR = 'GREATEST(0, COALESCE(oi.base_price_at_order, m.base_price) - oi.unit_price) * oi.quantity';
+    const DISCOUNTED = 'oi.unit_price < COALESCE(oi.base_price_at_order, m.base_price)';
+
+    // 日次
+    const { rows: daily } = await query(
+      `SELECT (o.closed_at AT TIME ZONE $3)::date AS date,
+         COALESCE(SUM(${COST_EXPR}), 0)::float AS cost,
+         COUNT(*) FILTER (WHERE ${DISCOUNTED})::int AS count
+       FROM orders o
+       JOIN order_items oi ON oi.order_id = o.id
+       JOIN menu_items m ON m.id = oi.menu_item_id
+       WHERE ${PAID_FILTER} AND ${RANGE_FILTER}
+       GROUP BY date ORDER BY date`,
+      [start, end, TZ]
+    );
+    const total = daily.reduce((s, d) => s + d.cost, 0);
+
+    // 月次(end の月初〜end)
+    const monthStart = `${end.slice(0, 7)}-01`;
+    const { rows: mrows } = await query(
+      `SELECT COALESCE(SUM(${COST_EXPR}), 0)::float AS month_total
+       FROM orders o
+       JOIN order_items oi ON oi.order_id = o.id
+       JOIN menu_items m ON m.id = oi.menu_item_id
+       WHERE ${PAID_FILTER} AND ${RANGE_FILTER}`,
+      [monthStart, end, TZ]
+    );
+    const month_total = mrows[0].month_total;
+
+    // 月次上限(0=無効)
+    const { rows: capRows } = await query(`SELECT value FROM system_settings WHERE key = 'monthly_discount_cap'`);
+    const cap = parseInt(capRows[0]?.value ?? '0', 10) || 0;
+    const over_cap = cap > 0 && month_total > cap;
+    const cap_reach_pct = cap > 0 ? Math.round((month_total / cap) * 1000) / 10 : null;
+
+    res.json({
+      start, end, daily, total, month_total, cap, over_cap, cap_reach_pct,
+      note: '約定時点のbaseスナップ(base_price_at_order)優先。列追加以前の注文は現行base参照の近似',
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

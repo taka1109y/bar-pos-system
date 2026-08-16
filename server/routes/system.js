@@ -26,6 +26,7 @@ function parseSettings(rows) {
     register_open_cash:   parseInt(  s.register_open_cash    ?? '0',  10),
     register_open:        s.register_open === 'true',
     register_opened_at:   s.register_opened_at ?? null,
+    monthly_discount_cap: parseInt(  s.monthly_discount_cap ?? '0', 10),
     crash_started_at:     s.crash_started_at ?? null,
     crash_ends_at:        s.crash_ends_at ?? null,
     period_ends_at:       s.period_ends_at ?? null,
@@ -112,6 +113,12 @@ router.patch('/settings', async (req, res, next) => {
       const n = parseInt(req.body.register_open_cash, 10);
       if (isNaN(n) || n < 0) return res.status(400).json({ error: 'register_open_cash must be >= 0' });
       await upsertSetting('register_open_cash', n);
+    }
+
+    if (req.body.monthly_discount_cap !== undefined) {
+      const n = parseInt(req.body.monthly_discount_cap, 10);
+      if (isNaN(n) || n < 0) return res.status(400).json({ error: 'monthly_discount_cap must be >= 0' });
+      await upsertSetting('monthly_discount_cap', n);
     }
 
     const { rows } = await query('SELECT key, value FROM system_settings');
