@@ -38,7 +38,7 @@ export default function Sidebar({ navGroups, view, onSelect, open, onToggle }) {
   return (
     <aside
       className={cn(
-        'bg-surface border-r border-line flex flex-col flex-shrink-0 overflow-hidden transition-[width] duration-200',
+        'ui-pad bg-surface border-r border-line flex flex-col flex-shrink-0 overflow-hidden transition-[width] duration-200',
         open ? 'w-60' : 'w-16'
       )}
     >

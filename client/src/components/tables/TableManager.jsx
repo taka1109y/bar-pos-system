@@ -153,7 +153,7 @@ export default function TableManager() {
   const onEdit = (t) => { setEditTable(t); setError(''); };
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="ui-pad p-4 md:p-6 space-y-4">
       <Toolbar title="テーブル管理" subtitle="テーブル・カウンターの追加・編集・削除">
         <Button onClick={() => { setAddOpen(true); setError(''); }}>
           ＋ テーブル / カウンターを追加

@@ -21,7 +21,7 @@ export default function Modal({ title, onClose, size = 'md', footer, dense = fal
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === 'string' ? title : undefined}
-        className={cn('w-full bg-surface rounded-xl shadow-xl border border-line flex flex-col max-h-[92vh] modal-slide-up', SIZES[size] || SIZES.md, className)}
+        className={cn('ui-pad w-full bg-surface rounded-xl shadow-xl border border-line flex flex-col max-h-[92vh] modal-slide-up', SIZES[size] || SIZES.md, className)}
       >
         {(title || onClose) && (
           <div className={cn('flex items-center justify-between gap-3 border-b border-line shrink-0', dense ? 'px-3 py-2' : 'px-4 py-3')}>

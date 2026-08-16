@@ -279,7 +279,7 @@ export default function POSPage() {
       {/* ─── メインコンテンツ ─── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* コンテンツヘッダー */}
-        <header className="bg-surface border-b border-line px-4 py-2.5 flex items-center justify-between gap-3 flex-shrink-0">
+        <header className="ui-pad bg-surface border-b border-line px-4 py-2.5 flex items-center justify-between gap-3 flex-shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <span className="text-primary-600 w-5 h-5 flex-shrink-0 [&>svg]:w-full [&>svg]:h-full">{currentNav?.icon}</span>
             <div className="min-w-0">

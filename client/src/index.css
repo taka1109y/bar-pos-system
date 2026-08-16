@@ -74,14 +74,17 @@ body {
   min-height: 100vh;
 }
 
-/* 管理画面リデザイン: .app-shell 配下でのみ Tailwind の padding ユーティリティを有効化する。
-   このプロジェクトの `* { padding: 0 }`(非レイヤー)は Tailwind の padding ユーティリティ
-   (@layer utilities)を常に打ち消してしまう(px-3 等が効かない既存の癖)。管理画面ルートだけ
-   revert-layer でその 0 リセットを解除し、ユーティリティ値へ戻す。padding ユーティリティを
-   持たない要素は従来どおり 0 のまま。客向け画面(board/table/kitchen, .app-shell 外)は
-   一切変更されず視覚不変。revert-layer は iPad Safari/Chrome の対象バージョンで対応済み。 */
-.app-shell,
-.app-shell * {
+/* 管理画面リデザイン: `.ui-pad` を付けた要素とその配下でのみ Tailwind の padding
+   ユーティリティを有効化する。このプロジェクトの `* { padding: 0 }`(非レイヤー)は
+   Tailwind の padding ユーティリティ(@layer utilities)を常に打ち消す(px-3 等が効かない癖)。
+   `.ui-pad` 配下だけ revert-layer でその 0 リセットを解除しユーティリティ値へ戻す。
+   ★重要: スコープは「移行済みUI」に opt-in で限定する。新シェル(サイドバー/ヘッダ)・
+   ui部品(Modal)・移行済みビューにのみ `.ui-pad` を付け、未移行ビュー(会計/即会計/レジクローズ
+   のテンキー等、padding=0 前提で組まれた画面)は従来どおり 0 のまま=元の動作を維持する。
+   ビューを新デザインへ移行するたびにそのルートへ `.ui-pad` を付ける。客向け画面も無変更。
+   revert-layer は iPad Safari/Chrome の対象バージョンで対応済み。 */
+.ui-pad,
+.ui-pad * {
   padding: revert-layer;
 }
 
