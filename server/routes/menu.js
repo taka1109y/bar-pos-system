@@ -39,50 +39,65 @@ async function performManualCrashReset(triggerLabel) {
   // Phase6-4/A5: 原子的に is_crashed を落として対象行を確保(claim-and-flip)。
   // 自動解除タイマーと 20s ウォッチャーが同時発火しても、対象行を確保できるのは1回だけになり、
   // crash_reset イベント/ブロードキャストの重複を防ぐ(2回目は 0件で即return)。
-  const { rows: before } = await query(
-    `UPDATE menu_items SET is_crashed = FALSE
-       WHERE is_crashed = TRUE AND is_active = TRUE
-     RETURNING id, current_price::float AS current_price, base_price::float AS base_price,
-       min_price::float AS minp, max_price::float AS maxp, price_step_up::float AS step`
-  );
-  if (before.length === 0) {
-    await query(`DELETE FROM system_settings WHERE key IN ('crash_started_at','crash_ends_at')`);
-    return { updated: 0 };
-  }
-  // 各商品の暴落直前価格（最新の crash 系イベントの price_before）
-  const { rows: preRows } = await query(`
-    SELECT DISTINCT ON (menu_item_id) menu_item_id, price_before::float AS price_before
-    FROM price_events WHERE event_type IN ('crash_manual','crash')
-    ORDER BY menu_item_id, id DESC
-  `);
-  const preMap = Object.fromEntries(preRows.map((r) => [r.menu_item_id, r.price_before]));
-  for (const b of before) {
-    // Phase6-4: 復帰先=暴落前の段(price_before)。price_before は crash_manual/crash に
-    // 発動時点で記録した唯一の真実(current_price 等から逆算しない)。取得不可なら base_price。
-    const raw = preMap[b.id] != null ? preMap[b.id] : b.base_price;
-    let restore;
-    if (b.minp === b.maxp) {
-      restore = b.base_price; // ロック(固定価格)
-    } else {
-      // 格子へスナップし[soft_floor,max]にクランプ(格子再計算に強い)。クランプが効いたらログに残す。
-      const pureSnap = pm.snapGrid(b.base_price, raw);
-      restore = pm.snapClampP6(b.base_price, raw);
-      if (restore !== pureSnap) {
-        logger.warn(
-          { id: b.id, price_before: raw, snapped: pureSnap, clamped: restore, soft: pm.softFloor(b.base_price), max: pm.maxP6(b.base_price) },
-          'crash reset: price_before が現行[soft_floor,max]外 → クランプして復帰'
-        );
-      }
+  // F10: claim-flip + 価格復元 + 設定削除を単一トランザクションで実行。途中失敗なら claim-flip ごと
+  // ロールバックされ is_crashed=TRUE のまま残る(ウォッチャーが再試行)。「解除済みだが暴落価格のまま」
+  // のストランドを防ぐ。並行発火でも対象行の確保は1回だけ(重複イベント防止)。
+  const client = await pool.connect();
+  let before = [];
+  try {
+    await client.query('BEGIN');
+    ({ rows: before } = await client.query(
+      `UPDATE menu_items SET is_crashed = FALSE
+         WHERE is_crashed = TRUE AND is_active = TRUE
+       RETURNING id, current_price::float AS current_price, base_price::float AS base_price,
+         min_price::float AS minp, max_price::float AS maxp, price_step_up::float AS step`
+    ));
+    if (before.length === 0) {
+      await client.query(`DELETE FROM system_settings WHERE key IN ('crash_started_at','crash_ends_at')`);
+      await client.query('COMMIT');
+      return { updated: 0 };
     }
-    // is_crashed は上の claim-and-flip で既に FALSE。ここでは復帰価格のみ書き戻す。
-    await query('UPDATE menu_items SET current_price = $1 WHERE id = $2', [restore, b.id]);
-    await query(
-      `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
-       VALUES ($1, $2, $3, 'crash_reset', $4)`,
-      [b.id, b.current_price, restore, triggerLabel]
-    );
+    // 各商品の暴落直前価格（最新の crash 系イベントの price_before）
+    const { rows: preRows } = await client.query(`
+      SELECT DISTINCT ON (menu_item_id) menu_item_id, price_before::float AS price_before
+      FROM price_events WHERE event_type IN ('crash_manual','crash')
+      ORDER BY menu_item_id, id DESC
+    `);
+    const preMap = Object.fromEntries(preRows.map((r) => [r.menu_item_id, r.price_before]));
+    for (const b of before) {
+      // Phase6-4: 復帰先=暴落前の段(price_before)。price_before は crash_manual/crash に
+      // 発動時点で記録した唯一の真実(current_price 等から逆算しない)。取得不可なら base_price。
+      const raw = preMap[b.id] != null ? preMap[b.id] : b.base_price;
+      let restore;
+      if (b.minp === b.maxp) {
+        restore = b.base_price; // ロック(固定価格)
+      } else {
+        // 格子へスナップし[soft_floor,max]にクランプ(格子再計算に強い)。クランプが効いたらログに残す。
+        const pureSnap = pm.snapGrid(b.base_price, raw);
+        restore = pm.snapClampP6(b.base_price, raw);
+        if (restore !== pureSnap) {
+          logger.warn(
+            { id: b.id, price_before: raw, snapped: pureSnap, clamped: restore, soft: pm.softFloor(b.base_price), max: pm.maxP6(b.base_price) },
+            'crash reset: price_before が現行[soft_floor,max]外 → クランプして復帰'
+          );
+        }
+      }
+      // is_crashed は上の claim-and-flip で既に FALSE。ここでは復帰価格のみ書き戻す。
+      await client.query('UPDATE menu_items SET current_price = $1 WHERE id = $2', [restore, b.id]);
+      await client.query(
+        `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
+         VALUES ($1, $2, $3, 'crash_reset', $4)`,
+        [b.id, b.current_price, restore, triggerLabel]
+      );
+    }
+    await client.query(`DELETE FROM system_settings WHERE key IN ('crash_started_at','crash_ends_at')`);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e; // 呼び出し側(タイマー/ウォッチャー)が .catch でログ。is_crashed=TRUE のまま次回再試行
+  } finally {
+    client.release();
   }
-  await query(`DELETE FROM system_settings WHERE key IN ('crash_started_at','crash_ends_at')`);
   const { rows: allPrices } = await query(`
     SELECT id, name, base_price::float, current_price::float,
       COALESCE(ROUND((current_price - base_price) * 100.0 / NULLIF(base_price, 0), 1), 0)::float AS pct_change
@@ -621,52 +636,64 @@ router.post('/crash/manual', async (req, res, next) => {
     `, params);
 
     let updated = 0;
+    let endsAtIso = null;
     const broadcastItems = [];
     const costMissing = []; // 原価欠損(hard_floor=base×ratioのみ)で暴落した銘柄名
-    for (const item of targets) {
-      // Phase6-4: 暴落=hard_floor へ即時。hard_floor = ceilGrid(max(base×ratio, 原価×1.2))。
-      // ratio: engine_off(=engine_enabled=false かつ crash_eligible=true) は 0.7、通常 0.5。
-      // 原価欠損時は base×ratio のみ(格子点へ切上げ)。
-      const engineOff = !item.engine_enabled; // crash_eligible=true は WHERE で保証済
-      const crashPrice = pm.hardFloor(item.base_price, item.cost, engineOff);
-      if (crashPrice >= item.current_price) continue; // 既に hard_floor 以下なら下げない
-      if (!(item.cost > 0)) costMissing.push(item.name); // 原価欠損(床が base×ratio のみ)
-      await query('UPDATE menu_items SET current_price = $1, is_crashed = TRUE WHERE id = $2', [crashPrice, item.id]);
-      await query('INSERT INTO price_history (menu_item_id, price) VALUES ($1, $2)', [item.id, crashPrice]);
-      await query(
-        `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
-         VALUES ($1, $2, $3, 'crash_manual', 'manual')`,
-        [item.id, item.current_price, crashPrice]
-      );
-      broadcastItems.push({
-        id: item.id, name: item.name, base_price: item.base_price, current_price: crashPrice,
-        pct_change: item.base_price > 0 ? Math.round((crashPrice - item.base_price) / item.base_price * 1000) / 10 : 0,
-        direction: 'down',
-      });
-      updated++;
+    // F9: 価格更新 + crash_started_at/ends_at を単一トランザクションで確定。
+    // 途中失敗なら全ロールバックし「一部だけ is_crashed=TRUE だが ends_at 無し→ウォッチャーが解除できない」
+    // ストランドを防ぐ。
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const item of targets) {
+        // Phase6-4: 暴落=hard_floor へ即時。hard_floor = ceilGrid(max(base×ratio, 原価×1.2))。
+        // ratio: engine_off(=engine_enabled=false かつ crash_eligible=true) は 0.7、通常 0.5。
+        const engineOff = !item.engine_enabled; // crash_eligible=true は WHERE で保証済
+        const crashPrice = pm.hardFloor(item.base_price, item.cost, engineOff);
+        if (crashPrice >= item.current_price) continue; // 既に hard_floor 以下なら下げない
+        if (!(item.cost > 0)) costMissing.push(item.name); // 原価欠損(床が base×ratio のみ)
+        await client.query('UPDATE menu_items SET current_price = $1, is_crashed = TRUE WHERE id = $2', [crashPrice, item.id]);
+        await client.query('INSERT INTO price_history (menu_item_id, price) VALUES ($1, $2)', [item.id, crashPrice]);
+        await client.query(
+          `INSERT INTO price_events (menu_item_id, price_before, price_after, event_type, trigger)
+           VALUES ($1, $2, $3, 'crash_manual', 'manual')`,
+          [item.id, item.current_price, crashPrice]
+        );
+        broadcastItems.push({
+          id: item.id, name: item.name, base_price: item.base_price, current_price: crashPrice,
+          pct_change: item.base_price > 0 ? Math.round((crashPrice - item.base_price) / item.base_price * 1000) / 10 : 0,
+          direction: 'down',
+        });
+        updated++;
+      }
+      if (updated > 0) {
+        const startedAt = new Date();
+        endsAtIso = new Date(startedAt.getTime() + crashCfg.MANUAL_CRASH_DURATION_MS).toISOString();
+        await client.query(
+          `INSERT INTO system_settings (key, value) VALUES ('crash_started_at', $1)
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [startedAt.toISOString()]
+        );
+        await client.query(
+          `INSERT INTO system_settings (key, value) VALUES ('crash_ends_at', $1)
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [endsAtIso]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw e;
+    } finally {
+      client.release();
     }
 
-    let endsAtIso = null;
+    // COMMIT後: 通知 + プロセス内自動解除タイマー(再起動時は 20s ウォッチャーが保険)
     if (updated > 0) {
-      const startedAt = new Date();
-      const endsAt = new Date(startedAt.getTime() + crashCfg.MANUAL_CRASH_DURATION_MS);
-      endsAtIso = endsAt.toISOString();
-      await query(
-        `INSERT INTO system_settings (key, value) VALUES ('crash_started_at', $1)
-         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [startedAt.toISOString()]
-      );
-      await query(
-        `INSERT INTO system_settings (key, value) VALUES ('crash_ends_at', $1)
-         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [endsAtIso]
-      );
       broadcast('prices:updated', { items: broadcastItems, timestamp: Date.now() });
       broadcast('crash:started', {
         scope, category_ids, endsAt: endsAtIso,
         durationMs: crashCfg.MANUAL_CRASH_DURATION_MS, manual: true, timestamp: Date.now(),
       });
-      // Phase6-4: 演出層イベントバスのフック。実処理は演出実装時に接続。
       broadcast('stage:effect', { type: 'crash_start', scope, endsAt: endsAtIso, timestamp: Date.now() });
-      // プロセス内の自動解除タイマー。再起動時はpricingEngine tickのcrash_ends_at検知が保険。
       if (_manualCrashTimer) clearTimeout(_manualCrashTimer);
       _manualCrashTimer = setTimeout(() => { performManualCrashReset('auto').catch(() => {}); }, crashCfg.MANUAL_CRASH_DURATION_MS);
     }

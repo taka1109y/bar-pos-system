@@ -8,6 +8,7 @@ import TickerBar from '../components/layout/TickerBar';
 import MenuGrid, { CategorySidebar } from '../components/pos/MenuGrid';
 import { yen } from '../utils/format';
 import { isLateNightNow } from '../utils/lateNight';
+import { newIdempotencyKey } from '../utils/uuid';
 import { useConnStore } from '../store/useConnStore';
 
 function useClock() {
@@ -681,9 +682,12 @@ export default function TablePage() {
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menu_item_id, quantity, selected_option, selected_options, selected_option_counts }) =>
-      api.addOrderItem(orderId, { menu_item_id, quantity, selected_option, selected_options, selected_option_counts }),
-    onMutate: async ({ menu_item_id, quantity, price, name, selected_option }) => {
+    mutationFn: ({ orderId, menu_item_id, quantity, selected_option, selected_options, selected_option_counts, idempotency_key }) =>
+      api.addOrderItem(orderId, { menu_item_id, quantity, selected_option, selected_options, selected_option_counts, idempotency_key }),
+    onMutate: async (vars) => {
+      // 冪等キーを操作単位で付与(自動リトライでも同一キー→サーバで二重明細防止)
+      if (!vars.idempotency_key) vars.idempotency_key = newIdempotencyKey();
+      const { menu_item_id, quantity, price, name, selected_option } = vars;
       await queryClient.cancelQueries({ queryKey: orderKey });
       const previous = queryClient.getQueryData(orderKey);
       queryClient.setQueryData(orderKey, (old) => {

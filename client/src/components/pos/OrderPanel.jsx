@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { yen, num } from '../../utils/format';
+import { yen } from '../../utils/format';
 import { isLateNightNow } from '../../utils/lateNight';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
+import { newIdempotencyKey } from '../../utils/uuid';
 import socket from '../../socket';
 import MenuGrid from './MenuGrid';
 import PaymentModal from './PaymentModal';
@@ -203,8 +204,10 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menu_item_id, unit_price, item_name, selected_option, selected_options, selected_option_counts }) =>
-      api.addOrderItem(orderId, { menu_item_id, quantity: 1, unit_price, item_name, selected_option, selected_options, selected_option_counts }),
+    mutationFn: ({ orderId, menu_item_id, unit_price, item_name, selected_option, selected_options, selected_option_counts, idempotency_key }) =>
+      api.addOrderItem(orderId, { menu_item_id, quantity: 1, unit_price, item_name, selected_option, selected_options, selected_option_counts, idempotency_key }),
+    // 冪等キーを操作単位で付与(自動リトライでも同一キー→サーバで二重明細防止)
+    onMutate: (vars) => { if (vars && !vars.idempotency_key) vars.idempotency_key = newIdempotencyKey(); },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 

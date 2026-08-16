@@ -140,7 +140,7 @@ router.post('/', async (req, res, next) => {
 
     // チャージ設定を読み取り
     const { chargeEnabled, slots } = await loadChargeSettings();
-    const guestCountNum = Math.max(1, parseInt(guest_count) || 1);
+    const guestCountNum = clampInt(guest_count, 1, MAX_GUEST_COUNT, 1); // 上限クランプ(チャージ桁溢れ防止)
     const { charge_per_person, charge_amount } = (!isImmediate && chargeEnabled)
       ? resolveCharge(slots, guestCountNum)
       : { charge_per_person: 0, charge_amount: 0 };
@@ -292,26 +292,32 @@ router.post('/:id/items', async (req, res, next) => {
 
     // 注文アクションごとに必ず新しい行を追加する（マージしない）
     // Phase6-7: 約定時点の base_price をスナップ保存(値引き費用集計用)
-    await client.query(
-      `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, item_name, selected_option, base_price_at_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [order.id, menu_item_id, qty, finalPrice, finalName, finalSelectedOption, menuItem.base_price]
+    // Hardening: 冪等キー付きは ON CONFLICT DO NOTHING でタイムアウト再送の二重明細/二重課金を防止。
+    const idempotency_key = req.body.idempotency_key || null;
+    const ins = await client.query(
+      `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, item_name, selected_option, base_price_at_order, idempotency_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (order_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+       RETURNING id`,
+      [order.id, menu_item_id, qty, finalPrice, finalName, finalSelectedOption, menuItem.base_price, idempotency_key]
     );
+    const inserted = ins.rows.length > 0; // false = 冪等キー競合(再送) → 課金/価格上昇を再実行しない
 
-    await recalcTotal(client, order.id);
-
-    // ドリンクのみpricingイベントを記録
-    if (menuItem.is_drink) {
-      await client.query(
-        'INSERT INTO pricing_events (menu_item_id, quantity) VALUES ($1, $2)',
-        [menu_item_id, qty]
-      );
+    if (inserted) {
+      await recalcTotal(client, order.id);
+      // ドリンクのみpricingイベントを記録
+      if (menuItem.is_drink) {
+        await client.query(
+          'INSERT INTO pricing_events (menu_item_id, quantity) VALUES ($1, $2)',
+          [menu_item_id, qty]
+        );
+      }
     }
 
     await client.query('COMMIT');
 
-    // ドリンク注文時は当該銘柄を即時1段上昇（Phase4: 呼値ラダー・個別銘柄）
-    if (menuItem.is_drink) {
+    // ドリンク注文時は当該銘柄を即時1段上昇（Phase4: 呼値ラダー・個別銘柄）。再送時は上昇させない。
+    if (inserted && menuItem.is_drink) {
       stepUpOnOrder(menu_item_id);
     }
 

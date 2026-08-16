@@ -256,6 +256,11 @@ ALTER TABLE menu_items  ADD COLUMN IF NOT EXISTS question_allow_quantity BOOLEAN
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS selected_option TEXT;
 -- Phase6-7: 約定時点の base_price スナップ(値引き費用集計用)。列追加以前の注文はNULL→現行base参照で近似
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS base_price_at_order NUMERIC(10,2);
+-- Hardening: 冪等キー(タイムアウト自動リトライによる二重会計/二重明細の防止)
+ALTER TABLE orders      ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_order_items_order_idem
+  ON order_items (order_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
 
 -- question_choices を文字列配列からオブジェクト配列 {label, priceDelta} へ移行（選択肢ごとの追加料金対応）
 -- 冪等: 既にオブジェクト配列（priceDelta設定済み）の行は jsonb_typeof が'object'になるためスキップされる

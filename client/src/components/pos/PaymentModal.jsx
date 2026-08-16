@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { yen } from '../../utils/format';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 import { isLateNightNow } from '../../utils/lateNight';
+import { newIdempotencyKey } from '../../utils/uuid';
 
 const PAYMENT_METHODS = [
   { id: 'cash',   label: '現金' },
@@ -390,7 +391,7 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
   const subtotal        = itemsSubtotal + chargeAmount;
   // 深夜料金はアイテム小計のみに適用
   const lateNightAmount = isLateNight ? Math.round(itemsSubtotal * lnRate) : 0;
-  const discountNum     = parseFloat(savedDiscountInput) || 0;
+  const discountNum     = Math.max(0, parseFloat(savedDiscountInput) || 0); // 負値禁止(手入力の-値で総額が増えるのを防ぐ)
   const discountAmount  = savedDiscountType === 'amount'
     ? Math.min(discountNum, subtotal)
     : Math.round(subtotal * Math.min(discountNum, 100) / 100);
@@ -438,17 +439,25 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
     .filter((m) => splitAlloc[m.id] > 0)
     .map((m) => ({ method: m.id, amount: splitAlloc[m.id] }));
 
+  // 冪等キー: このモーダル1回分の会計で固定(自動リトライ・再タップでも同一キー→サーバで二重会計防止)
+  const idemKeyRef = useRef(null);
+  if (idemKeyRef.current === null) idemKeyRef.current = newIdempotencyKey();
+  const [payError, setPayError] = useState('');
+
   const payMutation = useMutation({
     mutationFn: () => api.pay(order.id, splitMode
-      ? { payments: splitPayments, discountAmount, memo: memo || null }
+      ? { payments: splitPayments, discountAmount, memo: memo || null, idempotencyKey: idemKeyRef.current }
       : {
           paymentMethod,
           discountAmount,
           memo: memo || null,
           giftCertAmount:   effectiveGiftCert,
           giftCertNoChange,
+          idempotencyKey:   idemKeyRef.current,
         }),
+    onError: (e) => setPayError(e?.message || '会計に失敗しました。通信状態を確認してください。'),
     onSuccess: () => {
+      setPayError('');
       queryClient.invalidateQueries({ queryKey: ['tables'] });
       setPayResult({
         tableName:       table.name,
@@ -474,7 +483,7 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
   );
 
   const handleConfirm = () => {
-    if (canPay) payMutation.mutate();
+    if (canPay) { setPayError(''); payMutation.mutate(); }
   };
 
   // ── 分割会計操作 ──
@@ -945,6 +954,11 @@ export default function PaymentModal({ order, table, onClose, onPaid }) {
 
             {/* 会計ボタン */}
             <div className="px-4 py-5 border-t border-slate-200 flex-shrink-0">
+              {payError && (
+                <div className="flex items-start gap-2 p-3 mb-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+                  ⚠ {payError}（伝票情報で会計状況を確認してから再操作してください）
+                </div>
+              )}
               <button
                 onClick={handleConfirm}
                 disabled={!canPay || payMutation.isPending}

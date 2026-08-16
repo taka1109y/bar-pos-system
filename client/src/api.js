@@ -79,6 +79,7 @@ export const api = {
     memo             = null,
     giftCertAmount   = 0,
     giftCertNoChange = false,
+    idempotencyKey   = null,   // 冪等キー(タイムアウト再送の二重会計防止)
   } = {}) =>
     req(`/payments/${orderId}`, {
       method: 'POST',
@@ -89,6 +90,7 @@ export const api = {
         memo:                memo || null,
         gift_cert_amount:    giftCertAmount,
         gift_cert_no_change: giftCertNoChange,
+        idempotency_key:     idempotencyKey,
       }),
     }),
 

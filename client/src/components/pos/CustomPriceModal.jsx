@@ -6,9 +6,10 @@ export default function CustomPriceModal({ defaultName, defaultPrice, onConfirm,
   const [name, setName]   = useState(defaultName ?? '');
   const [price, setPrice] = useState(String(defaultPrice ?? ''));
 
+  const MAX_PRICE  = 1_000_000; // 時価の上限(桁溢れ・誤入力防止)
   const priceNum   = Number(price);
   const nameValid  = name.trim().length > 0 && name.trim().length <= 100;
-  const priceValid = price !== '' && Number.isFinite(priceNum) && priceNum >= 0;
+  const priceValid = price !== '' && Number.isFinite(priceNum) && priceNum >= 0 && priceNum <= MAX_PRICE;
   const canSubmit  = nameValid && priceValid && !isPending;
 
   const submit = () => {

@@ -248,11 +248,16 @@ async function doMarketOpen(trigger = 'auto') {
   `);
   let changed = 0;
   for (const it of items) {
-    const anchor = pm.anchorP6(it.base_price);
-    await query('UPDATE menu_items SET idle_periods = 0 WHERE id = $1', [it.id]);
-    if (anchor !== it.cp) {
-      await applyPriceChange(it, it.cp, anchor, trigger, 'market_open');
-      changed++;
+    // F9: 1銘柄の失敗が寄り付き全体を中断しないよう個別に握る(期の起点設定・同期は必ず完遂させる)。
+    try {
+      const anchor = pm.anchorP6(it.base_price);
+      await query('UPDATE menu_items SET idle_periods = 0 WHERE id = $1', [it.id]);
+      if (anchor !== it.cp) {
+        await applyPriceChange(it, it.cp, anchor, trigger, 'market_open');
+        changed++;
+      }
+    } catch (e) {
+      logger.error({ err: e, id: it.id }, 'doMarketOpen: 銘柄の寄り付き適用に失敗(スキップ)');
     }
   }
   const endsAt = new Date(Date.now() + pm.PERIOD_MS).toISOString();

@@ -6,6 +6,7 @@ const { broadcast } = require('../services/socketService');
 const { checkLateNight } = require('../utils/time');
 
 const VALID_METHODS = ['cash', 'card', 'emoney'];
+const MAX_GIFT_CERT = 1_000_000; // 金券の絶対上限(桁溢れ/過大な負cash防止)
 
 // POST /api/payments/:orderId
 router.post('/:orderId', async (req, res, next) => {
@@ -16,6 +17,7 @@ router.post('/:orderId', async (req, res, next) => {
     memo             = null,
     gift_cert_amount = 0,
     gift_cert_no_change = false,
+    idempotency_key  = null,   // 冪等キー(タイムアウト再送の二重会計防止)
   } = req.body;
 
   // 分割会計が指定されているか（配列で1件以上）
@@ -30,6 +32,9 @@ router.post('/:orderId', async (req, res, next) => {
   }
   if (parseFloat(gift_cert_amount) < 0) {
     return res.status(400).json({ error: 'gift_cert_amount must be >= 0' });
+  }
+  if (parseFloat(gift_cert_amount) > MAX_GIFT_CERT) {
+    return res.status(400).json({ error: `gift_cert_amount must be <= ${MAX_GIFT_CERT}` });
   }
 
   // 分割会計の構造チェック（合計金額の一致チェックは total 算出後に実施）
@@ -56,16 +61,44 @@ router.post('/:orderId', async (req, res, next) => {
   try {
     await client.query('BEGIN');
 
-    // FOR UPDATE で行ロックを取得してから status 確認（二重会計防止）
+    // FOR UPDATE で行ロックを取得（status 非依存で取得し、冪等リトライ/二重会計を判定）
     const { rows: orderRows } = await client.query(
       `SELECT id, table_id, status, total_amount::float,
               charge_amount::float, charge_per_person::float,
-              guest_count, receipt_type
-       FROM orders WHERE id = $1 AND status = 'open' FOR UPDATE`,
+              guest_count, receipt_type, idempotency_key,
+              discount_amount::float, tax_rate::float, tax_amount::float,
+              late_night_rate::float, late_night_amount::float,
+              cash_amount::float, card_amount::float, emoney_amount::float,
+              gift_cert_amount::float, payment_method
+       FROM orders WHERE id = $1 FOR UPDATE`,
       [req.params.orderId]
     );
     const order = orderRows[0];
     if (!order) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Open order not found' });
+    }
+    // 冪等: 同一キーで既に会計済みなら、元の会計結果を再構成して 200 返却（タイムアウト再送の安全化）
+    if (order.status === 'paid') {
+      if (idempotency_key && order.idempotency_key === idempotency_key) {
+        await client.query('COMMIT');
+        return res.json({
+          orderId: order.id, tableId: order.table_id,
+          subtotal: order.total_amount + order.discount_amount,
+          discount: order.discount_amount,
+          late_night_rate: order.late_night_rate, late_night_amount: order.late_night_amount,
+          tax_rate: order.tax_rate, tax_amount: order.tax_amount,
+          total: order.total_amount,
+          paymentMethod: order.payment_method,
+          payments: { cash: order.cash_amount, card: order.card_amount, emoney: order.emoney_amount },
+          giftCertAmount: order.gift_cert_amount,
+          paidAt: null, idempotent: true,
+        });
+      }
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'この伝票は既に会計済みです' });
+    }
+    if (order.status !== 'open') {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Open order not found' });
     }
@@ -87,6 +120,11 @@ router.post('/:orderId', async (req, res, next) => {
 
     const itemsSubtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
     const chargeAmount  = isImmediate ? 0 : (order.charge_amount || 0);
+    // 0明細かつチャージ0(=総額0)の会計は無意味なため拒否
+    if (items.length === 0 && chargeAmount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: '明細がありません。会計できません。' });
+    }
     const subtotal = itemsSubtotal + chargeAmount;
     const discount = Math.max(0, Math.min(parseFloat(discount_amount) || 0, subtotal));
 
@@ -157,13 +195,14 @@ router.post('/:orderId', async (req, res, next) => {
            discount_amount = $3, tax_rate = $4, tax_amount = $5,
            late_night_rate = $6, late_night_amount = $7,
            memo = $8, gift_cert_amount = $9, gift_cert_no_change = $10,
-           cash_amount = $11, card_amount = $12, emoney_amount = $13
+           cash_amount = $11, card_amount = $12, emoney_amount = $13,
+           idempotency_key = $15
        WHERE id = $14`,
       [total, representativeMethod, discount, tax_rate, tax_amount,
        late_night_rate, late_night_amount,
        memo || null, effective_gift_cert, gift_cert_no_change,
        methodAmounts.cash, methodAmounts.card, methodAmounts.emoney,
-       order.id]
+       order.id, idempotency_key]
     );
     // レシピベースの材料在庫自動減算
     // 全アイテムの必要材料を先に集計してから ingredient_id 昇順でロック取得する

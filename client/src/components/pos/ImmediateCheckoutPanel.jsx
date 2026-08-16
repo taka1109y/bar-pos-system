@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
-import { yen, num } from '../../utils/format';
+import { useState, useEffect, useRef } from 'react';
+import { yen } from '../../utils/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
+import { newIdempotencyKey } from '../../utils/uuid';
 import socket from '../../socket';
 import MenuGrid from './MenuGrid';
 import { DiscountModal, GiftCertModal, PaymentResultModal } from './PaymentModal';
@@ -124,8 +125,10 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menuItemId, unit_price, item_name, selected_option, selected_options, selected_option_counts }) =>
-      api.addOrderItem(orderId, { menu_item_id: menuItemId, quantity: 1, unit_price, item_name, selected_option, selected_options, selected_option_counts }),
+    mutationFn: ({ orderId, menuItemId, unit_price, item_name, selected_option, selected_options, selected_option_counts, idempotency_key }) =>
+      api.addOrderItem(orderId, { menu_item_id: menuItemId, quantity: 1, unit_price, item_name, selected_option, selected_options, selected_option_counts, idempotency_key }),
+    // 冪等キーを操作単位で付与(onMutateは1回のみ→自動リトライでも同一キー→サーバで二重明細防止)
+    onMutate: (vars) => { if (vars && !vars.idempotency_key) vars.idempotency_key = newIdempotencyKey(); },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
@@ -135,11 +138,15 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
+  const idemKeyRef = useRef(null);
+  const [payError, setPayError] = useState('');
   const payMutation = useMutation({
     mutationFn: () => api.pay(order.id, splitMode
-      ? { payments: splitPayments, discountAmount, memo: null }
-      : { paymentMethod, discountAmount, memo: null, giftCertAmount: effectiveGiftCert, giftCertNoChange }),
+      ? { payments: splitPayments, discountAmount, memo: null, idempotencyKey: idemKeyRef.current }
+      : { paymentMethod, discountAmount, memo: null, giftCertAmount: effectiveGiftCert, giftCertNoChange, idempotencyKey: idemKeyRef.current }),
+    onError: (e) => setPayError(e?.message || '会計に失敗しました。通信状態を確認してください。'),
     onSuccess: () => {
+      setPayError('');
       setPayResult({
         tableName:       '即会計',
         elapsedTime:     '--:--',
@@ -278,7 +285,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
 
   // ── 金額計算 ──
   const itemsSubtotal  = order?.items?.reduce((s, i) => s + i.quantity * i.unit_price, 0) ?? 0;
-  const discountNum    = parseFloat(savedDiscountInput) || 0;
+  const discountNum    = Math.max(0, parseFloat(savedDiscountInput) || 0); // 負値禁止
   const discountAmount = savedDiscountType === 'amount'
     ? Math.min(discountNum, itemsSubtotal)
     : Math.round(itemsSubtotal * Math.min(discountNum, 100) / 100);
@@ -603,7 +610,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
               <Numpad
                 value={receivedInput}
                 onChange={setReceivedInput}
-                onConfirm={() => { if (canPay) payMutation.mutate(); }}
+                onConfirm={() => { if (canPay) { idemKeyRef.current = newIdempotencyKey(); setPayError(''); payMutation.mutate(); } }}
                 exactAmount={remainingAfterGift}
               />
                 </>
@@ -684,8 +691,13 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
 
             {/* 会計ボタン */}
             <div className="px-4 pb-6 pt-2 border-t border-slate-200">
+              {payError && (
+                <div className="flex items-start gap-2 p-3 mb-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+                  ⚠ {payError}
+                </div>
+              )}
               <button
-                onClick={() => { if (canPay) payMutation.mutate(); }}
+                onClick={() => { if (canPay) { idemKeyRef.current = newIdempotencyKey(); setPayError(''); payMutation.mutate(); } }}
                 disabled={!canPay}
                 className="w-full py-6 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-black transition-colors text-xl shadow-sm"
               >
