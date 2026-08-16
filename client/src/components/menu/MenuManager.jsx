@@ -43,8 +43,8 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
     category_id:     item?.category_id || categories[0]?.id || '',
     subcategory_id:  item?.subcategory_id || '',
     base_price:      item?.base_price || '',
-    price_locked:    item ? (item.min_price === item.max_price) : false,
-    crash_enabled:   item?.crash_enabled ?? false,
+    engine_enabled:  item?.engine_enabled ?? true,
+    crash_eligible:  item?.crash_eligible ?? (item?.crash_enabled ?? true),
     is_drink:        item?.is_drink ?? 1,
     is_active:       item?.is_active ?? 1,
     image_url:       item?.image_url || '',  // DBに保存されているファイル名
@@ -140,8 +140,8 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
       category_id:     Number(form.category_id),
       subcategory_id:  form.subcategory_id ? Number(form.subcategory_id) : null,
       base_price:      Number(form.base_price),
-      price_locked:    Boolean(form.price_locked),
-      crash_enabled:   Boolean(form.crash_enabled),
+      engine_enabled:  Boolean(form.engine_enabled),
+      crash_eligible:  Boolean(form.crash_eligible),
       is_drink:        Number(form.is_drink),
       is_active:       Number(form.is_active),
       image_url:       imageFilename || null,
@@ -252,13 +252,9 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
           <label className={lbl}>基準価格</label>
           <input className={inp} type="number" value={form.base_price} onChange={(e) => set('base_price', e.target.value)} placeholder="500" required min={0} />
         </div>
-        <label className="flex items-center gap-2 cursor-pointer pb-2 leading-normal">
-          <input type="checkbox" checked={Boolean(form.price_locked)} onChange={(e) => set('price_locked', e.target.checked)} className="w-4 h-4 accent-primary-500" />
-          <span className="text-sm text-slate-700">変動させない（固定価格）</span>
-        </label>
       </div>
       {/* 下限/上限/呼値(段幅)は基準価格から自動計算（読み取り表示） */}
-      {item && item.is_drink && !form.price_locked ? (
+      {item && item.is_drink && item.max_price > item.min_price ? (
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 grid grid-cols-4 gap-2 text-center">
           <div><p className="text-[11px] text-slate-400">下限</p><p className="text-sm font-bold text-slate-800">¥{yen(Math.round(item.min_price))}</p></div>
           <div><p className="text-[11px] text-slate-400">上限</p><p className="text-sm font-bold text-slate-800">¥{yen(Math.round(item.max_price))}</p></div>
@@ -266,7 +262,7 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
           <div><p className="text-[11px] text-slate-400">現在</p><p className="text-sm font-bold text-primary-600">¥{yen(Math.round(item.current_price))}</p></div>
         </div>
       ) : (
-        <p className="text-xs text-slate-400">下限・上限・呼値(段幅)は基準価格から自動計算されます（呼値ラダー）。「変動させない」で固定価格。</p>
+        <p className="text-xs text-slate-400">下限・上限・呼値(段幅)は基準価格から自動計算されます（呼値ラダー）。自動変動の有無は下の「価格変動させる」で切り替えます。</p>
       )}
       {item && item.cost_price > 0 && (
         <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
@@ -342,21 +338,34 @@ function MenuItemForm({ item, categories, subcategories, onSave, onCancel, isLoa
           </div>
         )}
       </div>
-      {Boolean(form.is_drink) && (
-        <div className="grid grid-cols-1 gap-3 bg-primary-50 border border-primary-100 rounded-lg p-3">
-          <div>
+      {Boolean(form.is_drink) && (() => {
+        // ノンアル判定は 6-2 の判定(ノンアルコールカテゴリ)を再利用。off/off と区別して「定価（ノンアル）」表示。
+        const selCat = categories.find((c) => String(c.id) === String(form.category_id));
+        const isNonAlc = (selCat?.name || item?.category_name || '').includes('ノンアル');
+        const eng = Boolean(form.engine_enabled), crash = Boolean(form.crash_eligible);
+        const badge = isNonAlc
+          ? { label: '定価（ノンアル）', cls: 'bg-slate-100 text-slate-600 border-slate-200' }
+          : eng && crash ? { label: '変動＋暴落', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
+          : eng && !crash ? { label: '変動のみ', cls: 'bg-primary-50 text-primary-700 border-primary-200' }
+          : !eng && crash ? { label: '定価＋暴落（目玉枠）', cls: 'bg-amber-50 text-amber-700 border-amber-200' }
+          : { label: '定価固定', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
+        return (
+          <div className="grid grid-cols-1 gap-3 bg-primary-50 border border-primary-100 rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-700">価格フラグ</span>
+              <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium border ${badge.cls}`}>{badge.label}</span>
+            </div>
             <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={Boolean(form.crash_enabled)}
-                onChange={(e) => set('crash_enabled', e.target.checked)}
-                className="w-4 h-4 accent-red-600 rounded"
-              />
+              <input type="checkbox" checked={eng} onChange={(e) => set('engine_enabled', e.target.checked)} className="w-4 h-4 accent-primary-500 rounded" />
+              価格変動させる（エンジンで自動変動。OFF＝定価固定）
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+              <input type="checkbox" checked={crash} onChange={(e) => set('crash_eligible', e.target.checked)} className="w-4 h-4 accent-red-600 rounded" />
               暴落対象（暴落発動の対象にする）
             </label>
           </div>
-        </div>
-      )}
+        );
+      })()}
       <div className="border-t border-slate-100 pt-3">
         <label className="flex items-center gap-2 cursor-pointer">
           <input

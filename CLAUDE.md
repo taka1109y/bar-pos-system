@@ -508,6 +508,9 @@ CSS変数            : --wf-bg / --wf-surface / --wf-border / --wf-text / --wf-t
 - **運動規則**：期=15分。注文で即時+1段（max頭打ち）。減衰は「在店期ベースで累積2無注文期で−1段（soft_floorで停止）、注文で0リセット、無人期はカウンタ・価格とも凍結」。在店判定＝**期末時点で status='open' の未会計オーダー1件以上**。銘柄別の注文有無は **`order_items.created_at` 基準**（会計時刻でない）。減衰カウンタは `menu_items.idle_periods`。
 - **寄り付き（market open）**：レジオープン（`register_open`→true）で `engine_enabled` のドリンクを anchor へリセット・idle=0、期起点 `period_started_at` をオープン時刻に。手動は システム管理＞価格モデル＞寄り付きリセット（確認付き・例外用、`POST /api/system/market-open`）。event_type=`market_open`。
 - **暴落**：`crash_eligible` の銘柄を hard_floor へ即時、5分で**暴落前の段**へ復帰（`price_before`＝発動時に crash_manual へ記録した唯一の真実。復帰は格子へsnap+[soft,max]クランプ）。event_type=`crash_manual`/`crash_reset`。暴落中は段+1/減衰しない・idle凍結。約定は hard_floor 価格で通る。銘柄単位（カテゴリはスコープ指定のみ）。
-- **フラグ（menu_items）**：`engine_enabled`（自動変動）／`crash_eligible`（暴落対象）。初期割当：フード・裏メニュー（客側非表示）・時価・ノンアル・ボトル・薄利（藍茜/萌黄）＝off/off ／ 高額グラス（base≥2000：山崎/山崎12年/macallan）＝off/on ／ 通常アルコール＝on/on。**ノンアル品は常に定価**。`crash_enabled` は deprecated 残置（`crash_eligible` が正）。
+- **フラグ（menu_items）**：`engine_enabled`（自動変動）／`crash_eligible`（暴落対象）。初期割当：フード・裏メニュー（客側非表示）・時価・ノンアル・ボトル・薄利（藍茜/萌黄）＝off/off ／ 高額グラス（base≥2000：山崎/山崎12年/macallan）＝off/on ／ 通常アルコール＝on/on。**ノンアル品は常に定価**。商品管理（MenuManager）でトグル編集可（保存経路のみ deprecated `crash_enabled` も同値同期）。
+  - **`engine_enabled` を true→false に切り替えると `current_price` は定価（soft_floor=base）へ固定**される（off銘柄は寄り付き対象外のため切替時に定価へ戻す）。暴落中・base再計算時は据え置き。
+  - **`crash_enabled` は deprecated・読み取り禁止**。6-4以降の暴落対象参照は `crash_eligible` のみ。UI保存時に同値で同期されるだけ（トリガー等はなし）。
+  - **`price_locked`（min=max=base の完全固定）は通常運用の概念から除外**（UI非表示）。列とロック判定ロジックは残置し、用途は**障害時の緊急価格固定専用（DB直接操作）**。通常「動かさない」は `engine_enabled=false` を使う。
 - **値引き費用（暴落原資）集計**：`Σ max(0, COALESCE(order_items.base_price_at_order, 現行base) − 約定単価) × 数量`（`GET /api/reports/discount-cost`）。約定時 base は `order_items.base_price_at_order` にスナップ（列追加以前は現行base近似）。月次上限＝`system_settings.monthly_discount_cap`（0=無効）、超過で売上管理にアラート。
 - **6-6（同一原酒・提供形態違い＝1指数＋固定差額）はバックログ**（現メニューに該当0）。6-5（フラグの商品管理UI）は当面DB直接変更で代替可。

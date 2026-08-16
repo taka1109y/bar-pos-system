@@ -116,7 +116,7 @@ const ITEM_SELECT = `
       WHERE r.menu_item_id = m.id
     ), 0)::float AS cost_price,
     m.recipe_notes,
-    m.is_drink, m.is_active, m.crash_enabled, m.is_crashed,
+    m.is_drink, m.is_active, m.crash_enabled, m.crash_eligible, m.engine_enabled, m.is_crashed,
     m.image_url, m.tax_category, m.is_staff_only, m.price_editable,
     m.question_text, m.question_choices, m.question_allow_multiple, m.question_allow_quantity,
     c.name  AS category_name,  c.sort_order AS category_sort_order,
@@ -390,6 +390,11 @@ router.post('/', async (req, res, next) => {
        VALUES ($1, NULL, $2, NULL)`,
       [rows[0].id, base_price]
     );
+    // Phase6-5: フラグ初期値(未指定は on/on)。crash_eligible と deprecated crash_enabled を同値同期。
+    const engV = req.body.engine_enabled !== undefined ? Boolean(req.body.engine_enabled) : true;
+    const crashV = req.body.crash_eligible !== undefined ? Boolean(req.body.crash_eligible) : true;
+    await query('UPDATE menu_items SET engine_enabled = $2, crash_eligible = $3, crash_enabled = $3 WHERE id = $1',
+      [rows[0].id, engV, crashV]);
     const { rows: result } = await query(`${ITEM_SELECT} WHERE m.id = $1`, [rows[0].id]);
     res.status(201).json(result[0]);
   } catch (err) {
@@ -672,7 +677,7 @@ router.patch('/:id', async (req, res, next) => {
     const { rows: existing } = await query(
       `SELECT m.id, m.min_price::float AS min_price, m.max_price::float AS max_price, m.is_crashed,
          m.base_price::float AS base_price, m.current_price::float AS current_price,
-         m.is_drink, m.price_editable,
+         m.is_drink, m.price_editable, m.engine_enabled,
          COALESCE((SELECT SUM(r.usage_quantity * i.cost_per_purchase_unit / NULLIF(i.purchase_quantity, 0))
            FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id WHERE r.menu_item_id = m.id), 0)::float AS cost
        FROM menu_items m WHERE m.id = $1`, [req.params.id]);
@@ -730,7 +735,27 @@ router.patch('/:id', async (req, res, next) => {
     if (is_drink !== undefined)         { updates.push(`is_drink = $${idx++}`);         values.push(is_drink); }
     if (is_active !== undefined)        { updates.push(`is_active = $${idx++}`);        values.push(is_active); }
     if (subcategory_id !== undefined)   { updates.push(`subcategory_id = $${idx++}`);   values.push(subcategory_id || null); }
-    if (crash_enabled !== undefined)    { updates.push(`crash_enabled = $${idx++}`);    values.push(crash_enabled); }
+    // Phase6-5: 旧 crash_enabled は crash_eligible 未指定時のみ後方互換で受ける(重複SET防止)
+    if (crash_enabled !== undefined && req.body.crash_eligible === undefined) {
+      updates.push(`crash_enabled = $${idx++}`); values.push(crash_enabled);
+    }
+    // Phase6-5: engine_enabled(自動変動)
+    if (req.body.engine_enabled !== undefined) {
+      const engV = Boolean(req.body.engine_enabled);
+      updates.push(`engine_enabled = $${idx++}`); values.push(engV);
+      // true→false 切替: current_price を定価(soft_floor=base)へ固定(off銘柄は常に定価。寄り付き対象外のため
+      // 切替時に定価へ戻す)。暴落中・ladder再計算時は据え置き/そちらを優先。
+      if (!engV && existing[0].engine_enabled && !existing[0].is_crashed && !ladderUpdated) {
+        const baseEff = base_price !== undefined ? Number(base_price) : existing[0].base_price;
+        updates.push(`current_price = $${idx++}`); values.push(pm.softFloor(baseEff));
+      }
+    }
+    // Phase6-5: crash_eligible(暴落対象)。deprecated crash_enabled も同値同期(保存経路のみ)。
+    if (req.body.crash_eligible !== undefined) {
+      const crashV = Boolean(req.body.crash_eligible);
+      updates.push(`crash_eligible = $${idx++}`); values.push(crashV);
+      updates.push(`crash_enabled = $${idx++}`);  values.push(crashV);
+    }
     if (is_crashed !== undefined)       { updates.push(`is_crashed = $${idx++}`);       values.push(is_crashed); }
     if (image_url !== undefined)        { updates.push(`image_url = $${idx++}`);        values.push(image_url || null); }
     if (tax_category !== undefined)    {
