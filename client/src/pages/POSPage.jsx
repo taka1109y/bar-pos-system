@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import socket from '../socket';
@@ -8,6 +7,7 @@ import { useConnStore } from '../store/useConnStore';
 import { getAudioCtx, playNotification } from '../utils/audioAlert';
 import ToastHost from '../components/ToastHost';
 import PanelBoundary from '../components/PanelBoundary';
+import Sidebar from '../components/shell/Sidebar';
 import TableGrid from '../components/pos/TableGrid';
 import OrderPanel from '../components/pos/OrderPanel';
 import MenuManager from '../components/menu/MenuManager';
@@ -99,10 +99,16 @@ const NAV_GROUPS = [
 ];
 
 export default function POSPage() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const connected = useConnStore((s) => s.connected);
   const [view, setView] = useState('pos');
+  // サイドバー開閉(iPad横向き前提。既定=折りたたみ。localStorage で永続化)
+  const [navOpen, setNavOpen] = useState(() => localStorage.getItem('pos.nav.open') === '1');
+  const toggleNav = () => setNavOpen((o) => {
+    const next = !o;
+    try { localStorage.setItem('pos.nav.open', next ? '1' : '0'); } catch { /* noop */ }
+    return next;
+  });
   const [selectedTable, setSelectedTable] = useState(null);
   const [crashActive, setCrashActive] = useState(false);
   const [crashElapsed, setCrashElapsed] = useState(0);
@@ -260,135 +266,50 @@ export default function POSPage() {
   const currentNav = NAV_GROUPS.flatMap((g) => g.items).find((n) => n.id === view);
 
   return (
-    <div className="flex h-[100dvh] bg-gray-50 overflow-hidden">
-      {/* ─── サイドバー ─── */}
-      <aside className="w-56 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 overflow-hidden">
-        {/* ブランドヘッダー */}
-        <div className="flex flex-col items-center gap-1 px-3.5 py-4 border-b border-slate-100 flex-shrink-0">
-          <img src="/FANZONE_logo_A1.png" alt="ロゴ" className="h-8 w-auto object-contain" />
-          <p className="text-[11px] text-slate-400 font-medium">POS 管理画面</p>
-        </div>
-
-        {/* ナビゲーション */}
-        <nav aria-label="メインナビゲーション" className="flex-1 p-3 overflow-y-auto">
-          {NAV_GROUPS.map((group, gi) => (
-            <div key={group.label} className={gi > 0 ? 'mt-4 pt-4 border-t border-slate-100' : ''}>
-              <p className="px-4 mb-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                {group.label}
-              </p>
-              <div className="space-y-0.5">
-                {group.items.map((item) => {
-                  const isActive = view === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleSetView(item.id)}
-                      className={`w-full text-left rounded-lg transition-all flex items-center gap-2.5 px-2.5 py-3.5 ${
-                        isActive ? 'bg-primary-50 text-primary-500' : 'text-body hover:bg-gray-50'
-                      }`}
-                    >
-                      <span className={`flex-shrink-0 [&>svg]:w-full [&>svg]:h-full w-4 h-4 ${isActive ? 'text-primary-500' : ''}`}>
-                        {item.icon}
-                      </span>
-                      <div className="min-w-0">
-                        <span className={`text-sm block font-semibold truncate ${isActive ? 'text-primary-500' : ''}`}>
-                          {item.label}
-                        </span>
-                        <span className={`text-[10px] block truncate ${isActive ? 'text-primary-400' : 'text-slate-400'}`}>
-                          {item.desc}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-
-          {/* リンク: 価格ボード・キッチン・テーブル選択 */}
-          <div className="mt-4 pt-4 border-t border-slate-100 space-y-0.5">
-            {[
-              {
-                href: '/board',
-                label: '価格ボード',
-                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>,
-                external: true,
-              },
-              {
-                href: '/kitchen',
-                label: 'キッチン',
-                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>,
-                external: false,
-              },
-              {
-                href: '/table',
-                label: 'テーブル選択',
-                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/></svg>,
-                external: false,
-              },
-            ].map(({ href, label, icon, external }) => {
-              const content = (
-                <>
-                  <span className="flex-shrink-0 [&>svg]:w-full [&>svg]:h-full w-4 h-4">{icon}</span>
-                  <span className="text-sm font-semibold block flex-1">{label}</span>
-                  {external && <span className="text-[10px] text-slate-300">↗</span>}
-                </>
-              );
-              return external ? (
-                <a
-                  key={href}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2.5 w-full rounded-lg text-slate-400 hover:bg-gray-50 hover:text-slate-600 transition-colors min-h-[44px] px-2.5"
-                >
-                  {content}
-                </a>
-              ) : (
-                <button
-                  key={href}
-                  onClick={() => navigate(href)}
-                  className="flex items-center gap-2.5 w-full text-left rounded-lg text-slate-400 hover:bg-gray-50 hover:text-slate-600 transition-colors min-h-[44px] px-2.5"
-                >
-                  {content}
-                </button>
-              );
-            })}
-          </div>
-        </nav>
-
-      </aside>
+    <div className="app-shell flex h-[100dvh] bg-canvas overflow-hidden">
+      {/* ─── サイドバー(折りたたみ⇄展開・iPad横向き対応) ─── */}
+      <Sidebar
+        navGroups={NAV_GROUPS}
+        view={view}
+        onSelect={handleSetView}
+        open={navOpen}
+        onToggle={toggleNav}
+      />
 
       {/* ─── メインコンテンツ ─── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* コンテンツヘッダー */}
-        <header className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="text-primary-500 w-[18px] h-[18px] flex-shrink-0">{currentNav?.icon}</span>
-            <div>
-              <h1 className="font-bold text-slate-900 text-base">{currentNav?.label}</h1>
-              <p className="text-xs text-slate-400 mt-0.5">{currentNav?.desc}</p>
+        <header className="bg-surface border-b border-line px-4 py-2.5 flex items-center justify-between gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="text-primary-600 w-5 h-5 flex-shrink-0 [&>svg]:w-full [&>svg]:h-full">{currentNav?.icon}</span>
+            <div className="min-w-0">
+              <h1 className="font-bold text-heading text-base leading-tight truncate">{currentNav?.label}</h1>
+              <p className="text-2xs text-muted truncate">{currentNav?.desc}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {!connected && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-200 bg-amber-50">
+              <span
+                className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded-lg border border-amber-200 bg-amber-50 text-xs font-semibold text-amber-700 whitespace-nowrap"
+                title="再接続中…（一部の更新が遅れています）"
+              >
                 <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
-                <span className="text-xs font-bold text-amber-700 whitespace-nowrap">再接続中…（一部の更新が遅れています）</span>
-              </div>
+                再接続中…
+              </span>
             )}
             {crashActive && (
-              <div
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 cursor-pointer hover:bg-red-100 transition-colors"
+              <button
+                type="button"
                 onClick={() => handleSetView('system')}
                 title="暴落設定へ移動"
+                className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors cursor-pointer whitespace-nowrap"
               >
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-                <span className="text-xs font-bold text-red-700 whitespace-nowrap">暴落実行中</span>
-                <span className="text-xs font-mono text-red-500 tabular-nums whitespace-nowrap">
+                <span className="text-xs font-bold">暴落実行中</span>
+                <span className="text-xs font-mono text-red-500 tabular-nums">
                   {String(Math.floor(crashElapsed / 3600)).padStart(2, '0')}:{String(Math.floor((crashElapsed % 3600) / 60)).padStart(2, '0')}:{String(crashElapsed % 60).padStart(2, '0')}
                 </span>
-              </div>
+              </button>
             )}
           </div>
         </header>
