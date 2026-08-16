@@ -496,3 +496,18 @@ CSS変数            : --wf-bg / --wf-surface / --wf-border / --wf-text / --wf-t
 3. ロールバック手順（マイグレーションdown＋直前バージョンへの復帰コマンド）を事前に提示し、ユーザーの承認を得る
 4. デプロイ作業は対話モードでユーザー同席のもと、1コマンドずつ承認を得て実行する。自動承認・権限スキップ系のモードは使用禁止
 5. 反映後スモークテスト（注文 → 会計 → 価格tick → 暴落発動 → 各ログの整合確認）を実施し、結果を報告する
+
+# 価格エンジン（Phase6）凍結パラメータ（6-8転記・変更は要承認）
+
+以下は Phase6 で確定した価格モデルの凍結パラメータ。config は `server/services/pricingModel.js`（STEP_TABLE・各率・PERIOD_MINUTES・DECAY_IDLE_PERIODS・CRASH_MINUTES・CRASH_FLOOR_RATIO_*）と `server/services/crashSettings.js`（暴落継続5分）に集約。
+
+- **base** ＝ `menu_items.base_price`（現行実売価格＝定価）。エンジンは書き換えない。全比率は base 基準。**base=0 の時価商品（price_editable）はエンジン・暴落とも対象外**。
+- **呼値 step（base で決定・固定）**：`base<1000→30 ／ 1000≤base<3000→100 ／ base≥3000→200`。全約定・表示価格は**格子 `base + n×step` 上のみ**。中間丸めは round half up。
+- **価格帯**：`soft_floor(=min_price)=base×1.0 ／ anchor(寄り付き)=base×1.1 ／ max(=max_price)=base×1.2`（格子へスナップ）。
+- **hard_floor（暴落時のみ）**＝`ceilGrid(max(base×ratio, 原価×1.2))`。`ratio`：engine_off（`engine_enabled=false かつ crash_eligible=true`）=0.7 ／ 通常=0.5。原価欠損は `base×ratio` のみ（暴落発動レスポンスに警告）。
+- **運動規則**：期=15分。注文で即時+1段（max頭打ち）。減衰は「在店期ベースで累積2無注文期で−1段（soft_floorで停止）、注文で0リセット、無人期はカウンタ・価格とも凍結」。在店判定＝**期末時点で status='open' の未会計オーダー1件以上**。銘柄別の注文有無は **`order_items.created_at` 基準**（会計時刻でない）。減衰カウンタは `menu_items.idle_periods`。
+- **寄り付き（market open）**：レジオープン（`register_open`→true）で `engine_enabled` のドリンクを anchor へリセット・idle=0、期起点 `period_started_at` をオープン時刻に。手動は システム管理＞価格モデル＞寄り付きリセット（確認付き・例外用、`POST /api/system/market-open`）。event_type=`market_open`。
+- **暴落**：`crash_eligible` の銘柄を hard_floor へ即時、5分で**暴落前の段**へ復帰（`price_before`＝発動時に crash_manual へ記録した唯一の真実。復帰は格子へsnap+[soft,max]クランプ）。event_type=`crash_manual`/`crash_reset`。暴落中は段+1/減衰しない・idle凍結。約定は hard_floor 価格で通る。銘柄単位（カテゴリはスコープ指定のみ）。
+- **フラグ（menu_items）**：`engine_enabled`（自動変動）／`crash_eligible`（暴落対象）。初期割当：フード・裏メニュー（客側非表示）・時価・ノンアル・ボトル・薄利（藍茜/萌黄）＝off/off ／ 高額グラス（base≥2000：山崎/山崎12年/macallan）＝off/on ／ 通常アルコール＝on/on。**ノンアル品は常に定価**。`crash_enabled` は deprecated 残置（`crash_eligible` が正）。
+- **値引き費用（暴落原資）集計**：`Σ max(0, COALESCE(order_items.base_price_at_order, 現行base) − 約定単価) × 数量`（`GET /api/reports/discount-cost`）。約定時 base は `order_items.base_price_at_order` にスナップ（列追加以前は現行base近似）。月次上限＝`system_settings.monthly_discount_cap`（0=無効）、超過で売上管理にアラート。
+- **6-6（同一原酒・提供形態違い＝1指数＋固定差額）はバックログ**（現メニューに該当0）。6-5（フラグの商品管理UI）は当面DB直接変更で代替可。
