@@ -125,3 +125,33 @@ main().catch((e) => {
   logger.fatal({ err: e }, 'Fatal startup error');
   process.exit(1);
 });
+
+// ── プロセスレベルの保険・グレースフルシャットダウン ──────────────
+// 未処理の Promise rejection はログのみ(1件のバグでプロセスを落とさない)。
+process.on('unhandledRejection', (reason) => {
+  logger.error({ err: reason }, 'unhandledRejection (継続)');
+});
+
+let _shuttingDown = false;
+function gracefulShutdown(signal) {
+  if (_shuttingDown) return;
+  _shuttingDown = true;
+  logger.info({ signal }, 'graceful shutdown 開始');
+  const { pool } = require('./db/database');
+  try { io.close(); } catch { /* noop */ }
+  server.close(() => {
+    pool.end().catch(() => {}).finally(() => {
+      logger.info('graceful shutdown 完了');
+      process.exit(0);
+    });
+  });
+  // 保険: 一定時間で強制終了(接続ドレインが終わらない場合)
+  setTimeout(() => process.exit(0), 10_000).unref();
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+// uncaughtException は状態不整合の可能性が高いため、ログの上でドレインして終了(supervisorが再起動)。
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err }, 'uncaughtException — graceful shutdown');
+  gracefulShutdown('uncaughtException');
+});

@@ -24,23 +24,37 @@ export default function RegisterStartPage() {
   // 金種入力モーダル
   const [showDenomModal, setShowDenomModal] = useState(false);
   const [denomCounts,    setDenomCounts]    = useState({});
+  const [openError,      setOpenError]      = useState('');
+  const [opening,        setOpening]        = useState(false);
 
   const handleDenomChange = (denomValue, count) => {
     setDenomCounts(prev => ({ ...prev, [denomValue]: count }));
   };
 
   const handleDenomConfirm = async (total) => {
+    if (opening) return; // 二重オープン防止
+    setOpening(true);
+    setOpenError('');
     try {
       await api.updateSystemSettings({ register_open: true, register_open_cash: total });
       queryClient.invalidateQueries({ queryKey: ['system-settings'] });
       navigate('/');
     } catch (e) {
       console.error('レジオープンに失敗しました', e);
+      setOpenError(e?.message || 'レジのオープンに失敗しました。通信状態を確認して再度お試しください。');
+    } finally {
+      setOpening(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center select-none">
+
+      {openError && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-lg bg-red-600 text-white text-sm font-medium shadow-lg">
+          ⚠ {openError}
+        </div>
+      )}
 
       {/* ロゴ */}
       <img src="/FANZONE_logo_A2.png" alt="ロゴ" className="h-16 w-auto object-contain mb-10" />

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { yen, num } from '../utils/format';
+import { yen } from '../utils/format';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
@@ -181,6 +181,7 @@ export default function RegisterClosePage() {
       await api.updateSystemSettings({ register_open_cash: registerOpenCash });
     } catch (e) {
       console.error('レジオープン時現金の保存に失敗しました', e);
+      setCloseError(e?.message || 'レジオープン時現金の保存に失敗しました。');
     }
   };
 
@@ -275,6 +276,8 @@ export default function RegisterClosePage() {
       navigate('/start');
     } catch (e) {
       console.error('レジクローズに失敗しました', e);
+      setShowCloseConfirm(false);
+      setCloseError(e?.message || 'レジクローズに失敗しました。通信状態を確認して再度お試しください。');
     }
   };
 

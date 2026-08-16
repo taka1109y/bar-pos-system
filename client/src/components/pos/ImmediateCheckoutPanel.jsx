@@ -3,6 +3,7 @@ import { yen } from '../../utils/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 import { newIdempotencyKey } from '../../utils/uuid';
+import { useToastStore } from '../../store/useToastStore';
 import socket from '../../socket';
 import MenuGrid from './MenuGrid';
 import { DiscountModal, GiftCertModal, PaymentResultModal } from './PaymentModal';
@@ -97,9 +98,10 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
     queryKey: orderKey,
     queryFn: () => api.getOrderByTable(tableId),
     enabled: !!tableId,
+    refetchInterval: 10_000, // socket 取りこぼし/切断中の保険
   });
 
-  // Socket: リアルタイム更新
+  // Socket: リアルタイム更新 + 再接続時の再同期
   useEffect(() => {
     if (!tableId) return;
     const handler = (data) => {
@@ -115,13 +117,19 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
         guest_count:       1,
       }));
     };
+    const handleReconnect = () => queryClient.invalidateQueries({ queryKey: orderKey });
     socket.on('order:updated', handler);
-    return () => socket.off('order:updated', handler);
+    socket.on('connect',       handleReconnect);
+    return () => {
+      socket.off('order:updated', handler);
+      socket.off('connect',       handleReconnect);
+    };
   }, [tableId]);
 
   // 注文作成（アイテム追加時に存在しなければ遅延作成）
   const createOrderMutation = useMutation({
     mutationFn: () => api.createOrder(tableId, 1),
+    onError: (e) => useToastStore.getState().error(e?.message || '注文の作成に失敗しました'),
   });
 
   const addItemMutation = useMutation({
@@ -129,12 +137,14 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
       api.addOrderItem(orderId, { menu_item_id: menuItemId, quantity: 1, unit_price, item_name, selected_option, selected_options, selected_option_counts, idempotency_key }),
     // 冪等キーを操作単位で付与(onMutateは1回のみ→自動リトライでも同一キー→サーバで二重明細防止)
     onMutate: (vars) => { if (vars && !vars.idempotency_key) vars.idempotency_key = newIdempotencyKey(); },
+    onError: (e) => useToastStore.getState().error(e?.message || '注文の追加に失敗しました'),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
   const updateItemMutation = useMutation({
     mutationFn: ({ orderId, itemId, quantity }) =>
       api.updateOrderItem(orderId, itemId, { quantity }),
+    onError: (e) => useToastStore.getState().error(e?.message || '数量の変更に失敗しました'),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 

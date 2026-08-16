@@ -4,7 +4,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import socket from '../socket';
 import usePriceStore from '../store/usePriceStore';
+import { useConnStore } from '../store/useConnStore';
 import { getAudioCtx, playNotification } from '../utils/audioAlert';
+import ToastHost from '../components/ToastHost';
+import PanelBoundary from '../components/PanelBoundary';
 import TableGrid from '../components/pos/TableGrid';
 import OrderPanel from '../components/pos/OrderPanel';
 import MenuManager from '../components/menu/MenuManager';
@@ -98,6 +101,7 @@ const NAV_GROUPS = [
 export default function POSPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const connected = useConnStore((s) => s.connected);
   const [view, setView] = useState('pos');
   const [selectedTable, setSelectedTable] = useState(null);
   const [crashActive, setCrashActive] = useState(false);
@@ -366,20 +370,31 @@ export default function POSPage() {
               <p className="text-xs text-slate-400 mt-0.5">{currentNav?.desc}</p>
             </div>
           </div>
-          {crashActive && (
-            <div
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 cursor-pointer hover:bg-red-100 transition-colors"
-              onClick={() => handleSetView('system')}
-              title="暴落設定へ移動"
-            >
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-              <span className="text-xs font-bold text-red-700 whitespace-nowrap">暴落実行中</span>
-              <span className="text-xs font-mono text-red-500 tabular-nums whitespace-nowrap">
-                {String(Math.floor(crashElapsed / 3600)).padStart(2, '0')}:{String(Math.floor((crashElapsed % 3600) / 60)).padStart(2, '0')}:{String(crashElapsed % 60).padStart(2, '0')}
-              </span>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {!connected && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-200 bg-amber-50">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
+                <span className="text-xs font-bold text-amber-700 whitespace-nowrap">再接続中…（一部の更新が遅れています）</span>
+              </div>
+            )}
+            {crashActive && (
+              <div
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 cursor-pointer hover:bg-red-100 transition-colors"
+                onClick={() => handleSetView('system')}
+                title="暴落設定へ移動"
+              >
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                <span className="text-xs font-bold text-red-700 whitespace-nowrap">暴落実行中</span>
+                <span className="text-xs font-mono text-red-500 tabular-nums whitespace-nowrap">
+                  {String(Math.floor(crashElapsed / 3600)).padStart(2, '0')}:{String(Math.floor((crashElapsed % 3600) / 60)).padStart(2, '0')}:{String(crashElapsed % 60).padStart(2, '0')}
+                </span>
+              </div>
+            )}
+          </div>
         </header>
+
+        {/* view単位のエラーバウンダリ: 1画面の描画例外が全レジをリロードしないよう局所化 */}
+        <PanelBoundary key={view} name={view}>
 
         {view === 'pos' && (
           <div className="flex flex-1 overflow-hidden">
@@ -430,7 +445,9 @@ export default function POSPage() {
         {view === 'recipes'    && <div className="flex-1 overflow-hidden flex flex-col"><RecipePage /></div>}
         {view === 'cost-report' && <div className="flex-1 overflow-y-auto"><CostReportPage /></div>}
         {view === 'price-log'  && <div className="flex-1 overflow-y-auto"><PriceLogPage /></div>}
+        </PanelBoundary>
       </div>
+      <ToastHost />
     </div>
   );
 }

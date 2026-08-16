@@ -1,10 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { yen } from '../../utils/format';
 import { isLateNightNow } from '../../utils/lateNight';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 import { newIdempotencyKey } from '../../utils/uuid';
+import { useToastStore } from '../../store/useToastStore';
 import socket from '../../socket';
+
+// mutation 失敗の共通トースト(サイレント失敗防止)
+const toastErr = (e) => useToastStore.getState().error(e?.message || '通信に失敗しました。もう一度お試しください。');
 import MenuGrid from './MenuGrid';
 import PaymentModal from './PaymentModal';
 import CustomPriceModal from './CustomPriceModal';
@@ -167,7 +171,11 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   const { data: order, isLoading } = useQuery({
     queryKey: orderKey,
     queryFn: () => api.getOrderByTable(table.id),
+    refetchInterval: 10_000, // socket 取りこぼし時の保険(切断中も定期同期)
   });
+
+  // 会計モーダル表示中フラグ(自端末の会計時に「他端末で会計済み」を誤表示しないため)
+  const showPaymentRef = useRef(false);
 
   useEffect(() => {
     socket.emit('client:subscribe_table', { tableId: table.id });
@@ -185,21 +193,33 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
         }));
       }
     };
+    // 他端末でこの伝票が会計/取消されたら、開いているパネルを閉じて通知(閉じた伝票への操作＝失敗を防止)
+    const handleTableStatus = (data) => {
+      if (data.tableId === table.id && data.status === 'available' && !showPaymentRef.current) {
+        useToastStore.getState().push('この伝票は他の端末で会計/取消されました', 'info', 4000);
+        onClose();
+      }
+    };
     const handleReconnect = () => {
       socket.emit('client:subscribe_table', { tableId: table.id });
       queryClient.invalidateQueries({ queryKey: orderKey });
     };
-    socket.on('order:updated', handleOrderUpdated);
-    socket.on('connect',       handleReconnect);
+    socket.on('order:updated',        handleOrderUpdated);
+    socket.on('table:status_changed', handleTableStatus);
+    socket.on('connect',              handleReconnect);
     return () => {
       socket.emit('client:unsubscribe_table', { tableId: table.id });
-      socket.off('order:updated', handleOrderUpdated);
-      socket.off('connect',       handleReconnect);
+      socket.off('order:updated',        handleOrderUpdated);
+      socket.off('table:status_changed', handleTableStatus);
+      socket.off('connect',              handleReconnect);
     };
   }, [table.id]);
 
+  useEffect(() => { showPaymentRef.current = showPayment; }, [showPayment]);
+
   const openOrderMutation = useMutation({
     mutationFn: (guestCount) => api.createOrder(table.id, guestCount ?? 1),
+    onError: toastErr,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
@@ -208,17 +228,20 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
       api.addOrderItem(orderId, { menu_item_id, quantity: 1, unit_price, item_name, selected_option, selected_options, selected_option_counts, idempotency_key }),
     // 冪等キーを操作単位で付与(自動リトライでも同一キー→サーバで二重明細防止)
     onMutate: (vars) => { if (vars && !vars.idempotency_key) vars.idempotency_key = newIdempotencyKey(); },
+    onError: toastErr,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
   const updateItemMutation = useMutation({
     mutationFn: ({ orderId, itemId, quantity }) =>
       api.updateOrderItem(orderId, itemId, { quantity }),
+    onError: toastErr,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
   });
 
   const updateGuestCountMutation = useMutation({
     mutationFn: (guestCount) => api.updateGuestCount(order.id, guestCount),
+    onError: toastErr,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orderKey });
       setShowGuestModal(false);
@@ -227,6 +250,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
 
   const updateTableMutation = useMutation({
     mutationFn: (tableId) => api.updateOrderTable(order.id, tableId),
+    onError: toastErr,
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['orders-open'] });
       queryClient.invalidateQueries({ queryKey: orderKey });
@@ -239,6 +263,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   // テーブル合算（統合元テーブルの注文をこのテーブルへまとめ、統合元を解放）
   const mergeMutation = useMutation({
     mutationFn: (sourceTableId) => api.mergeOrders(order.id, sourceTableId),
+    onError: toastErr,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders-open'] });
       queryClient.invalidateQueries({ queryKey: orderKey });
@@ -249,6 +274,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
   // 空オープンの取消（明細が無い誤オープンを会計せず解放）
   const cancelOrderMutation = useMutation({
     mutationFn: () => api.cancelEmptyOrder(order.id),
+    onError: toastErr,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders-open'] });
       queryClient.removeQueries({ queryKey: orderKey });
