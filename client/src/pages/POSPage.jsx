@@ -19,8 +19,7 @@ import RegisterClosePage from './RegisterClosePage';
 import ImmediateCheckoutPanel from '../components/pos/ImmediateCheckoutPanel';
 import InventoryPage from './InventoryPage';
 import RecipePage from './RecipePage';
-import CostReportPage from './CostReportPage';
-import PriceLogPage from './PriceLogPage';
+import CostPriceView from './CostPriceView';
 
 const NAV_GROUPS = [
   {
@@ -73,12 +72,8 @@ const NAV_GROUPS = [
         icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
       },
       {
-        id: 'cost-report', label: '原価分析', desc: '原価率・粗利・在庫評価',
+        id: 'cost-report', label: '原価・価格', desc: '原価率・粗利・価格変動ログ',
         icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
-      },
-      {
-        id: 'price-log', label: '価格ログ', desc: '価格変動・基準価格の履歴',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
       },
     ],
   },
@@ -358,8 +353,7 @@ export default function POSPage() {
         {view === 'system'     && <div className="flex-1 overflow-y-auto"><SystemSettingsPage /></div>}
         {view === 'inventory'  && <div className="flex-1 overflow-y-auto"><InventoryPage /></div>}
         {view === 'recipes'    && <div className="flex-1 overflow-hidden flex flex-col"><RecipePage /></div>}
-        {view === 'cost-report' && <div className="flex-1 overflow-y-auto"><CostReportPage /></div>}
-        {view === 'price-log'  && <div className="flex-1 overflow-y-auto"><PriceLogPage /></div>}
+        {view === 'cost-report' && <div className="flex-1 overflow-y-auto"><CostPriceView /></div>}
         </PanelBoundary>
       </div>
       <ToastHost />
