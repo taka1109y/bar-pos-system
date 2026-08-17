@@ -222,10 +222,12 @@ const TABS = [
   { id: 'maintenance', label: 'メンテナンス' },
 ];
 
-export default function SystemSettingsPage() {
+export default function SystemSettingsPage({ initialTab }) {
   const queryClient = useQueryClient();
 
-  const [activeTab,          setActiveTab]          = useState('fees');
+  // 初期タブ(暴落バナーからのディープリンクは 'pricing'。PanelBoundary key=view で
+  // system 進入時に本コンポーネントが再マウントされるため初期値が反映される)
+  const [activeTab,          setActiveTab]          = useState(initialTab || 'fees');
   const [taxInput,           setTaxInput]           = useState('');
   const [reducedTaxInput,    setReducedTaxInput]    = useState('');
   const [defaultTaxCategory, setDefaultTaxCategory] = useState('standard');

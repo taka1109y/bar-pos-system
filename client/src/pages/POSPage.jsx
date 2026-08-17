@@ -102,6 +102,8 @@ export default function POSPage() {
   const [selectedTable, setSelectedTable] = useState(null);
   const [crashActive, setCrashActive] = useState(false);
   const [crashElapsed, setCrashElapsed] = useState(0);
+  // システム管理ビューの初期タブ(暴落バナーからのディープリンク用)。null=既定(料金・税)
+  const [systemTab, setSystemTab] = useState(null);
   const { initPrices, updatePrices } = usePriceStore();
 
   const { data: tables = [] } = useQuery({
@@ -232,7 +234,8 @@ export default function POSPage() {
   const REFRESH_ON_ENTER = new Set(['pos', 'reports', 'receipts', 'close']);
 
   const handleSetView = (nextView) => {
-    if (view === 'menu' || view === 'categories') {
+    // 商品管理(menu)離脱時に menu 系を無効化(categories は menu へ統合済みで単独 view は無し)
+    if (view === 'menu') {
       queryClient.invalidateQueries({ queryKey: ['menu-staff'] });
       queryClient.invalidateQueries({ queryKey: ['categories-staff'] });
       queryClient.invalidateQueries({ queryKey: ['subcategories'] });
@@ -245,6 +248,8 @@ export default function POSPage() {
       queryClient.invalidateQueries({ queryKey: ['orders-open'] });
       queryClient.invalidateQueries({ queryKey: ['system-settings'] });
     }
+    // システム管理以外へ移動するときはディープリンク指定を解除(次回のサイドバー遷移は既定タブ)
+    if (nextView !== 'system') setSystemTab(null);
     setView(nextView);
     if (nextView !== 'pos') setSelectedTable(null);
   };
@@ -290,8 +295,8 @@ export default function POSPage() {
             {crashActive && (
               <button
                 type="button"
-                onClick={() => handleSetView('system')}
-                title="暴落設定へ移動"
+                onClick={() => { setSystemTab('pricing'); handleSetView('system'); }}
+                title="暴落設定へ移動（プライシング）"
                 className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors cursor-pointer whitespace-nowrap"
               >
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
@@ -350,7 +355,7 @@ export default function POSPage() {
         {view === 'reports'    && <div className="flex-1 overflow-y-auto"><ReportsPage inline /></div>}
         {view === 'receipts'   && <div className="flex-1 overflow-y-auto"><ReceiptsPage /></div>}
         {view === 'close'      && <div className="flex-1 flex flex-col overflow-hidden"><RegisterClosePage /></div>}
-        {view === 'system'     && <div className="flex-1 overflow-y-auto"><SystemSettingsPage /></div>}
+        {view === 'system'     && <div className="flex-1 overflow-y-auto"><SystemSettingsPage initialTab={systemTab} /></div>}
         {view === 'inventory'  && <div className="flex-1 overflow-y-auto"><InventoryPage /></div>}
         {view === 'recipes'    && <div className="flex-1 overflow-hidden flex flex-col"><RecipePage /></div>}
         {view === 'cost-report' && <div className="flex-1 overflow-y-auto"><CostPriceView /></div>}
