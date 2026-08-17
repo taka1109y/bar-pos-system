@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { yen } from '../utils/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import { Button, Field, Input, Select, Textarea, Badge, Alert, cn } from '../components/ui';
+import { Button, Field, Input, Textarea, Badge, Alert, cn } from '../components/ui';
 
 function CostBadge({ costPrice, basePrice }) {
   if (!costPrice || !basePrice) return <span className="text-xs text-faint">未設定</span>;
@@ -11,13 +11,67 @@ function CostBadge({ costPrice, basePrice }) {
   return <Badge tone={tone} size="sm">原価率 {rate}%</Badge>;
 }
 
+// ─── 材料ピッカー（検索＋カテゴリ絞り込み。タップで追加→上の材料表で使用量入力） ───
+function IngredientPicker({ available, categories, onAdd }) {
+  const [q, setQ] = useState('');
+  const [cat, setCat] = useState(null); // null=全て / number=category_id / 'none'=未分類
+
+  const presentIds = new Set(available.filter(i => i.category_id != null).map(i => i.category_id));
+  const chipCats = categories.filter(c => presentIds.has(c.id));
+  const hasUncat = available.some(i => i.category_id == null);
+
+  const query = q.trim().toLowerCase();
+  const list = available.filter(i => {
+    if (query && !i.name.toLowerCase().includes(query)) return false;
+    if (cat === 'none') return i.category_id == null;
+    if (cat !== null) return i.category_id === cat;
+    return true;
+  });
+
+  const chip = (active, label, onClick) => (
+    <button type="button" onClick={onClick}
+      className={cn('px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap',
+        active ? 'bg-primary-500 text-white border-primary-500' : 'bg-surface text-body border-line hover:bg-surface-hover')}>
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="px-4 py-3 border-t border-line bg-surface-sunken">
+      <p className="text-xs font-medium text-muted mb-2">材料を追加</p>
+      <Input type="search" size="sm" placeholder="材料を検索..." value={q} onChange={(e) => setQ(e.target.value)}
+        prefix={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>} />
+      {(chipCats.length > 0 || hasUncat) && (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {chip(cat === null, '全て', () => setCat(null))}
+          {chipCats.map(c => chip(cat === c.id, c.name, () => setCat(c.id)))}
+          {hasUncat && chip(cat === 'none', '未分類', () => setCat('none'))}
+        </div>
+      )}
+      <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-line bg-surface divide-y divide-line">
+        {list.length === 0 ? (
+          <div className="px-3 py-6 text-center text-xs text-muted">該当する材料がありません</div>
+        ) : list.map(i => (
+          <div key={i.id} className="flex items-center gap-2 px-3 py-2">
+            <div className="flex-1 min-w-0">
+              <span className="text-sm text-heading">{i.name}</span>
+              <span className="text-xs text-muted ml-1">（{i.quantity_unit}）</span>
+              {i.category_name && <span className="text-2xs text-faint ml-1.5">{i.category_name}</span>}
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => onAdd(i)}>＋ 追加</Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function RecipePage() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState(null);
   const [editIngredients, setEditIngredients] = useState(null);
   const [editNotes, setEditNotes] = useState('');
-  const [addIngId, setAddIngId] = useState('');
-  const [addQty, setAddQty] = useState('');
+  const [productSearch, setProductSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
@@ -29,6 +83,11 @@ export default function RecipePage() {
   const { data: ingredients = [] } = useQuery({
     queryKey: ['ingredients'],
     queryFn: api.getIngredients,
+  });
+
+  const { data: ingCategories = [] } = useQuery({
+    queryKey: ['ingredient-categories'],
+    queryFn: api.getIngredientCategories,
   });
 
   const { data: detail } = useQuery({
@@ -59,8 +118,6 @@ export default function RecipePage() {
     if (!detail) return;
     setEditIngredients(detail.ingredients.map(i => ({ ...i })));
     setEditNotes(detail.recipe_notes || '');
-    setAddIngId('');
-    setAddQty('');
   };
 
   const cancelEdit = () => { setEditIngredients(null); setSaveError(''); };
@@ -75,16 +132,13 @@ export default function RecipePage() {
     ));
   };
 
-  const addIngredient = () => {
-    if (!addIngId || !addQty || Number(addQty) <= 0) return;
-    const ing = ingredients.find(i => i.id === Number(addIngId));
+  const addIngredient = (ing) => {
     if (!ing || editIngredients.find(i => i.ingredient_id === ing.id)) return;
+    // 追加時は使用量を空にして、上の材料表のインライン入力で数量を入れてもらう
     setEditIngredients(prev => [
       ...prev,
-      { ingredient_id: ing.id, ingredient_name: ing.name, usage_quantity: Number(addQty), quantity_unit: ing.quantity_unit, cost_contribution: null },
+      { ingredient_id: ing.id, ingredient_name: ing.name, usage_quantity: '', quantity_unit: ing.quantity_unit, cost_contribution: null },
     ]);
-    setAddIngId('');
-    setAddQty('');
   };
 
   const handleSave = () => {
@@ -110,23 +164,31 @@ export default function RecipePage() {
     }, 0);
 
   const selectedItem = recipes.find(r => r.id === selectedId);
+  const pq = productSearch.trim().toLowerCase();
+  const filteredRecipes = pq ? recipes.filter(r => r.name.toLowerCase().includes(pq)) : recipes;
 
   return (
     <div className="ui-pad flex h-full min-h-0">
       {/* 左ペイン: 商品一覧 */}
       <div className="w-72 flex-shrink-0 border-r border-line flex flex-col bg-surface">
-        <div className="px-4 py-3 border-b border-line">
-          <h2 className="text-sm font-bold text-heading">商品一覧</h2>
-          <p className="text-xs text-muted mt-0.5">商品を選択してレシピを編集</p>
+        <div className="px-4 py-3 border-b border-line space-y-2">
+          <div>
+            <h2 className="text-sm font-bold text-heading">商品一覧</h2>
+            <p className="text-xs text-muted mt-0.5">商品を選択してレシピを編集</p>
+          </div>
+          <Input type="search" size="sm" placeholder="商品名で検索..." value={productSearch} onChange={(e) => setProductSearch(e.target.value)}
+            prefix={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>} />
         </div>
         <div className="flex-1 overflow-y-auto">
           {recipesLoading ? (
             <div className="p-4 text-sm text-muted">読み込み中...</div>
           ) : recipes.length === 0 ? (
             <div className="p-4 text-sm text-muted">商品がありません</div>
+          ) : filteredRecipes.length === 0 ? (
+            <div className="p-4 text-sm text-muted">該当する商品がありません</div>
           ) : (
             (() => {
-              const grouped = recipes.reduce((acc, r) => {
+              const grouped = filteredRecipes.reduce((acc, r) => {
                 const cat = r.category_name;
                 if (!acc[cat]) acc[cat] = [];
                 acc[cat].push(r);
@@ -277,19 +339,11 @@ export default function RecipePage() {
                       </table>
                     </div>
                   )}
-                  <div className="px-4 py-3 border-t border-line bg-surface-sunken">
-                    <p className="text-xs font-medium text-muted mb-2">材料を追加</p>
-                    <div className="flex items-end gap-2">
-                      <Select className="flex-1" value={addIngId} onChange={(e) => setAddIngId(e.target.value)}>
-                        <option value="">材料を選択...</option>
-                        {ingredients
-                          .filter(i => !editIngredients.find(ei => ei.ingredient_id === i.id))
-                          .map(i => <option key={i.id} value={i.id}>{i.name}（{i.quantity_unit}）</option>)}
-                      </Select>
-                      <Input className="w-24" type="number" min="0" step="any" placeholder="量" value={addQty} onChange={(e) => setAddQty(e.target.value)} />
-                      <Button variant="secondary" onClick={addIngredient} disabled={!addIngId || !addQty}>追加</Button>
-                    </div>
-                  </div>
+                  <IngredientPicker
+                    available={ingredients.filter(i => !editIngredients.find(ei => ei.ingredient_id === i.id))}
+                    categories={ingCategories}
+                    onAdd={addIngredient}
+                  />
                 </div>
 
                 {editIngredients.length > 0 && (
