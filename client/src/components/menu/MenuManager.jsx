@@ -5,7 +5,7 @@ import { api } from '../../api';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Button, Modal, Field, Input, Select, Segmented, Badge } from '../ui';
+import { Button, Modal, Field, Input, Select, Segmented, Badge, cn } from '../ui';
 
 // 保存済みファイル名 → 表示用 URL に変換
 function toImageSrc(filename) {
@@ -362,6 +362,7 @@ export default function MenuManager() {
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [search, setSearch] = useState('');
+  const [catFilter, setCatFilter] = useState(null); // null=全て / number=category_id
 
   const { data: items         = [] } = useQuery({ queryKey: ['menu-all'],      queryFn: api.getAllMenu });
   const { data: categories    = [] } = useQuery({ queryKey: ['categories-staff'], queryFn: api.getStaffCategories });
@@ -401,8 +402,11 @@ export default function MenuManager() {
 
   const displayGroupedByCat = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return groupedByCat;
-    return groupedByCat
+    // カテゴリ絞り込み（選択カテゴリのみ表示）
+    let groups = catFilter !== null ? groupedByCat.filter((cg) => cg.category.id === catFilter) : groupedByCat;
+    if (!q) return groups;
+    // 商品名検索（AND）
+    return groups
       .map((catGroup) => ({
         ...catGroup,
         subGroups: catGroup.subGroups
@@ -410,8 +414,10 @@ export default function MenuManager() {
           .filter((sg) => sg.items.length > 0),
       }))
       .filter((catGroup) => catGroup.subGroups.length > 0);
-  }, [groupedByCat, search]);
+  }, [groupedByCat, search, catFilter]);
 
+  // 並び替え無効化は「検索中」のみ（アイテムが隠れて順序が曖昧になるため）。
+  // カテゴリ絞り込みは各カテゴリ内の全アイテムを表示するので並び替えは安全＝有効のまま。
   const dragDisabled = Boolean(search.trim());
 
   // ドラッグ&ドロップの並び替え。楽観的更新: 対象グループの商品を ['menu-all'] キャッシュ内の
@@ -460,24 +466,41 @@ export default function MenuManager() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="w-full max-w-xs">
-          <Input type="search" placeholder="商品名で検索..." prefix={searchIcon} value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="sticky top-0 z-10 bg-canvas -mx-4 md:-mx-6 px-4 md:px-6 py-2.5 border-b border-line space-y-2.5">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="w-full max-w-xs">
+            <Input type="search" placeholder="商品名で検索..." prefix={searchIcon} value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          {search.trim() && (
+            <span className="text-xs text-muted flex-shrink-0">
+              {displayGroupedByCat.reduce((n, c) => n + c.subGroups.reduce((m, sg) => m + sg.items.length, 0), 0)} 件・検索中は並び替えできません
+            </span>
+          )}
+          <div className="ml-auto flex-shrink-0">
+            <Button onClick={() => setAddOpen(true)}>＋ 商品を追加</Button>
+          </div>
         </div>
-        {search.trim() && (
-          <span className="text-xs text-muted flex-shrink-0">
-            {displayGroupedByCat.reduce((n, c) => n + c.subGroups.reduce((m, sg) => m + sg.items.length, 0), 0)} 件・検索中は並び替えできません
-          </span>
-        )}
-        <div className="ml-auto flex-shrink-0">
-          <Button onClick={() => setAddOpen(true)}>＋ 商品を追加</Button>
+        {/* カテゴリ絞り込みチップ（特定カテゴリへジャンプ＝縦スクロール軽減） */}
+        <div className="flex flex-wrap gap-1.5">
+          <button type="button" onClick={() => setCatFilter(null)}
+            className={cn('px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap',
+              catFilter === null ? 'bg-primary-500 text-white border-primary-500' : 'bg-surface text-body border-line hover:bg-surface-hover')}>
+            全て
+          </button>
+          {categories.map((c) => (
+            <button key={c.id} type="button" onClick={() => setCatFilter(c.id)}
+              className={cn('px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap',
+                catFilter === c.id ? 'bg-primary-500 text-white border-primary-500' : 'bg-surface text-body border-line hover:bg-surface-hover')}>
+              {c.name}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* カテゴリ別商品一覧 */}
-      {search.trim() && displayGroupedByCat.length === 0 && (
+      {displayGroupedByCat.length === 0 && (
         <div className="bg-surface rounded-xl border border-line p-12 text-center">
-          <p className="text-muted text-sm">「{search}」に一致する商品がありません</p>
+          <p className="text-muted text-sm">{search.trim() ? `「${search}」に一致する商品がありません` : '商品がありません'}</p>
         </div>
       )}
       <div className="space-y-6">
