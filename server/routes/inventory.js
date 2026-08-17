@@ -11,9 +11,11 @@ router.get('/', async (req, res, next) => {
         i.id AS ingredient_id,
         i.name, i.purchase_unit, i.purchase_quantity::float,
         i.quantity_unit, i.cost_per_purchase_unit::float,
+        i.category_id, ic.name AS category_name,
         s.id, s.quantity_current::float, s.last_updated
       FROM ingredients i
       LEFT JOIN ingredient_stock s ON s.ingredient_id = i.id
+      LEFT JOIN ingredient_categories ic ON ic.id = i.category_id
       WHERE i.is_active = TRUE
       ORDER BY i.name
     `);

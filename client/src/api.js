@@ -148,6 +148,12 @@ export const api = {
   updateIngredient: (id, data) => req(`/ingredients/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteIngredient: (id) => req(`/ingredients/${id}`, { method: 'DELETE' }),
 
+  // 材料カテゴリ
+  getIngredientCategories: () => req('/ingredient-categories'),
+  createIngredientCategory: (data) => req('/ingredient-categories', { method: 'POST', body: JSON.stringify(data) }),
+  updateIngredientCategory: (id, data) => req(`/ingredient-categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteIngredientCategory: (id) => req(`/ingredient-categories/${id}`, { method: 'DELETE' }),
+
   // レシピ
   getRecipes: () => req('/recipes'),
   getRecipeByMenu: (menuItemId) => req(`/recipes/menu/${menuItemId}`),

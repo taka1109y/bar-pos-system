@@ -240,6 +240,28 @@ CREATE INDEX IF NOT EXISTS idx_ingredient_stock_logs_ingredient ON ingredient_st
 CREATE INDEX IF NOT EXISTS idx_ingredient_stock_logs_log_date ON ingredient_stock_logs(log_date);
 CREATE INDEX IF NOT EXISTS idx_recipes_menu_item ON recipes(menu_item_id);
 CREATE INDEX IF NOT EXISTS idx_recipes_ingredient ON recipes(ingredient_id);
+
+-- 材料カテゴリ（ベース酒・割材・ジュース等。材料マスターの分類軸／2026-08-17追加）
+-- レシピ作成時の材料検索・絞り込み用。category_id はラベルのみで原価/在庫ロジックには非関与。
+CREATE TABLE IF NOT EXISTS ingredient_categories (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES ingredient_categories(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_ingredients_category ON ingredients(category_id);
+-- 初期カテゴリ7分類（既存があればスキップ）
+INSERT INTO ingredient_categories (name, sort_order) VALUES
+    ('ベース酒', 1),
+    ('ビール', 2),
+    ('リキュール・シロップ', 3),
+    ('割材', 4),
+    ('ジュース', 5),
+    ('ガーニッシュ', 6),
+    ('フード材料', 7)
+ON CONFLICT (name) DO NOTHING;
 CREATE INDEX IF NOT EXISTS idx_menu_items_category ON menu_items(category_id);
 
 -- 商品の並び順（カテゴリ／サブカテゴリ内でのドラッグ&ドロップ用）

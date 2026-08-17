@@ -10,10 +10,12 @@ router.get('/', async (req, res, next) => {
         i.id, i.name, i.purchase_unit, i.purchase_quantity::float,
         i.quantity_unit, i.cost_per_purchase_unit::float,
         i.is_active, i.created_at,
+        i.category_id, ic.name AS category_name,
         s.quantity_current::float,
         s.last_updated
       FROM ingredients i
       LEFT JOIN ingredient_stock s ON s.ingredient_id = i.id
+      LEFT JOIN ingredient_categories ic ON ic.id = i.category_id
       WHERE i.is_active = TRUE
       ORDER BY i.name
     `);
@@ -25,19 +27,21 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const { name, purchase_unit = '本', purchase_quantity = 1,
-            quantity_unit = 'ml', cost_per_purchase_unit = 0 } = req.body;
+            quantity_unit = 'ml', cost_per_purchase_unit = 0, category_id = null } = req.body;
     if (!name || String(name).trim().length === 0) {
       return res.status(400).json({ error: 'name is required' });
     }
     if (Number(purchase_quantity) <= 0) {
       return res.status(400).json({ error: 'purchase_quantity must be > 0' });
     }
+    // 材料カテゴリ（未指定・空文字は未分類=NULL）
+    const catId = (category_id === null || category_id === undefined || category_id === '') ? null : Number(category_id);
     const { rows } = await query(`
-      INSERT INTO ingredients (name, purchase_unit, purchase_quantity, quantity_unit, cost_per_purchase_unit)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, name, purchase_unit, purchase_quantity::float, quantity_unit, cost_per_purchase_unit::float, is_active, created_at
-    `, [name.trim(), purchase_unit, Number(purchase_quantity), quantity_unit, Number(cost_per_purchase_unit) || 0]);
-    res.status(201).json({ ...rows[0], quantity_current: null, last_updated: null });
+      INSERT INTO ingredients (name, purchase_unit, purchase_quantity, quantity_unit, cost_per_purchase_unit, category_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, name, purchase_unit, purchase_quantity::float, quantity_unit, cost_per_purchase_unit::float, is_active, created_at, category_id
+    `, [name.trim(), purchase_unit, Number(purchase_quantity), quantity_unit, Number(cost_per_purchase_unit) || 0, catId]);
+    res.status(201).json({ ...rows[0], category_name: null, quantity_current: null, last_updated: null });
   } catch (err) { next(err); }
 });
 
@@ -47,7 +51,7 @@ router.patch('/:id', async (req, res, next) => {
     const { rows: existing } = await query('SELECT id FROM ingredients WHERE id = $1 AND is_active = TRUE', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ error: 'Ingredient not found' });
 
-    const { name, purchase_unit, purchase_quantity, quantity_unit, cost_per_purchase_unit } = req.body;
+    const { name, purchase_unit, purchase_quantity, quantity_unit, cost_per_purchase_unit, category_id } = req.body;
     const updates = [];
     const values = [];
     let idx = 1;
@@ -56,12 +60,14 @@ router.patch('/:id', async (req, res, next) => {
     if (purchase_quantity !== undefined)     { updates.push(`purchase_quantity = $${idx++}`);     values.push(Number(purchase_quantity)); }
     if (quantity_unit !== undefined)         { updates.push(`quantity_unit = $${idx++}`);         values.push(quantity_unit); }
     if (cost_per_purchase_unit !== undefined){ updates.push(`cost_per_purchase_unit = $${idx++}`); values.push(Number(cost_per_purchase_unit) || 0); }
+    // 材料カテゴリ（null・空文字は未分類=NULLへ）
+    if (category_id !== undefined)           { updates.push(`category_id = $${idx++}`);           values.push((category_id === null || category_id === '') ? null : Number(category_id)); }
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
     values.push(req.params.id);
     const { rows } = await query(`
       UPDATE ingredients SET ${updates.join(', ')} WHERE id = $${idx}
-      RETURNING id, name, purchase_unit, purchase_quantity::float, quantity_unit, cost_per_purchase_unit::float, is_active
+      RETURNING id, name, purchase_unit, purchase_quantity::float, quantity_unit, cost_per_purchase_unit::float, is_active, category_id
     `, values);
     res.json(rows[0]);
   } catch (err) { next(err); }
