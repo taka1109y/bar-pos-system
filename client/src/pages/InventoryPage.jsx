@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { yen, num } from '../utils/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import { Button, Modal, Field, Input, Select, DataTable, Badge, Tabs, Toolbar, Alert, StatTile } from '../components/ui';
+import { Button, Modal, Field, Input, Select, DataTable, Badge, Tabs, Toolbar, Alert, StatTile, cn } from '../components/ui';
 
 const REASON = {
   order:      { label: '販売',       tone: 'info' },
@@ -21,8 +21,10 @@ const IconTrash = () => (
 function IngredientModal({ item, onClose }) {
   const queryClient = useQueryClient();
   const isEdit = !!item;
+  const { data: categories = [] } = useQuery({ queryKey: ['ingredient-categories'], queryFn: api.getIngredientCategories });
   const [form, setForm] = useState({
     name: item?.name || '',
+    category_id: item?.category_id ?? '',
     purchase_unit: item?.purchase_unit || '本',
     purchase_quantity: item?.purchase_quantity ?? 700,
     quantity_unit: item?.quantity_unit || 'ml',
@@ -51,6 +53,12 @@ function IngredientModal({ item, onClose }) {
     <Modal title={isEdit ? '材料を編集' : '材料を追加'} size="sm" onClose={onClose}>
       <div className="space-y-3">
         <Field label="材料名" required><Input value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="例: ウイスキー角" /></Field>
+        <Field label="材料カテゴリ" hint="レシピ作成時の絞り込みに使用">
+          <Select value={form.category_id} onChange={(e) => setForm(f => ({ ...f, category_id: e.target.value }))}>
+            <option value="">未分類</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
+        </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="仕入れ単位"><Input value={form.purchase_unit} onChange={(e) => setForm(f => ({ ...f, purchase_unit: e.target.value }))} placeholder="本、缶、袋" /></Field>
           <Field label="1単位あたりの容量"><Input type="number" min="0.001" step="any" value={form.purchase_quantity} onChange={(e) => setForm(f => ({ ...f, purchase_quantity: e.target.value }))} placeholder="700" /></Field>
@@ -191,6 +199,117 @@ function StockValuationTab({ inventory, isLoading }) {
   );
 }
 
+// ─── 材料カテゴリ管理タブ（材料マスターの分類軸・単一階層CRUD） ───
+function IngredientCategoryTab({ inventory }) {
+  const queryClient = useQueryClient();
+  const { data: categories = [], isLoading } = useQuery({ queryKey: ['ingredient-categories'], queryFn: api.getIngredientCategories });
+  const [modal, setModal] = useState(null); // null | {}(新規) | category(編集)
+  const [form, setForm] = useState({ name: '', sort_order: '' });
+  const [error, setError] = useState('');
+
+  // カテゴリ別 材料数（在庫一覧から集計）
+  const countByCat = inventory.reduce((acc, i) => {
+    if (i.category_id != null) acc[i.category_id] = (acc[i.category_id] || 0) + 1;
+    return acc;
+  }, {});
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['ingredient-categories'] });
+    queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    queryClient.invalidateQueries({ queryKey: ['ingredients'] });
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: (data) => data.id
+      ? api.updateIngredientCategory(data.id, { name: data.name, sort_order: data.sort_order })
+      : api.createIngredientCategory({ name: data.name, sort_order: data.sort_order }),
+    onSuccess: () => { invalidate(); setModal(null); setError(''); },
+    onError: (e) => setError(e.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => api.deleteIngredientCategory(id),
+    onSuccess: invalidate,
+  });
+
+  const openNew = () => { setForm({ name: '', sort_order: categories.length + 1 }); setError(''); setModal({}); };
+  const openEdit = (c) => { setForm({ name: c.name, sort_order: c.sort_order }); setError(''); setModal(c); };
+
+  const handleSave = () => {
+    if (!form.name.trim()) return setError('カテゴリ名を入力してください');
+    saveMutation.mutate({ id: modal?.id, name: form.name.trim(), sort_order: Number(form.sort_order) || 0 });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted">{categories.length}件のカテゴリ</p>
+        <Button size="sm" onClick={openNew}>＋ カテゴリを追加</Button>
+      </div>
+      <DataTable
+        rowKey={(c) => c.id}
+        empty={<div className="py-12 text-center text-sm text-muted">{isLoading ? '読み込み中...' : 'カテゴリがありません'}</div>}
+        columns={[
+          { key: 'name', header: 'カテゴリ名', render: (c) => <span className="font-medium text-heading">{c.name}</span> },
+          { key: 'order', header: '並び順', align: 'right', render: (c) => c.sort_order },
+          { key: 'count', header: '材料数', align: 'right', render: (c) => `${countByCat[c.id] || 0} 種` },
+          { key: 'act', header: '', align: 'right', width: 90, render: (c) => (
+            <div className="flex items-center justify-end gap-1.5">
+              <Button variant="secondary" size="sm" iconOnly aria-label={`${c.name} を編集`} title="編集" onClick={() => openEdit(c)}><IconEdit /></Button>
+              <Button variant="secondary" size="sm" iconOnly aria-label={`${c.name} を削除`} title="削除" className="text-danger border-red-200 hover:bg-red-50"
+                onClick={() => { if (window.confirm(`「${c.name}」を削除しますか？\nこのカテゴリの材料は「未分類」に戻ります。`)) deleteMutation.mutate(c.id); }}><IconTrash /></Button>
+            </div>
+          ) },
+        ]}
+        rows={categories}
+      />
+      {modal !== null && (
+        <Modal title={modal?.id ? 'カテゴリを編集' : 'カテゴリを追加'} size="sm" onClose={() => setModal(null)}>
+          <div className="space-y-3">
+            <Field label="カテゴリ名" required><Input value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="例: ベース酒" /></Field>
+            <Field label="並び順" hint="小さいほど先に表示"><Input type="number" value={form.sort_order} onChange={(e) => setForm(f => ({ ...f, sort_order: e.target.value }))} /></Field>
+            {error && <Alert tone="danger">{error}</Alert>}
+            <div className="flex gap-2 justify-end pt-1">
+              <Button variant="secondary" onClick={() => setModal(null)}>キャンセル</Button>
+              <Button loading={saveMutation.isPending} onClick={handleSave}>保存</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── 材料フィルタバー（検索＋カテゴリチップ。材料在庫/材料マスタータブ共通） ───
+function MaterialFilters({ search, setSearch, catFilter, setCatFilter, categories, list }) {
+  // 実際に materials に存在するカテゴリのみチップ表示（並び順は master の sort_order）
+  const presentIds = new Set(list.filter(i => i.category_id != null).map(i => i.category_id));
+  const chipCats = categories.filter(c => presentIds.has(c.id));
+  const hasUncat = list.some(i => i.category_id == null);
+
+  const chip = (active, label, onClick) => (
+    <button type="button" onClick={onClick}
+      className={cn('px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors cursor-pointer',
+        active ? 'bg-primary-500 text-white border-primary-500' : 'bg-surface text-body border-line hover:bg-surface-hover')}>
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="sticky top-0 z-10 -mx-4 md:-mx-6 px-4 md:px-6 py-2.5 bg-canvas border-b border-line space-y-2">
+      <Input type="search" placeholder="材料名で検索..." value={search} onChange={(e) => setSearch(e.target.value)}
+        prefix={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>} />
+      {(chipCats.length > 0 || hasUncat) && (
+        <div className="flex flex-wrap gap-1.5">
+          {chip(catFilter === null, '全て', () => setCatFilter(null))}
+          {chipCats.map(c => chip(catFilter === c.id, c.name, () => setCatFilter(c.id)))}
+          {hasUncat && chip(catFilter === 'none', '未分類', () => setCatFilter('none'))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function InventoryPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState('stock');
@@ -213,8 +332,20 @@ export default function InventoryPage() {
     enabled: tab === 'logs',
   });
 
-  const managed   = inventory.filter(i => i.quantity_current != null);
-  const unmanaged = inventory.filter(i => i.quantity_current == null);
+  // 検索・カテゴリ絞り込み（材料在庫／材料マスタータブ共通）
+  const { data: ingCategories = [] } = useQuery({ queryKey: ['ingredient-categories'], queryFn: api.getIngredientCategories });
+  const [search, setSearch] = useState('');
+  const [catFilter, setCatFilter] = useState(null); // null=全て / number=category_id / 'none'=未分類
+  const matchFilter = (i) => {
+    const q = search.trim().toLowerCase();
+    if (q && !i.name.toLowerCase().includes(q)) return false;
+    if (catFilter === 'none') return i.category_id == null;
+    if (catFilter !== null) return i.category_id === catFilter;
+    return true;
+  };
+  const filteredInventory = inventory.filter(matchFilter);
+  const managed   = filteredInventory.filter(i => i.quantity_current != null);
+  const unmanaged = filteredInventory.filter(i => i.quantity_current == null);
 
   const adjustMutation = useMutation({
     mutationFn: (adjustments) => api.adjustInventory(adjustments),
@@ -257,11 +388,12 @@ export default function InventoryPage() {
       <Tabs
         activeId={tab}
         onChange={setTab}
-        tabs={[{ id: 'stock', label: '材料在庫' }, { id: 'master', label: '材料マスター' }, { id: 'logs', label: '異動ログ' }, { id: 'valuation', label: '在庫評価' }]}
+        tabs={[{ id: 'stock', label: '材料在庫' }, { id: 'master', label: '材料マスター' }, { id: 'categories', label: '材料カテゴリ' }, { id: 'logs', label: '異動ログ' }, { id: 'valuation', label: '在庫評価' }]}
       />
 
       {tab === 'stock' && (
         <div className="space-y-5">
+          <MaterialFilters search={search} setSearch={setSearch} catFilter={catFilter} setCatFilter={setCatFilter} categories={ingCategories} list={inventory} />
           {invLoading ? (
             <div className="text-sm text-muted py-8 text-center">読み込み中...</div>
           ) : (
@@ -317,8 +449,14 @@ export default function InventoryPage() {
 
               {managed.length === 0 && unmanaged.length === 0 && (
                 <div className="text-center py-16 text-muted">
-                  <p className="text-sm">材料が登録されていません</p>
-                  <p className="text-xs mt-1">「材料マスター」タブから材料を追加してください</p>
+                  {inventory.length === 0 ? (
+                    <>
+                      <p className="text-sm">材料が登録されていません</p>
+                      <p className="text-xs mt-1">「材料マスター」タブから材料を追加してください</p>
+                    </>
+                  ) : (
+                    <p className="text-sm">該当する材料がありません</p>
+                  )}
                 </div>
               )}
             </>
@@ -329,17 +467,19 @@ export default function InventoryPage() {
       {tab === 'master' && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted">{inventory.length}件</p>
+            <p className="text-sm text-muted">{filteredInventory.length === inventory.length ? `${inventory.length}件` : `${filteredInventory.length} / ${inventory.length}件`}</p>
             <Button size="sm" onClick={() => setIngredientModal({})}>＋ 材料を追加</Button>
           </div>
+          <MaterialFilters search={search} setSearch={setSearch} catFilter={catFilter} setCatFilter={setCatFilter} categories={ingCategories} list={inventory} />
           {invLoading ? (
             <div className="text-sm text-muted py-8 text-center">読み込み中...</div>
           ) : (
             <DataTable
               rowKey={(i) => i.ingredient_id}
-              empty={<div className="py-12 text-center text-sm text-muted">材料が登録されていません</div>}
+              empty={<div className="py-12 text-center text-sm text-muted">{inventory.length === 0 ? '材料が登録されていません' : '該当する材料がありません'}</div>}
               columns={[
                 { key: 'name', header: '材料名', render: (i) => <span className="font-medium text-heading">{i.name}</span> },
+                { key: 'cat', header: 'カテゴリ', render: (i) => i.category_name ? <Badge tone="neutral" size="sm">{i.category_name}</Badge> : <span className="text-xs text-faint">未分類</span> },
                 { key: 'pu', header: '仕入れ単位', align: 'right', render: (i) => i.purchase_unit },
                 { key: 'cap', header: '容量', align: 'right', render: (i) => `${i.purchase_quantity}${i.quantity_unit}` },
                 { key: 'cost', header: '仕入れ値', align: 'right', render: (i) => `¥${yen(i.cost_per_purchase_unit)}` },
@@ -352,11 +492,13 @@ export default function InventoryPage() {
                   </div>
                 ) },
               ]}
-              rows={inventory}
+              rows={filteredInventory}
             />
           )}
         </div>
       )}
+
+      {tab === 'categories' && <IngredientCategoryTab inventory={inventory} />}
 
       {tab === 'logs' && (
         <div>
