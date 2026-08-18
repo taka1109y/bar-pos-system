@@ -2,16 +2,18 @@ const { query } = require('../db/database');
 const { broadcast } = require('./socketService');
 const pricingSettings = require('./pricingSettings');
 const pm = require('./pricingModel');
+const { makeRng } = require('./rng');
 const logger = require('../utils/logger');
 
 const TZ = process.env.TZ_REPORT || 'Asia/Tokyo';
 
-// ── 価格モデル(Phase4): 呼値ラダー × 15分期 ─────────────────────────────
-// ・注文が入った瞬間に、その銘柄を即時1段上昇（stepUpOnOrder, orders.js から呼ぶ）
-// ・15分「期」の区切りで、その期に注文が無かった銘柄を1段減衰（runPeriodDecay, 定期実行）
-// ・影響は個別銘柄のみ（カテゴリ/サブカテゴリ競合は使わない）。乱数なし。整数(25円)演算。
-// ・暴落(最下段への即時遷移・復帰)は menu.js が担当。
-//   従来の需要競合ロジック(groupKey)は Phase4 で本モデルに置換した(承認済み)。
+// ── 価格モデル(Phase7): pricing_base 中心 21点格子 ＋ カテゴリ内ゼロサム・シーソー ────────
+// ・注文が入るとその銘柄=勝者が +k段(抽選)上昇し、同カテゴリの他銘柄へ上昇分を -1段ずつ配分(ゼロサム)。
+//   → runSeesaw(orders.js から呼ぶ)。旧「注文で+1段(stepUpOnOrder)」と「期末減衰(runPeriodDecay)」を置換。
+// ・時間減衰は廃止。価格は注文イベントのみで動く。市場オープンで全 engine_on 変動ドリンクを n=0(pricing_base)へ。
+// ・暴落(hard_floor=実効floorへの即時遷移・復帰)は menu.js が担当。
+// ・engine_off/固定/時価は markup 非適用＝常に定価(base)。
+// ※旧 Phase4/Phase6版(stepUpOnOrder/減衰ロジック)は下部に DEPRECATED 残置(rollback用)。
 
 // 全ドリンクの最新価格をボードへ同期（暴落中も現在価格のまま含める）
 async function broadcastPricesSync() {
@@ -52,11 +54,8 @@ async function applyPriceChange(item, before, after, trigger, eventType = 'tick'
   );
 }
 
-// Phase6(6-2) 注文時: engine_enabled のドリンクを即時1段上昇(格子・maxで頭打ち)。
-// ・暴落中(is_crashed)は約定は hard_floor 価格で通すが、段index+1 は適用しない
-//   (暴落終了時は「暴落前の段」へ復帰。暴落中の注文数で復帰位置が変わらないようにする)。
-// ・idle_periods のリセットは runPeriodDecay 側で「当期に注文があった銘柄」を
-//   order_items.created_at 基準で判定して行う(会計時刻ではなく注文時刻基準)。
+// ★DEPRECATED(Phase7 runSeesaw で置換)★ 旧: 注文時に engine_enabled のドリンクを即時1段上昇。
+// orders.js は runSeesaw を呼ぶよう変更済み。本関数は rollback 用に残置(参照しないこと)。
 async function stepUpOnOrder(menuItemId) {
   try {
     const { rows } = await query(
@@ -105,62 +104,97 @@ async function stepUpOnOrder(menuItemId) {
 }
 */
 
-// Phase6(6-2) 期(既定15分)の減衰。減衰カウンタ idle_periods の意味論:
-//   「在店期ベースで累積2無注文期で −1段、注文で0リセット、無人期はカウンタ・価格とも凍結」。
-// ・在店判定: 期末時点で status='open' の未会計オーダーが1件以上あるか(スナップショット)。
-// ・銘柄別の注文有無: 当期窓 [period_started_at, now] に order_items.created_at がある銘柄
-//   (会計時刻ではなく注文明細の作成時刻基準。伝票が翌期に会計されても注文期に計上)。
-// ・対象: engine_enabled=TRUE の非crashedドリンク。暴落中は idle_periods 凍結(WHERE で除外)。
-// ・期の起点は状態(period_started_at → register_opened_at → now-PERIOD_MS)から読む
-//   (壁時計の00/15/30/45分固定ではない。market_open 起点への整合は6-3で行う前提の構造)。
+// Phase7 注文時: カテゴリ内ゼロサム・シーソー。
+// 注文された銘柄=勝者が +k段(抽選 k∈{1,2,3}=0.6/0.3/0.1)上昇し、その上昇分を同カテゴリの
+// 他 engine_on 変動ドリンクへ -1段ずつ抽選配分する(カテゴリ総量保存＝平均 pricing_base 維持)。
+// 勝者は ceiling(n=+10)、犠牲は各自の実効floor(stored min_price)で頭打ち。厳密ゼロサム:
+// 配分できた実数 r だけ勝者を上げる(勝者/犠牲の余地が尽きたら r に縮小)。時間減衰は無い。
+// シード: テストは env SEESAW_SEED 固定で再現、本番は register_opened_at＋連番＋現在時刻で日々変わる。
+let seesawSeq = 0; // 起動内の連番(シード変動用)
+async function runSeesaw(menuItemId) {
+  try {
+    const { rows: wr } = await query(
+      `SELECT id, name, category_id, base_price::float AS base_price, current_price::float AS cp,
+         is_crashed, is_active, is_drink, engine_enabled, price_editable
+       FROM menu_items WHERE id = $1`, [menuItemId]
+    );
+    const w = wr[0];
+    // 勝者が engine_on の変動ドリンクでなければ変動なし(engine_off/時価/非ドリンク/暴落中)
+    if (!w || !w.is_active || !w.is_drink || !w.engine_enabled || w.is_crashed || w.price_editable) return;
+
+    // シード生成(テスト再現用)。本番は register_opened_at・連番・現在時刻で日々異なる列。
+    const { rows: sr } = await query(`SELECT value FROM system_settings WHERE key = 'register_opened_at'`);
+    const seq = ++seesawSeq;
+    const seed = process.env.SEESAW_SEED
+      ? `${process.env.SEESAW_SEED}:${seq}`
+      : `${sr[0] && sr[0].value ? sr[0].value : 'x'}:${seq}:${Date.now()}`;
+    const rng = makeRng(seed);
+    const k = pm.drawSeesawSteps(rng);
+
+    // 勝者の上げ余地(ceiling=n+10まで)
+    const nW = pm.nForPrice(w.base_price, w.cp);
+    const up0 = Math.min(k, pm.GRID_HALF_SPAN - nW);
+
+    // 犠牲候補: 同カテゴリの engine_on 変動ドリンク(勝者除く)。stored min_price=実効floor を下限に使う。
+    const { rows: cand } = await query(
+      `SELECT id, name, base_price::float AS base_price, current_price::float AS cp, min_price::float AS minp
+       FROM menu_items
+       WHERE category_id = $1 AND id <> $2 AND is_drink = TRUE AND is_active = TRUE
+         AND engine_enabled = TRUE AND is_crashed = FALSE AND price_editable = FALSE`,
+      [w.category_id, w.id]
+    );
+    const victims = cand.map((c) => {
+      const cN = pm.nForPrice(c.base_price, c.cp);
+      const fN = pm.nForPrice(c.base_price, c.minp); // 実効floor の n
+      return { id: c.id, name: c.name, base_price: c.base_price, cp: c.cp, n: cN, room: cN - fN };
+    }).filter((v) => v.room > 0);
+
+    // 犠牲を抽選順にシャッフルし、distinct 優先で -1 を配分(足りなければ floor まで重複)
+    for (let i = victims.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [victims[i], victims[j]] = [victims[j], victims[i]];
+    }
+    const drops = new Map();
+    let r = 0;
+    while (r < up0) {
+      let progressed = false;
+      for (const v of victims) {
+        if (r >= up0) break;
+        if ((drops.get(v.id) || 0) < v.room) { drops.set(v.id, (drops.get(v.id) || 0) + 1); r++; progressed = true; }
+      }
+      if (!progressed) break; // 犠牲容量が尽きた
+    }
+    const up = r; // 厳密ゼロサム: 勝者上昇 = 犠牲合計下降
+    if (up <= 0) return; // 上げ余地無し or 犠牲容量無し → 変動なし
+
+    const bcast = (it, price, dir) => ({
+      id: it.id, name: it.name, base_price: it.base_price, current_price: price,
+      pct_change: it.base_price > 0 ? Math.round((price - it.base_price) / it.base_price * 1000) / 10 : 0,
+      direction: dir,
+    });
+    const items = [];
+    const wNew = pm.priceAtN(w.base_price, nW + up);
+    if (wNew !== w.cp) { await applyPriceChange(w, w.cp, wNew, 'order', 'seesaw_win'); items.push(bcast(w, wNew, 'up')); }
+    for (const v of victims) {
+      const d = drops.get(v.id) || 0;
+      if (d > 0) {
+        const vNew = pm.priceAtN(v.base_price, v.n - d);
+        if (vNew !== v.cp) { await applyPriceChange(v, v.cp, vNew, 'order', 'seesaw_lose'); items.push(bcast(v, vNew, 'down')); }
+      }
+    }
+    if (items.length) broadcast('prices:updated', { items, timestamp: Date.now() });
+  } catch (e) {
+    logger.error({ err: e }, 'runSeesaw failed');
+  }
+}
+
+// Phase7: 期タイマー(15分)。時間減衰は廃止したため価格は動かさず、盤面カウントダウン
+// (period_ends_at / period:tick)と価格同期のみ更新する。関数名は互換のため据え置き(rollback容易化)。
 async function runPeriodDecay() {
   try {
     const now = Date.now();
-    // 期の起点を状態から読む(6-3で market_open に整合させる)
-    const { rows: st } = await query(
-      `SELECT key, value FROM system_settings WHERE key IN ('period_started_at', 'register_opened_at')`
-    );
-    const smap = Object.fromEntries(st.map((r) => [r.key, r.value]));
-    const startIso = smap.period_started_at || smap.register_opened_at || new Date(now - pm.PERIOD_MS).toISOString();
-
-    // 在店(期末に未会計あり)判定
-    const { rows: openRows } = await query(`SELECT COUNT(*)::int AS n FROM orders WHERE status = 'open'`);
-    const occupied = openRows[0].n > 0;
-
-    let changed = 0;
-    if (occupied) {
-      // 当期に注文があった銘柄(order_items.created_at 基準)
-      const { rows: od } = await query(
-        `SELECT DISTINCT menu_item_id FROM order_items WHERE created_at >= $1`, [startIso]
-      );
-      const ordered = new Set(od.map((r) => r.menu_item_id));
-      const { rows: items } = await query(`
-        SELECT id, name, base_price::float AS base_price, current_price::float AS cp, idle_periods,
-          min_price::float AS minp
-        FROM menu_items
-        WHERE is_drink = TRUE AND is_active = TRUE AND is_crashed = FALSE AND engine_enabled = TRUE
-      `);
-      for (const it of items) {
-        if (ordered.has(it.id)) {
-          // 注文あり: カウンタ0リセット(価格は据え置き)
-          if (it.idle_periods !== 0) await query('UPDATE menu_items SET idle_periods = 0 WHERE id = $1', [it.id]);
-          continue;
-        }
-        // 在店・無注文: 累積+1。DECAY_IDLE_PERIODS に達したら −1段してカウンタ0へ
-        const nextCount = it.idle_periods + 1;
-        if (nextCount >= pm.DECAY_IDLE_PERIODS) {
-          // 減衰の停止点は stored min_price(=effectiveSoftFloor)。原価×1.2でクランプ済みの薄利銘柄も原価割れしない。
-          const next = pm.gridStepDown(it.base_price, it.cp, it.minp);
-          await query('UPDATE menu_items SET idle_periods = 0 WHERE id = $1', [it.id]);
-          if (next !== it.cp) { await applyPriceChange(it, it.cp, next, 'decay'); changed++; }
-        } else {
-          await query('UPDATE menu_items SET idle_periods = $2 WHERE id = $1', [it.id, nextCount]);
-        }
-      }
-    }
-    // 無人期(!occupied)は何もしない: idle_periods・価格とも凍結
-
-    // 次期の起点/終了を保存し、カウントダウン用に通知
+    // Phase7: 時間減衰は廃止(価格はシーソー=注文イベントでのみ動く)。期タイマーは盤面カウントダウン
+    // (period_ends_at / period:tick)と価格同期を維持するため、期の更新とブロードキャストのみ行う。
     const endsAt = new Date(now + pm.PERIOD_MS).toISOString();
     const startNext = new Date(now).toISOString();
     await query(
@@ -173,7 +207,6 @@ async function runPeriodDecay() {
     );
     await broadcastPricesSync();
     broadcast('period:tick', { endsAt, timestamp: now });
-    if (changed > 0) logger.info({ count: changed, occupied }, 'PricingEngine period decay(Phase6)');
   } catch (e) {
     logger.error({ err: e }, 'runPeriodDecay failed');
   }
@@ -216,7 +249,7 @@ async function runPeriodDecay() {
 let periodTimer = null;
 
 function startPricingEngine() {
-  logger.info('PricingEngine(Phase4 ladder) starting');
+  logger.info('PricingEngine(Phase7 pricing_base grid + seesaw) starting');
   // 起動時に period_ends_at を必ずセットしてから定期減衰を開始
   runPeriodDecay().catch((e) => logger.error({ err: e }, 'PricingEngine initial period error'));
   periodTimer = setInterval(() => {
@@ -235,10 +268,10 @@ function restartInterval() {
 // 互換: 旧 triggerTick は Phase4 では未使用(全体tickは廃止)。呼ばれても無害。
 function triggerTick() { /* deprecated in Phase4; per-item step-up is via stepUpOnOrder */ }
 
-// Phase6(6-3) 寄り付き(market open):
-// ・engine_enabled=TRUE の非crashedドリンクを anchor(base×1.1) にリセット・idle_periods=0。
+// Phase7 寄り付き(market open):
+// ・engine_enabled=TRUE の非crashedドリンクを pricing_base(n=0) にリセット。
 //   off品(ボトル/高額グラス/ノンアル/フード/裏/時価/薄利=定価固定)は据置。
-// ・期起点 period_started_at を寄り付き時刻に合わせる(6-2の減衰期をオープン起点で刻む)。
+// ・期起点 period_started_at を寄り付き時刻に合わせる(カウントダウン表示用)。
 // ・price_events に event_type='market_open' を記録。prices:sync と market:open を通知。
 // trigger: レジオープン='auto' / 手動リセット='manual'。
 async function doMarketOpen(trigger = 'auto') {
@@ -252,10 +285,9 @@ async function doMarketOpen(trigger = 'auto') {
   for (const it of items) {
     // F9: 1銘柄の失敗が寄り付き全体を中断しないよう個別に握る(期の起点設定・同期は必ず完遂させる)。
     try {
-      const anchor = pm.anchorP6(it.base_price);
-      await query('UPDATE menu_items SET idle_periods = 0 WHERE id = $1', [it.id]);
-      if (anchor !== it.cp) {
-        await applyPriceChange(it, it.cp, anchor, trigger, 'market_open');
+      const target = pm.pricingBase(it.base_price); // Phase7: 寄り付き=pricing_base(n=0)
+      if (target !== it.cp) {
+        await applyPriceChange(it, it.cp, target, trigger, 'market_open');
         changed++;
       }
     } catch (e) {
@@ -276,5 +308,5 @@ async function doMarketOpen(trigger = 'auto') {
 
 module.exports = {
   startPricingEngine, restartInterval, triggerTick,
-  stepUpOnOrder, runPeriodDecay, broadcastPricesSync, doMarketOpen,
+  stepUpOnOrder, runSeesaw, runPeriodDecay, broadcastPricesSync, doMarketOpen,
 };

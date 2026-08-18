@@ -11,29 +11,27 @@ const _round25 = (v) => Math.round(v / crashCfg.PRICE_ROUND_UNIT) * crashCfg.PRI
 const _ceil25  = (v) => Math.ceil(v / crashCfg.PRICE_ROUND_UNIT) * crashCfg.PRICE_ROUND_UNIT;
 let _manualCrashTimer = null;
 
-// Phase6(承認済 6-1): 価格格子モデル。基準価格から min/max/呼値/現在価格 を算出。
-// 格子 = base + n×step。soft_floor=base(=min) / anchor=base×1.1(新規は寄り付き値で上場) / max=base×1.2。
-// ロック/非ドリンク/時価(price_editable) は固定価格(min=max=current=base)。
-// ※旧 Phase4版(computeMin/computeMax/ladderStep/snapToLadder)は pricingModel に残置(ロールバック用)。
-// cost は Phase6 では未使用(暴落下限 hard_floor は暴落時に算出)。互換のため引数は残す。
+// Phase7(承認済): pricing_base 中心の21点格子。stored min/max/current を base_price(不変)から算出。
+// pricing_base=round_to_unit(base×1.10)、格子=pricing_base+n×step(n∈[-10,10])、step=2%を¥5切下げ。
+// min=実効floor(格子下限 n=-10 と 原価×1.2格子 の高い方＝原価が厳しい銘柄はfloorが持ち上がる)、
+// max=ceiling(n=+10)、current=pricing_base(n=0＝寄り付き位置)。
+// ロック/非ドリンク/時価(price_editable)/engine_off は固定価格(min=max=current=base＝常に定価・markup非適用)。
+// ※旧 Phase6版(effectiveSoftFloor/anchorP6/maxP6)は pricingModel に DEPRECATED 残置(rollback用)。
 function computeLadder(base, cost, { locked, isDrink, priceEditable }) {
   const variable = isDrink && !priceEditable && !locked;
-  const step = pm.stepForBase(base);
+  const step = pm.gridStep(base);
   if (!variable) {
-    // 固定価格(ノンアル/ボトル/フード/時価/ロック)は定価そのもの(base、格子原点)。
-    // ※soft_floor率を0.8にしたため softFloor(base)≠base。固定品は定価を保つため base を使う。
-    const p = pm.snapGrid(base, base); // = base
-    return { min: p, max: p, step, current: p };
+    // 固定価格は常に定価(base)。markup 非適用。
+    return { min: base, max: base, step, current: base };
   }
-  // soft_floor = base×0.8。ただし原価×1.2(格子)が上回る薄利銘柄はそちらへクランプ(=hard_floor)。
-  const min = pm.effectiveSoftFloor(base, cost || 0);
-  const max = pm.maxP6(base);
-  // 縮退(base<約75 や 原価過大で min>=max)は固定価格として返す。
+  const min = pm.effectiveFloor(base, cost || 0);
+  const max = pm.ceilingPrice(base);
+  // 縮退(原価過大で min>=max)は固定価格として返す。
   if (min >= max) {
     return { min: max, max, step, current: max };
   }
-  // 寄り付き(anchor)を[min,max]にクランプ(原価クランプで anchor<min の薄利銘柄は min で上場)
-  const current = Math.min(max, Math.max(min, pm.anchorP6(base)));
+  // 寄り付き位置=pricing_base(n=0)を[min,max]にクランプ(原価クランプで pricing_base<min の薄利銘柄は min で上場)
+  const current = Math.min(max, Math.max(min, pm.pricingBase(base)));
   return { min, max, step, current };
 }
 
@@ -76,13 +74,13 @@ async function performManualCrashReset(triggerLabel) {
       if (b.minp === b.maxp) {
         restore = b.base_price; // ロック(固定価格)
       } else {
-        // 格子へスナップし[soft_floor,max]にクランプ(格子再計算に強い)。クランプが効いたらログに残す。
-        const pureSnap = pm.snapGrid(b.base_price, raw);
-        restore = pm.snapClampP6(b.base_price, raw);
-        if (restore !== pureSnap) {
+        // Phase7: 新格子へスナップし stored[min,max](=[実効floor, ceiling])へクランプ(格子再計算に強い)。
+        const snapped = pm.priceAtN(b.base_price, pm.nForPrice(b.base_price, raw));
+        restore = Math.max(b.minp, Math.min(b.maxp, snapped));
+        if (restore !== snapped) {
           logger.warn(
-            { id: b.id, price_before: raw, snapped: pureSnap, clamped: restore, soft: pm.softFloor(b.base_price), max: pm.maxP6(b.base_price) },
-            'crash reset: price_before が現行[soft_floor,max]外 → クランプして復帰'
+            { id: b.id, price_before: raw, snapped, clamped: restore, floor: b.minp, ceiling: b.maxp },
+            'crash reset: price_before が現行[floor,ceiling]外 → クランプして復帰'
           );
         }
       }
@@ -650,12 +648,10 @@ router.post('/crash/manual', async (req, res, next) => {
     try {
       await client.query('BEGIN');
       for (const item of targets) {
-        // Phase6-4: 暴落=hard_floor へ即時。hard_floor = ceilGrid(max(base×ratio, 原価×1.2))。
-        // ratio: engine_off(=engine_enabled=false かつ crash_eligible=true) は 0.7、通常 0.5。
-        const engineOff = !item.engine_enabled; // crash_eligible=true は WHERE で保証済
-        const crashPrice = pm.hardFloor(item.base_price, item.cost, engineOff);
-        if (crashPrice >= item.current_price) continue; // 既に hard_floor 以下なら下げない
-        if (!(item.cost > 0)) costMissing.push(item.name); // 原価欠損(床が base×ratio のみ)
+        // Phase7: 暴落=hard_floor(=実効floor=max(格子下限 n=-10, 原価×1.2格子))へ即時。旧 ×0.5/×0.7 は廃止。
+        const crashPrice = pm.effectiveFloor(item.base_price, item.cost);
+        if (crashPrice >= item.current_price) continue; // 既に floor 以下なら下げない
+        if (!(item.cost > 0)) costMissing.push(item.name); // 原価欠損(床は格子下限のみ)
         await client.query('UPDATE menu_items SET current_price = $1, is_crashed = TRUE WHERE id = $2', [crashPrice, item.id]);
         await client.query('INSERT INTO price_history (menu_item_id, price) VALUES ($1, $2)', [item.id, crashPrice]);
         await client.query(
@@ -787,7 +783,7 @@ router.patch('/:id', async (req, res, next) => {
       // 暴落中・ladder再計算時は据え置き/そちらを優先。
       if (!engV && existing[0].engine_enabled && !existing[0].is_crashed && !ladderUpdated) {
         const baseEff = base_price !== undefined ? Number(base_price) : existing[0].base_price;
-        updates.push(`current_price = $${idx++}`); values.push(pm.snapGrid(baseEff, baseEff)); // = 定価(base)
+        updates.push(`current_price = $${idx++}`); values.push(baseEff); // engine_off は常に定価(base)。markup非適用
       }
     }
     // Phase6-5: crash_eligible(暴落対象)。deprecated crash_enabled も同値同期(保存経路のみ)。

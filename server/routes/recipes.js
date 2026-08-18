@@ -108,8 +108,8 @@ router.put('/menu/:menuItemId', async (req, res, next) => {
     const mi = mrows[0];
     const locked = mi && mi.minp === mi.maxp;
     if (mi && mi.is_drink && !mi.price_editable && !locked && !mi.is_crashed) {
-      const newMin = pm.effectiveSoftFloor(mi.base, mi.cost || 0);
-      const max    = pm.maxP6(mi.base);
+      const newMin = pm.effectiveFloor(mi.base, mi.cost || 0);
+      const max    = pm.ceilingPrice(mi.base);
       if (newMin < max) {
         // current: engine-on は新minを下回るときのみ引き上げ(原価床割れ防止)。
         // engine-off は「常に定価」なので current を据え置く(原価×1.2>base の薄利でも定価を超えない)。
