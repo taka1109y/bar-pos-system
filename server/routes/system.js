@@ -3,7 +3,6 @@ const router = express.Router();
 const { query } = require('../db/database');
 const pm = require('../services/pricingModel');
 const { doMarketOpen } = require('../services/pricingEngine');
-const logger = require('../utils/logger');
 
 const upsertSetting = (key, value) =>
   query(
@@ -105,13 +104,8 @@ router.patch('/settings', async (req, res, next) => {
       await upsertSetting('register_open', opening ? 'true' : 'false');
       if (opening && !wasOpen) {
         await upsertSetting('register_opened_at', new Date().toISOString());
-        // Phase6-3: 寄り付き(全engine品をanchorへ・期起点をオープン時刻に)。
-        // 失敗してもレジオープン自体は成立させる(best-effort)。
-        try {
-          await doMarketOpen('auto');
-        } catch (e) {
-          logger.error({ err: e }, 'market open (寄り付き) on register_open failed');
-        }
+        // Phase7(オーナー指定): レジオープンでは価格をリセットしない(前セッションの価格を持ち越す)。
+        // 寄り付き(pricing_base=n=0 へのリセット)はスタッフが手動の /market-open で任意のタイミングに行う。
       }
     }
 

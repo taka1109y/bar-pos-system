@@ -263,7 +263,7 @@ function triggerTick() { /* deprecated; 価格は runSeesaw で動く */ }
 //   off品(ボトル/高額グラス/ノンアル/フード/裏/時価/薄利=定価固定)は据置。
 // ・期起点 period_started_at を寄り付き時刻に合わせる(カウントダウン表示用)。
 // ・price_events に event_type='market_open' を記録。prices:sync と market:open を通知。
-// trigger: レジオープン='auto' / 手動リセット='manual'。
+// trigger: 手動リセット='manual'。※Phase7でレジオープンの自動発火は撤去(価格は持ち越し)。'auto'は現状未使用。
 async function doMarketOpen(trigger = 'auto') {
   const { rows: items } = await query(`
     SELECT id, name, base_price::float AS base_price, current_price::float AS cp

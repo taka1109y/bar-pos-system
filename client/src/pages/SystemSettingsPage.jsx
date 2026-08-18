@@ -191,7 +191,7 @@ function PriceModelTab() {
         <StatTile label="暴落状態" value={isCrashing ? `残り ${crashRemain}` : '通常'} sub={isCrashing ? '暴落床へ急落中' : '発生していません'} deltaTone={isCrashing ? 'down' : 'neutral'} delta={isCrashing ? '暴落中' : null} />
       </div>
 
-      <Section title="手動 寄り付きリセット（例外用）" desc="通常はレジオープン時に自動実行されます。全ての変動対象銘柄を中心値（定価×1.10）へ戻します。">
+      <Section title="寄り付きリセット（価格を中心へ戻す）" desc="全ての変動対象銘柄を中心値（ベースプライス＝定価×1.10）へ戻します。レジオープンでは自動リセットしません（前の価格を持ち越し）。リセットしたいタイミングでスタッフが実行してください。">
         <div className="flex items-center gap-3">
           <Button loading={marketOpenMutation.isPending}
             onClick={() => { if (window.confirm('全ての変動対象銘柄を寄り付き値へ戻します。よろしいですか？')) marketOpenMutation.mutate(); }}>
