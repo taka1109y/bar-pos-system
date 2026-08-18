@@ -33,7 +33,7 @@ function parseSettings(rows) {
       base_markup: pm.BASE_MARKUP,                          // pricing_base = base × 1.10（帯中心）
       grid_points: pm.GRID_HALF_SPAN * 2 + 1,               // 21点格子(n∈[-10,+10])
       band_pct:    Math.round(pm.GRID_HALF_SPAN * pm.STEP_RATE * 1000) / 10, // 帯 ±20%
-      seesaw_dist: pm.SEESAW_DIST,                          // シーソー勝者上昇段の抽選 0.6/0.3/0.1
+      seesaw_dist: pm.getSeesawDist(),                      // シーソー勝者上昇段の抽選（管理画面で編集可）
     },
   };
 }
@@ -121,6 +121,16 @@ router.patch('/settings', async (req, res, next) => {
       await upsertSetting('monthly_discount_cap', n);
     }
 
+    // シーソー確率（管理画面から編集）。sum=1・p>=0 を pm 側で検証し、runtime 上書き＋DB永続化。
+    if (req.body.seesaw_dist !== undefined) {
+      try {
+        pm.setSeesawDist(req.body.seesaw_dist);
+      } catch (e) {
+        return res.status(400).json({ error: e.message });
+      }
+      await upsertSetting('seesaw_dist', JSON.stringify(pm.getSeesawDist()));
+    }
+
     const { rows } = await query('SELECT key, value FROM system_settings');
     res.json(parseSettings(rows));
   } catch (err) {
@@ -139,4 +149,15 @@ router.post('/market-open', async (req, res, next) => {
   }
 });
 
+// 起動時: 永続化済みのシーソー確率(system_settings.seesaw_dist)を runtime に反映する。
+async function loadPersistedSeesawDist() {
+  try {
+    const { rows } = await query(`SELECT value FROM system_settings WHERE key = 'seesaw_dist'`);
+    if (rows[0] && rows[0].value) pm.setSeesawDist(JSON.parse(rows[0].value));
+  } catch (e) {
+    // 不正値なら既定のまま起動する（握りつぶす）
+  }
+}
+
 module.exports = router;
+module.exports.loadPersistedSeesawDist = loadPersistedSeesawDist;

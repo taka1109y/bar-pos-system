@@ -166,6 +166,22 @@ function PriceModelTab() {
     onError: () => { setCapMsg('エラーが発生しました'); setTimeout(() => setCapMsg(''), 3000); },
   });
 
+  // シーソー確率の編集（+1/+2/+3 段の確率。合計=1）
+  const [seesawInputs, setSeesawInputs] = useState(['0.6', '0.3', '0.1']);
+  const [seesawMsg, setSeesawMsg] = useState('');
+  useEffect(() => {
+    const dist = settings?.price_model?.seesaw_dist;
+    if (Array.isArray(dist)) {
+      const p = (s) => { const d = dist.find((x) => x.steps === s); return d ? String(d.p) : '0'; };
+      setSeesawInputs([p(1), p(2), p(3)]);
+    }
+  }, [settings]);
+  const saveSeesawMutation = useMutation({
+    mutationFn: (dist) => api.updateSystemSettings({ seesaw_dist: dist }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['system-settings'] }); setSeesawMsg('保存しました'); setTimeout(() => setSeesawMsg(''), 3000); },
+    onError: (e) => { setSeesawMsg(e.message || 'エラーが発生しました'); setTimeout(() => setSeesawMsg(''), 4000); },
+  });
+
   if (isLoading || !settings) return <p className="text-sm text-muted">読み込み中...</p>;
 
   const model       = settings.price_model ?? {};
@@ -176,6 +192,15 @@ function PriceModelTab() {
   const seesawText  = seesaw.map((d) => `+${d.steps}段${Math.round(d.p * 100)}%`).join(' / ');
   const crashRemain = now > 0 ? remainMMSS(settings.crash_ends_at, now) : null;
   const isCrashing  = crashRemain !== null;
+
+  const seesawSum   = seesawInputs.reduce((s, v) => s + (Number(v) || 0), 0);
+  const seesawSumOk = Math.abs(seesawSum - 1) < 1e-6;
+  const setSee = (i, v) => setSeesawInputs((arr) => arr.map((x, idx) => (idx === i ? v : x)));
+  const handleSaveSeesaw = () => saveSeesawMutation.mutate([
+    { steps: 1, p: Number(seesawInputs[0]) || 0 },
+    { steps: 2, p: Number(seesawInputs[1]) || 0 },
+    { steps: 3, p: Number(seesawInputs[2]) || 0 },
+  ]);
 
   return (
     <div className="space-y-4">
@@ -190,6 +215,23 @@ function PriceModelTab() {
         <StatTile label="シーソー抽選" value={seesawText} sub="勝者の上昇段（犠牲は同カテゴリへ配分）" />
         <StatTile label="暴落状態" value={isCrashing ? `残り ${crashRemain}` : '通常'} sub={isCrashing ? '暴落床へ急落中' : '発生していません'} deltaTone={isCrashing ? 'down' : 'neutral'} delta={isCrashing ? '暴落中' : null} />
       </div>
+
+      <Section title="シーソー確率の設定" desc="注文時、勝者が何段上昇するかの抽選確率です。合計は必ず 1.0（変更は次の注文から反映・既存価格は動きません）。犠牲側は上昇分を同カテゴリへ -1 段ずつ配分します。">
+        <div className="flex flex-wrap items-end gap-4">
+          {['+1段', '+2段', '+3段'].map((lbl, i) => (
+            <Field key={lbl} label={lbl} className="w-24">
+              <Input type="number" min="0" max="1" step="0.05" value={seesawInputs[i]} onChange={(e) => setSee(i, e.target.value)} />
+            </Field>
+          ))}
+          <div className="leading-normal pb-2">
+            <span className={`text-sm font-medium ${seesawSumOk ? 'text-emerald-600' : 'text-danger'}`}>
+              合計 {seesawSum.toFixed(2)} {seesawSumOk ? '✓' : '（1.00 にしてください）'}
+            </span>
+          </div>
+          <Button loading={saveSeesawMutation.isPending} disabled={!seesawSumOk} onClick={handleSaveSeesaw}>保存</Button>
+          {seesawMsg && <span className="text-sm text-emerald-700 pb-2">{seesawMsg}</span>}
+        </div>
+      </Section>
 
       <Section title="寄り付きリセット（価格を中心へ戻す）" desc="全ての変動対象銘柄を中心値（ベースプライス＝定価×1.10）へ戻します。レジオープンでは自動リセットしません（前の価格を持ち越し）。リセットしたいタイミングでスタッフが実行してください。">
         <div className="flex items-center gap-3">

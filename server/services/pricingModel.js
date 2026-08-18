@@ -200,12 +200,29 @@ function onGridNew(base, price) {
   const step = gridStep(base);
   return step > 0 && Number.isInteger((price - pricingBase(base)) / step);
 }
-// シーソー: 勝者の上昇段を抽選（rng は [0,1) を返す関数）。cumulative 方式。
+// シーソー確率のランタイム上書き（管理画面から編集可能）。null=既定 SEESAW_DIST を使用。
+// ※確率のみ可変（上昇段の値 1/2/3 は固定）。stored 価格には影響しない（次の注文から反映）。
+let runtimeSeesawDist = null;
+function getSeesawDist() { return runtimeSeesawDist || SEESAW_DIST; }
+// dist = [{steps, p}...]。sum(p)=1・p>=0・steps>=1 を検証して上書き。
+function setSeesawDist(dist) {
+  if (!Array.isArray(dist) || dist.length === 0) throw new Error('seesaw_dist は非空の配列が必要');
+  const norm = dist.map((d) => ({ steps: Number(d.steps), p: Number(d.p) }));
+  if (norm.some((d) => !Number.isInteger(d.steps) || d.steps < 1 || !Number.isFinite(d.p) || d.p < 0)) {
+    throw new Error('seesaw_dist の各要素は steps(整数>=1)・p(>=0) が必要');
+  }
+  const sum = norm.reduce((s, d) => s + d.p, 0);
+  if (Math.abs(sum - 1) > 1e-6) throw new Error(`seesaw_dist の確率合計が1ではない: ${sum}`);
+  runtimeSeesawDist = norm;
+  return runtimeSeesawDist;
+}
+// シーソー: 勝者の上昇段を抽選（rng は [0,1) を返す関数）。cumulative 方式。実行時の確率を参照。
 function drawSeesawSteps(rng) {
+  const dist = getSeesawDist();
   const r = rng();
   let acc = 0;
-  for (const d of SEESAW_DIST) { acc += d.p; if (r < acc) return d.steps; }
-  return SEESAW_DIST[SEESAW_DIST.length - 1].steps;
+  for (const d of dist) { acc += d.p; if (r < acc) return d.steps; }
+  return dist[dist.length - 1].steps;
 }
 
 module.exports = {
@@ -222,5 +239,6 @@ module.exports = {
   // Phase7 pricing_base 中心格子＋シーソー
   BASE_MARKUP, GRID_HALF_SPAN, STEP_RATE, STEP_UNIT, MARKUP_UNIT_TABLE, SEESAW_DIST,
   unitForBase, roundToUnit, pricingBase, gridStep, clampN, priceAtN, nForPrice,
-  floorPrice, ceilingPrice, snapUpToGrid, costFloorGridNew, effectiveFloor, onGridNew, drawSeesawSteps,
+  floorPrice, ceilingPrice, snapUpToGrid, costFloorGridNew, effectiveFloor, onGridNew,
+  drawSeesawSteps, getSeesawDist, setSeesawDist,
 };
