@@ -64,6 +64,9 @@ function stepDown(price, min, max, step) {
 }
 
 // ── Phase6: 価格格子(呼値ラダー)モデル ─────────────────────────────
+// ★DEPRECATED(Phase7で置換)★ 以下 snapGrid/softFloor/anchorP6/maxP6/gridStepUp/gridStepDown/
+//   snapClampP6/effectiveSoftFloor/stepForBase/hardFloor 群は pricing_base 中心の新格子(下部 Phase7)へ
+//   置換済み。live 呼び出しは Phase7 関数へ移行済みで、本群は rollback 用に残置する(参照しないこと)。
 // 凍結パラメータ(単一ソース)。base=menu_items.base_price(現行実売価格)基準。
 // 呼値 step は base で決定(固定)。全約定・表示価格は base + n×step の格子点のみ。
 const STEP_TABLE = [
@@ -129,6 +132,82 @@ function gridStepDown(base, price, floor) {
 // 現在価格を新格子へスナップし[soft,max]にクランプ(移行用)
 function snapClampP6(base, price)  { return Math.max(softFloor(base), Math.min(maxP6(base), snapGrid(base, price))); }
 
+// ── Phase7: pricing_base 中心 21点格子 ＋ カテゴリ内ゼロサム・シーソー ──────────────
+// 現行実売価格 base_price は不変。pricing_base = round_to_unit(base×1.10) を帯の中心とし、
+// 価格 = pricing_base + n×step（n∈[-10,+10] の21点のみ）。step = round_to_unit(pricing_base×0.02)。
+// 丸め単位は base で決定: base<1000→10 / <3000→50 / ≥3000→100（step も同単位・最低 unit）。
+// engine_off/固定/時価は markup 非適用＝常に定価(base)。markup は engine_on 変動ドリンクの帯中心にのみ効く。
+const BASE_MARKUP    = 1.10;   // pricing_base = base × 1.10（帯中心＝旧 anchor 概念を統合）
+const GRID_HALF_SPAN = 10;     // n∈[-10,+10] の21点
+const STEP_RATE      = 0.02;   // step = pricing_base × 2%（帯 = ±10step = ±約20%）
+const STEP_UNIT      = 5;      // step の丸め単位。2%を¥5単位で切り下げ→帯は必ず±20%以内(オーナー指定「帯の最大値±20%」)
+const MARKUP_UNIT_TABLE = [
+  { maxBase: 1000, unit: 10 },      // base<1000 → 10円
+  { maxBase: 3000, unit: 50 },      // 1000≤base<3000 → 50円
+  { maxBase: Infinity, unit: 100 }, // base≥3000 → 100円
+];
+// シーソー段数抽選（勝者の上昇段。犠牲はこの上昇分をカテゴリ内へ -1 ずつ配分＝ゼロサム）。
+// sum=1 を起動時に検証（誤設定で確率が崩れるのを防ぐ）。
+const SEESAW_DIST = [
+  { steps: 1, p: 0.6 },
+  { steps: 2, p: 0.3 },
+  { steps: 3, p: 0.1 },
+];
+(function assertSeesawDist() {
+  const sum = SEESAW_DIST.reduce((s, d) => s + d.p, 0);
+  if (Math.abs(sum - 1) > 1e-9) throw new Error(`SEESAW_DIST の確率合計が1ではない: ${sum}`);
+})();
+
+// 丸め単位（base で決定）
+function unitForBase(base) {
+  for (const t of MARKUP_UNIT_TABLE) if (base < t.maxBase) return t.unit;
+  return MARKUP_UNIT_TABLE[MARKUP_UNIT_TABLE.length - 1].unit;
+}
+// 単位丸め（round half up）
+function roundToUnit(x, unit) { return Math.floor(x / unit + 0.5) * unit; }
+// pricing_base = round_to_unit(base × 1.10)
+function pricingBase(base) { return roundToUnit(base * BASE_MARKUP, unitForBase(base)); }
+// step = pricing_base×2% を STEP_UNIT(¥5)単位で切り下げ（min STEP_UNIT）。
+// 切り下げにより 10step ≤ 20%×pricing_base が保証され、帯は必ず±20%以内に収まる。
+function gridStep(base) {
+  const raw = pricingBase(base) * STEP_RATE;
+  return Math.max(STEP_UNIT, Math.floor(raw / STEP_UNIT) * STEP_UNIT);
+}
+// n をクランプ [-10,+10]
+function clampN(n) { return Math.max(-GRID_HALF_SPAN, Math.min(GRID_HALF_SPAN, n)); }
+// 価格 = pricing_base + n×step（n はクランプ）
+function priceAtN(base, n) { return pricingBase(base) + clampN(n) * gridStep(base); }
+// 価格 → n（最寄り・クランプ）
+function nForPrice(base, price) {
+  const step = gridStep(base);
+  if (step <= 0) return 0;
+  return clampN(Math.round((price - pricingBase(base)) / step));
+}
+function floorPrice(base)   { return priceAtN(base, -GRID_HALF_SPAN); } // n=-10 = pricing_base-10step（純格子下限≒-20%）
+function ceilingPrice(base) { return priceAtN(base, +GRID_HALF_SPAN); } // n=+10 = pricing_base+10step（≒+20%）
+// 価格を格子(pricing_base + n×step)へ上スナップ
+function snapUpToGrid(base, price) {
+  const pb = pricingBase(base), step = gridStep(base);
+  return pb + Math.ceil((price - pb) / step) * step;
+}
+// 原価床(格子)= 原価×1.2 を格子へ上スナップ。原価欠損は 0。
+function costFloorGridNew(base, cost) { return cost > 0 ? snapUpToGrid(base, cost * COST_FLOOR_MULTIPLIER) : 0; }
+// 実効 floor = max(格子下限 floorPrice(n=-10), 原価×1.2格子)。原価が厳しい銘柄は floor が原価で持ち上がる。
+// これが stored min_price / シーソー犠牲の下限 / 暴落床(hard_floor) を兼ねる（旧 ×0.5/×0.7 は廃止）。
+function effectiveFloor(base, cost) { return Math.max(floorPrice(base), costFloorGridNew(base, cost)); }
+// 格子点判定（検証用・ランタイムには挿さない）
+function onGridNew(base, price) {
+  const step = gridStep(base);
+  return step > 0 && Number.isInteger((price - pricingBase(base)) / step);
+}
+// シーソー: 勝者の上昇段を抽選（rng は [0,1) を返す関数）。cumulative 方式。
+function drawSeesawSteps(rng) {
+  const r = rng();
+  let acc = 0;
+  for (const d of SEESAW_DIST) { acc += d.p; if (r < acc) return d.steps; }
+  return SEESAW_DIST[SEESAW_DIST.length - 1].steps;
+}
+
 module.exports = {
   UNIT, LADDER_STEPS, PERIOD_MS, MIN_RATE, MAX_RATE_MIN, MAX_RATE_SPAN,
   COST_FLOOR_MULTIPLIER, NO_COST_FLOOR_RATE,
@@ -140,4 +219,8 @@ module.exports = {
   PERIOD_MINUTES, DECAY_IDLE_PERIODS, CRASH_MINUTES,
   roundHalfUp, stepForBase, snapGrid, ceilGrid,
   softFloor, costFloorGrid, effectiveSoftFloor, anchorP6, maxP6, hardFloor, gridStepUp, gridStepDown, snapClampP6,
+  // Phase7 pricing_base 中心格子＋シーソー
+  BASE_MARKUP, GRID_HALF_SPAN, STEP_RATE, STEP_UNIT, MARKUP_UNIT_TABLE, SEESAW_DIST,
+  unitForBase, roundToUnit, pricingBase, gridStep, clampN, priceAtN, nForPrice,
+  floorPrice, ceilingPrice, snapUpToGrid, costFloorGridNew, effectiveFloor, onGridNew, drawSeesawSteps,
 };
