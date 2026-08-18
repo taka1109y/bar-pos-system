@@ -197,23 +197,7 @@ export default function BoardPage() {
   const crashActive = !!crashEndsAt && crashRemaining > 0;
   const crashMMSS = `${String(Math.floor(crashRemaining / 60)).padStart(2, '0')}:${String(crashRemaining % 60).padStart(2, '0')}`;
 
-  // 期(15分)カウントダウン(Phase4): period_ends_at / period:tick から次の期までの残り時間を表示
-  const [periodEndsAt, setPeriodEndsAt] = useState(null);
-  const [periodRemaining, setPeriodRemaining] = useState(0);
-  useEffect(() => {
-    api.getSystemSettings().then((s) => { if (s?.period_ends_at) setPeriodEndsAt(s.period_ends_at); }).catch(() => {});
-    const handlePeriod = (data) => { if (data?.endsAt) setPeriodEndsAt(data.endsAt); };
-    socket.on('period:tick', handlePeriod);
-    return () => socket.off('period:tick', handlePeriod);
-  }, []);
-  useEffect(() => {
-    if (!periodEndsAt) { setPeriodRemaining(0); return; }
-    const update = () => setPeriodRemaining(Math.max(0, Math.ceil((new Date(periodEndsAt).getTime() - Date.now()) / 1000)));
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, [periodEndsAt]);
-  const periodMMSS = `${String(Math.floor(periodRemaining / 60)).padStart(2, '0')}:${String(periodRemaining % 60).padStart(2, '0')}`;
+  // Phase7: 期(15分)カウントダウンは廃止（時間減衰なし。価格は注文シーソーでリアルタイム更新）。
 
   const hasData = prices.length > 0;
 
@@ -297,8 +281,6 @@ export default function BoardPage() {
           <Clock />
           {priceOffline ? (
             <p className="text-red-400 text-sm mt-1 tracking-wider font-bold">⚠ 接続が切れています・価格更新停止中</p>
-          ) : periodEndsAt ? (
-            <p className="text-amber-400 text-sm mt-1 tracking-wider font-bold tabular-nums">次の変動まで {periodMMSS}</p>
           ) : (
             <p className="text-slate-600 text-xs mt-1 tracking-wider">価格変動中</p>
           )}

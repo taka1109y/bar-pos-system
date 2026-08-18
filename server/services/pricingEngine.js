@@ -246,27 +246,17 @@ async function runPeriodDecay() {
 }
 */
 
-let periodTimer = null;
-
+// Phase7: 時間減衰・期タイマーは廃止。価格は注文シーソー(runSeesaw)と市場オープンでのみ動く。
 function startPricingEngine() {
   logger.info('PricingEngine(Phase7 pricing_base grid + seesaw) starting');
-  // 起動時に period_ends_at を必ずセットしてから定期減衰を開始
-  runPeriodDecay().catch((e) => logger.error({ err: e }, 'PricingEngine initial period error'));
-  periodTimer = setInterval(() => {
-    runPeriodDecay().catch((e) => logger.error({ err: e }, 'PricingEngine period error'));
-  }, pm.PERIOD_MS);
 }
 
-function restartInterval() {
-  if (periodTimer) clearInterval(periodTimer);
-  periodTimer = setInterval(() => {
-    runPeriodDecay().catch((e) => logger.error({ err: e }, 'PricingEngine period error'));
-  }, pm.PERIOD_MS);
-  logger.info({ periodMs: pm.PERIOD_MS }, 'PricingEngine period interval restarted');
-}
+// 互換: 期タイマー廃止に伴い no-op(settings.js の PATCH から呼ばれても無害)。
+function restartInterval() { /* Phase7: 期タイマー廃止。何もしない */ }
+// runPeriodDecay は Phase7 で未使用(期タイマー廃止)。export 互換のため残置。
 
-// 互換: 旧 triggerTick は Phase4 では未使用(全体tickは廃止)。呼ばれても無害。
-function triggerTick() { /* deprecated in Phase4; per-item step-up is via stepUpOnOrder */ }
+// 互換: 旧 triggerTick は未使用(全体tickは廃止)。呼ばれても無害。
+function triggerTick() { /* deprecated; 価格は runSeesaw で動く */ }
 
 // Phase7 寄り付き(market open):
 // ・engine_enabled=TRUE の非crashedドリンクを pricing_base(n=0) にリセット。
@@ -275,7 +265,6 @@ function triggerTick() { /* deprecated in Phase4; per-item step-up is via stepUp
 // ・price_events に event_type='market_open' を記録。prices:sync と market:open を通知。
 // trigger: レジオープン='auto' / 手動リセット='manual'。
 async function doMarketOpen(trigger = 'auto') {
-  const startedAt = new Date().toISOString();
   const { rows: items } = await query(`
     SELECT id, name, base_price::float AS base_price, current_price::float AS cp
     FROM menu_items
@@ -294,14 +283,9 @@ async function doMarketOpen(trigger = 'auto') {
       logger.error({ err: e, id: it.id }, 'doMarketOpen: 銘柄の寄り付き適用に失敗(スキップ)');
     }
   }
-  const endsAt = new Date(Date.now() + pm.PERIOD_MS).toISOString();
-  await query(`INSERT INTO system_settings (key, value) VALUES ('period_started_at', $1)
-               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [startedAt]);
-  await query(`INSERT INTO system_settings (key, value) VALUES ('period_ends_at', $1)
-               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [endsAt]);
+  // Phase7: 期タイマー/カウントダウン廃止のため period_started_at/ends_at・period:tick は不要。
   await broadcastPricesSync();
-  broadcast('market:open', { timestamp: Date.now(), endsAt });
-  broadcast('period:tick', { endsAt, timestamp: Date.now() });
+  broadcast('market:open', { timestamp: Date.now() });
   logger.info({ changed, total: items.length, trigger }, 'PricingEngine market open (寄り付き)');
   return { changed, total: items.length };
 }

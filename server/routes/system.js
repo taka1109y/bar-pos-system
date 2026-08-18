@@ -29,11 +29,12 @@ function parseSettings(rows) {
     monthly_discount_cap: parseInt(  s.monthly_discount_cap ?? '0', 10),
     crash_started_at:     s.crash_started_at ?? null,
     crash_ends_at:        s.crash_ends_at ?? null,
-    period_ends_at:       s.period_ends_at ?? null,
-    // 価格モデル(Phase4)の定数（管理画面の「価格モデル」タブ表示用）
+    // 価格モデル(Phase7)の定数（管理画面の「価格モデル」タブ表示用）
     price_model: {
-      period_minutes: Math.round(pm.PERIOD_MS / 60000),
-      ladder_steps:   pm.LADDER_STEPS,
+      base_markup: pm.BASE_MARKUP,                          // pricing_base = base × 1.10（帯中心）
+      grid_points: pm.GRID_HALF_SPAN * 2 + 1,               // 21点格子(n∈[-10,+10])
+      band_pct:    Math.round(pm.GRID_HALF_SPAN * pm.STEP_RATE * 1000) / 10, // 帯 ±20%
+      seesaw_dist: pm.SEESAW_DIST,                          // シーソー勝者上昇段の抽選 0.6/0.3/0.1
     },
   };
 }

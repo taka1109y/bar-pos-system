@@ -168,28 +168,30 @@ function PriceModelTab() {
 
   if (isLoading || !settings) return <p className="text-sm text-muted">読み込み中...</p>;
 
-  const model         = settings.price_model ?? {};
-  const periodMinutes = model.period_minutes ?? 15;
-  const ladderSteps   = model.ladder_steps   ?? 12;
-  const periodRemain  = now > 0 ? remainMMSS(settings.period_ends_at, now) : null;
-  const crashRemain   = now > 0 ? remainMMSS(settings.crash_ends_at, now) : null;
-  const isCrashing    = crashRemain !== null;
+  const model       = settings.price_model ?? {};
+  const baseMarkup  = model.base_markup ?? 1.10;
+  const gridPoints  = model.grid_points ?? 21;
+  const bandPct     = model.band_pct    ?? 20;
+  const seesaw      = model.seesaw_dist ?? [{ steps: 1, p: 0.6 }, { steps: 2, p: 0.3 }, { steps: 3, p: 0.1 }];
+  const seesawText  = seesaw.map((d) => `+${d.steps}段${Math.round(d.p * 100)}%`).join(' / ');
+  const crashRemain = now > 0 ? remainMMSS(settings.crash_ends_at, now) : null;
+  const isCrashing  = crashRemain !== null;
 
   return (
     <div className="space-y-4">
       <Alert tone="info">
-        価格は各商品ごとの下限〜上限を{ladderSteps}段に刻んだ「呼値ラダー」を、{periodMinutes}分ごとの「期」で上下します。
-        注文が入ると即時に1段上昇、期内に注文がなければ1段下降します。下限／上限とラダーは基準価格・原価から自動計算され、商品ごとに設定します（商品管理で確認）。
+        価格は「定価×{baseMarkup}」を中心に、上下{gridPoints}点（中心±{bandPct}%）の格子で動きます。
+        注文が入ると当該銘柄が抽選で+1〜3段上昇し、その上昇分を同カテゴリの他銘柄へ配分（下降）します（カテゴリ内でゼロサム＝平均は中心付近を維持）。時間による自動下降はありません。市場オープンで全銘柄が中心（定価×{baseMarkup}）へ戻ります。下限は原価が厳しい銘柄では原価×1.2で持ち上がります。
       </Alert>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatTile label="期の長さ" value={`${periodMinutes} 分`} sub="注文がなければ1段下降" />
-        <StatTile label="ラダー段数" value={`${ladderSteps} 段`} sub="下限〜上限を刻む段数" />
-        <StatTile label="現在の期の残り" value={periodRemain ?? '—'} sub={periodRemain ? '次の変動までの時間' : '待機中'} />
-        <StatTile label="暴落状態" value={isCrashing ? `残り ${crashRemain}` : '通常'} sub={isCrashing ? '最下段へ急落中' : '発生していません'} deltaTone={isCrashing ? 'down' : 'neutral'} delta={isCrashing ? '暴落中' : null} />
+        <StatTile label="帯中心" value={`定価 ×${baseMarkup}`} sub="pricing_base（寄り付き値）" />
+        <StatTile label="格子" value={`${gridPoints} 点`} sub={`中心 ±${bandPct}%`} />
+        <StatTile label="シーソー抽選" value={seesawText} sub="勝者の上昇段（犠牲は同カテゴリへ配分）" />
+        <StatTile label="暴落状態" value={isCrashing ? `残り ${crashRemain}` : '通常'} sub={isCrashing ? '暴落床へ急落中' : '発生していません'} deltaTone={isCrashing ? 'down' : 'neutral'} delta={isCrashing ? '暴落中' : null} />
       </div>
 
-      <Section title="手動 寄り付きリセット（例外用）" desc="通常はレジオープン時に自動実行されます。全ての変動対象銘柄を寄り付き値（基準価格×1.1）へ戻し、期の起点を今に合わせます。">
+      <Section title="手動 寄り付きリセット（例外用）" desc="通常はレジオープン時に自動実行されます。全ての変動対象銘柄を中心値（定価×1.10）へ戻します。">
         <div className="flex items-center gap-3">
           <Button loading={marketOpenMutation.isPending}
             onClick={() => { if (window.confirm('全ての変動対象銘柄を寄り付き値へ戻します。よろしいですか？')) marketOpenMutation.mutate(); }}>

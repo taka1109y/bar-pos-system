@@ -131,8 +131,11 @@ function eventTone(ev) {
   if (t === 'crash' || t === 'crash_manual') return { label: '暴落', tone: 'danger' };
   if (t === 'crash_reset')                    return { label: '暴落解除', tone: 'info' };
   if (t === 'base_edit')                      return { label: '基準価格変更', tone: 'neutral' };
-  if (t === 'tick' && trig === 'order')       return { label: '注文で上昇', tone: 'success' };
-  if (t === 'tick' && trig === 'decay')       return { label: '減衰で下降', tone: 'warning' };
+  if (t === 'seesaw_win')                     return { label: 'シーソー勝者↑', tone: 'success' };
+  if (t === 'seesaw_lose')                    return { label: 'シーソー犠牲↓', tone: 'warning' };
+  if (t === 'market_open')                    return { label: '寄り付き', tone: 'info' };
+  if (t === 'tick' && trig === 'order')       return { label: '注文で上昇(旧)', tone: 'success' };  // 旧モデルの履歴
+  if (t === 'tick' && trig === 'decay')       return { label: '減衰で下降(旧)', tone: 'warning' };  // 旧モデルの履歴(減衰は廃止)
   return { label: `${t}${trig ? ` / ${trig}` : ''}`, tone: 'neutral' };
 }
 function fmtTime(iso) {

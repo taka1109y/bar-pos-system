@@ -1,11 +1,9 @@
 // 価格エンジンのグローバル設定値
 // 商品ごとの上昇・降下額は menu_items.price_step_up / price_step_down で管理
 
+// Phase7: 時間減衰・期タイマー廃止に伴い TICK_INTERVAL_MS/WINDOW_SECONDS/PRICE_STEP_DOWN は撤去。
 const defaults = {
-  TICK_INTERVAL_MS:     30_000,  // ティック間隔 (ms)
-  WINDOW_SECONDS:       300,     // 需要計測ウィンドウ (秒)
-  PRICE_STEP_DOWN:      0.04,    // 価格下降ステップ (4%/ティック、緩やかな降下に使用)
-  HISTORY_KEEP:         60,      // 価格履歴の保持件数
+  HISTORY_KEEP:         60,      // 価格履歴の保持件数（applyPriceChange の剪定で使用）
   PRUNE_EVENTS_SECONDS: 0,       // イベントログ保持時間 (秒)。0=剪定なし（計装1-1で需要ログ永続化。従来600=10分）
 };
 

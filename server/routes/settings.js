@@ -2,13 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../db/database');
 const pricingSettings = require('../services/pricingSettings');
-const { restartInterval } = require('../services/pricingEngine');
 
 // pricingSettings のキー名 <-> system_settings に保存する際のキー名の対応
+// Phase7: 時間減衰・期タイマー廃止に伴い TICK_INTERVAL_MS/WINDOW_SECONDS/PRICE_STEP_DOWN は撤去。
 const DB_KEY_MAP = {
-  TICK_INTERVAL_MS:     'pricing_tick_interval_ms',
-  WINDOW_SECONDS:       'pricing_window_seconds',
-  PRICE_STEP_DOWN:      'pricing_price_step_down',
   HISTORY_KEEP:         'pricing_history_keep',
   PRUNE_EVENTS_SECONDS: 'pricing_prune_events_seconds',
 };
@@ -58,10 +55,6 @@ router.patch('/pricing', async (req, res, next) => {
       await upsertSetting(DB_KEY_MAP[settingKey], updated[settingKey]);
     }
 
-    // TICK_INTERVAL_MS が含まれる場合はインターバルを再起動
-    if (req.body.TICK_INTERVAL_MS !== undefined) {
-      restartInterval();
-    }
     res.json({ settings: updated });
   } catch (err) {
     if (err.message?.startsWith('Invalid value')) {
@@ -79,7 +72,6 @@ router.post('/pricing/reset', async (req, res, next) => {
       [Object.values(DB_KEY_MAP)]
     );
     const reset = pricingSettings.resetSettings();
-    restartInterval();
     res.json({ settings: reset });
   } catch (err) {
     next(err);
