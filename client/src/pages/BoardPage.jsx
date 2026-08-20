@@ -6,6 +6,7 @@ import { useConnStore } from '../store/useConnStore';
 import PriceRow from '../components/board/PriceRow';
 import CategoryHeaderRow from '../components/board/CategoryHeaderRow';
 import { yen, num } from '../utils/format';
+import { priceDisplay } from '../utils/priceTone';
 import { playNotification } from '../utils/audioAlert';
 
 const HEADER_ROW_HEIGHT_PX = 44; // thead の概算高さ
@@ -67,16 +68,21 @@ function Ticker({ prices }) {
     <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-700/60 overflow-hidden py-2">
       <div className="flex whitespace-nowrap" style={{ animation: 'ticker 20s linear infinite' }}>
         {items.map((item, i) => {
-          const pct    = Number(item.pct_change) || 0;
-          const isUp   = pct > 0;
-          const isDown = pct < 0;
-          const pctColor   = isUp ? 'text-green-400' : isDown ? 'text-red-400' : 'text-slate-500';
-          const pctDisplay = pct < 0 ? `-${num(Math.abs(pct), 1)}%` : `${num(Math.abs(pct), 1)}%`;
+          // 中心(寄り付き)比。engine_off/時価/暴落は色/％を出さない(暴落はCRASH)。
+          const disp = priceDisplay(item);
+          const isUp = disp.tone === 'up', isDown = disp.tone === 'down';
+          const pctColor = disp.crashed ? 'text-red-400' : isUp ? 'text-green-400' : isDown ? 'text-red-400' : 'text-slate-500';
+          const centerPct = Number(item.center_pct) || 0;
+          const pctDisplay = disp.crashed
+            ? 'CRASH'
+            : (disp.variable && (isUp || isDown))
+              ? (centerPct < 0 ? `-${num(Math.abs(centerPct), 1)}%` : `${num(Math.abs(centerPct), 1)}%`)
+              : '';
           return (
             <span key={i} className="inline-flex items-center gap-3 mx-10">
               <span className="text-slate-300 font-semibold tracking-wide">{item.name}</span>
               <span className="text-amber-300 font-bold tabular-nums">¥{yen(item.current_price)}</span>
-              <span className={`font-bold tabular-nums ${pctColor}`}>{pctDisplay}</span>
+              {pctDisplay && <span className={`font-bold tabular-nums ${pctColor}`}>{pctDisplay}</span>}
             </span>
           );
         })}
@@ -312,7 +318,7 @@ export default function BoardPage() {
                   <Fragment key={group.categoryId}>
                     <CategoryHeaderRow name={group.categoryName} />
                     {group.items.map((item) => (
-                      <PriceRow key={item.id} item={item} />
+                      <PriceRow key={item.id} item={item} crashRemain={crashActive ? crashMMSS : null} />
                     ))}
                   </Fragment>
                 ))}
@@ -325,6 +331,8 @@ export default function BoardPage() {
       {/* フッター */}
       <div className="mt-8 text-center text-slate-700 text-sm tracking-wider flex-shrink-0">
         価格は需要に応じてリアルタイムで変動します
+        <span className="mx-3 text-slate-800">|</span>
+        <span className="text-slate-600">▲▼は本日の寄り付き価格（基準値）との比較</span>
       </div>
 
       <Ticker prices={prices} />

@@ -90,6 +90,8 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
     queryFn: api.getImmediateTable,
     staleTime: Infinity,
   });
+  // 暴落中カードの残り時間表示用(crash_ends_at)
+  const { data: sysSettings } = useQuery({ queryKey: ['system-settings'], queryFn: api.getSystemSettings, staleTime: 60_000 });
   const tableId = immediateTable?.id;
 
   // 現在のオープン注文取得
@@ -367,6 +369,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
             categories={categories}
             subcategories={subcategories}
             onAddItem={handleAddItem}
+            crashEndsAt={sysSettings?.crash_ends_at}
           />
         </div>
 

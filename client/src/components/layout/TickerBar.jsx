@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import usePriceStore from '../../store/usePriceStore';
-import { yen, num } from '../../utils/format';
+import { yen } from '../../utils/format';
+import { priceDisplay, centerPctLabel } from '../../utils/priceTone';
 
 // 商品数(=コンテンツ幅)が増えても体感速度が変わらないよう、px/秒を固定して秒数を逆算する
 // (旧実装は60秒固定で、商品数が多いほど実質的に速くなっていた。現在の想定商品数では
@@ -9,11 +10,13 @@ const PX_PER_SECOND = 28;
 const MIN_DURATION_SECONDS = 25;
 
 function TickerItem({ item }) {
-  const pct    = Number(item.pct_change) || 0;
-  const isUp   = pct > 0;
-  const isDown = pct < 0;
-  const arrow  = isUp ? '▲' : isDown ? '▼' : '─';
-  const trendColor = isUp ? '#00e5a0' : isDown ? '#ff4466' : '#3a3a50';
+  // 色/▲▼は寄り付き価格(中心)比。定価比は出さない。engine_off/時価/中心は無色、暴落は CRASH。
+  const disp    = priceDisplay(item);
+  const isUp    = disp.tone === 'up';
+  const isDown  = disp.tone === 'down';
+  const crashed = disp.tone === 'crash';
+  const trendColor = crashed ? '#ff4466' : isUp ? '#00e5a0' : isDown ? '#ff4466' : '#3a3a50';
+  const label = crashed ? 'CRASH' : (isUp || isDown) ? centerPctLabel(disp.tone, disp.centerPct) : '';
   const flashClass = item.flash === 'up' ? 'flash-up' : item.flash === 'down' ? 'flash-down' : '';
 
   return (
@@ -26,9 +29,9 @@ function TickerItem({ item }) {
       <span style={{ color: '#ffc531', fontSize: '12px', fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700 }}>
         ¥{yen(item.current_price)}
       </span>
-      <span style={{ color: trendColor, fontSize: '12px', fontWeight: 700 }}>
-        {arrow}{num(Math.abs(pct), 1)}%
-      </span>
+      {label && (
+        <span style={{ color: trendColor, fontSize: '12px', fontWeight: 700 }}>{label}</span>
+      )}
     </span>
   );
 }

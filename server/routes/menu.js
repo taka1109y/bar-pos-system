@@ -101,11 +101,15 @@ async function performManualCrashReset(triggerLabel) {
     client.release();
   }
   const { rows: allPrices } = await query(`
-    SELECT id, name, base_price::float, current_price::float,
+    SELECT id, name, base_price::float, current_price::float, min_price::float, max_price::float,
+      engine_enabled, price_editable, is_crashed,
       COALESCE(ROUND((current_price - base_price) * 100.0 / NULLIF(base_price, 0), 1), 0)::float AS pct_change
     FROM menu_items WHERE is_drink = TRUE AND is_active = TRUE
   `);
-  const items = allPrices.map((r) => ({ ...r, direction: r.pct_change > 0 ? 'up' : r.pct_change < 0 ? 'down' : 'flat' }));
+  const items = allPrices.map((r) => {
+    const d = pm.displayInfo(r.base_price, r.current_price, r); // 復帰後 is_crashed=false=通常の中心比表示へ
+    return { ...r, ...d, direction: d.n > 0 ? 'up' : d.n < 0 ? 'down' : 'flat' };
+  });
   broadcast('prices:updated', { items, timestamp: Date.now() });
   broadcast('crash:ended', { timestamp: Date.now() });
   // Phase6-4: 演出層イベントバスのフック。実処理は演出実装時に接続(6-3の画面イベントと同経路)。
@@ -666,7 +670,9 @@ router.post('/crash/manual', async (req, res, next) => {
         broadcastItems.push({
           id: item.id, name: item.name, base_price: item.base_price, current_price: crashPrice,
           pct_change: item.base_price > 0 ? Math.round((crashPrice - item.base_price) / item.base_price * 1000) / 10 : 0,
-          direction: 'down',
+          // 暴落中は variable=false=通常の色判定対象外(フロントは CRASH 表示で上書き)。is_crashed=true を明示。
+          ...pm.displayInfo(item.base_price, crashPrice, { ...item, is_crashed: true }),
+          is_crashed: true, direction: 'down',
         });
         updated++;
       }

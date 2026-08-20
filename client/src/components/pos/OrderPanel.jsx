@@ -173,6 +173,8 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
     queryFn: () => api.getOrderByTable(table.id),
     refetchInterval: 10_000, // socket 取りこぼし時の保険(切断中も定期同期)
   });
+  // 暴落中カードの残り時間表示用(crash_ends_at)
+  const { data: sysSettings } = useQuery({ queryKey: ['system-settings'], queryFn: api.getSystemSettings, staleTime: 60_000 });
 
   // 会計モーダル表示中フラグ(自端末の会計時に「他端末で会計済み」を誤表示しないため)
   const showPaymentRef = useRef(false);
@@ -536,6 +538,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
             categories={categories}
             subcategories={subcategories}
             onAddItem={handleAddItem}
+            crashEndsAt={sysSettings?.crash_ends_at}
           />
         </div>
 

@@ -210,6 +210,21 @@ function onGridNew(base, price) {
   const step = gridStep(base);
   return step > 0 && Number.isInteger((price - pricingBase(base)) / step);
 }
+// 表示用(客側UI・板)の派生値。色判定は「定価比」ではなく「寄り付き価格(pricing_base=中心)比」で行う。
+//   pricing_base = 寄り付き価格(中心)／n = 中心からの段数(符号で色)／center_pct = 寄り付き比%(表示用)
+//   variable = 変動対象か(engine_on 変動ドリンク)。engine_off/時価/暴落中/ロック(min=max)は false=常に無色。
+// flags: { engine_enabled, price_editable, is_crashed, min_price, max_price }
+function displayInfo(base, current, flags = {}) {
+  const pb = pricingBase(base);
+  const n  = nForPrice(base, current);
+  const center_pct = pb > 0 ? Math.round((current - pb) / pb * 1000) / 10 : 0;
+  const variable = !!(
+    flags.engine_enabled && !flags.price_editable && !flags.is_crashed &&
+    flags.min_price != null && flags.max_price != null &&
+    Number(flags.min_price) !== Number(flags.max_price)
+  );
+  return { pricing_base: pb, n, center_pct, variable };
+}
 // シーソー確率のランタイム上書き（管理画面から編集可能）。null=既定 SEESAW_DIST を使用。
 // ※確率のみ可変（上昇段の値 1/2/3 は固定）。stored 価格には影響しない（次の注文から反映）。
 let runtimeSeesawDist = null;
@@ -250,5 +265,5 @@ module.exports = {
   BASE_MARKUP, GRID_HALF_SPAN, STEP_RATE, STEP_UNIT, MARKUP_UNIT_TABLE, SEESAW_DIST,
   unitForBase, roundToUnit, pricingBase, gridStep, clampN, priceAtN, nForPrice,
   floorPrice, ceilingPrice, snapUpToGrid, costFloorGridNew, effectiveFloor, crashFloor, onGridNew,
-  drawSeesawSteps, getSeesawDist, setSeesawDist,
+  displayInfo, drawSeesawSteps, getSeesawDist, setSeesawDist,
 };

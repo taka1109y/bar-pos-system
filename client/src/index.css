@@ -125,6 +125,18 @@ body {
   animation: price-flash-down 0.8s ease-out;
 }
 
+/* シーソー発生銘柄の数秒ハイライト(勝者=緑点滅 / 犠牲=赤点滅)。約3秒・複数回点滅。 */
+@keyframes seesaw-win-blink {
+  0%, 100% { background-color: transparent; }
+  50%      { background-color: rgba(0, 229, 160, 0.28); }
+}
+@keyframes seesaw-lose-blink {
+  0%, 100% { background-color: transparent; }
+  50%      { background-color: rgba(255, 68, 102, 0.28); }
+}
+.seesaw-win  { animation: seesaw-win-blink  0.6s ease-in-out 5; }
+.seesaw-lose { animation: seesaw-lose-blink 0.6s ease-in-out 5; }
+
 @keyframes slide-up {
   from { transform: translateY(100%); }
   to   { transform: translateY(0); }

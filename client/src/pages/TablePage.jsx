@@ -7,6 +7,7 @@ import usePriceStore from '../store/usePriceStore';
 import TickerBar from '../components/layout/TickerBar';
 import MenuGrid, { CategorySidebar } from '../components/pos/MenuGrid';
 import { yen } from '../utils/format';
+import { priceDisplay, centerPctLabel } from '../utils/priceTone';
 import { isLateNightNow } from '../utils/lateNight';
 import { newIdempotencyKey } from '../utils/uuid';
 import { useConnStore } from '../store/useConnStore';
@@ -357,8 +358,10 @@ function ChoiceModal({ item, onConfirm, onCancel }) {
 // ───────────────────────────────────────────
 function ConfirmModal({ item, livePrice, onConfirm, onCancel }) {
   const price     = (livePrice?.current_price ?? item.current_price) + (item.selectedPriceDelta ?? 0);
-  const pctChange = livePrice?.pct_change ?? 0;
-  const isUp      = pctChange > 0;
+  // ▲▼は寄り付き価格(中心)比。定価比は出さない。
+  const disp      = priceDisplay(livePrice ?? item);
+  const isUp      = disp.tone === 'up';
+  const showTone  = disp.tone === 'up' || disp.tone === 'down';
 
   return (
     <>
@@ -384,9 +387,9 @@ function ConfirmModal({ item, livePrice, onConfirm, onCancel }) {
             <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 40, fontWeight: 700, color: '#f0f0f5' }}>
               ¥{yen(price)}
             </span>
-            {item.is_drink && pctChange !== 0 && (
+            {showTone && (
               <span style={{ fontSize: 16, fontWeight: 700, color: isUp ? '#00e5a0' : '#ff4466' }}>
-                {isUp ? '▲' : '▼'}{Math.abs(pctChange).toFixed(1)}%
+                {centerPctLabel(disp.tone, disp.centerPct)}
               </span>
             )}
           </div>
@@ -887,6 +890,7 @@ export default function TablePage() {
               subcategories={subcategories}
               onAddItem={handleTapItem}
               showImage={true}
+              crashEndsAt={sysSettings?.crash_ends_at}
               activeCategory={resolvedActiveCategory}
               activeSubcategory={activeSubcategory}
             />

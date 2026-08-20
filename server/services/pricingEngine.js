@@ -19,7 +19,8 @@ const TZ = process.env.TZ_REPORT || 'Asia/Tokyo';
 async function broadcastPricesSync() {
   const { rows } = await query(`
     SELECT m.id, m.name,
-      m.base_price::float, m.current_price::float,
+      m.base_price::float, m.current_price::float, m.min_price::float, m.max_price::float,
+      m.engine_enabled, m.price_editable, m.is_crashed,
       COALESCE(ROUND((m.current_price - m.base_price) * 100.0 / NULLIF(m.base_price, 0), 1), 0)::float AS pct_change,
       c.id AS category_id, c.name AS category_name
     FROM menu_items m
@@ -28,10 +29,10 @@ async function broadcastPricesSync() {
     WHERE m.is_drink = TRUE AND m.is_active = TRUE AND m.is_staff_only = FALSE
     ORDER BY c.sort_order, sc.sort_order NULLS LAST, m.sort_order, m.name
   `);
-  const items = rows.map((r) => ({
-    ...r,
-    direction: r.pct_change > 0 ? 'up' : r.pct_change < 0 ? 'down' : 'flat',
-  }));
+  const items = rows.map((r) => {
+    const d = pm.displayInfo(r.base_price, r.current_price, r); // pricing_base, n, center_pct, variable(寄り付き比)
+    return { ...r, ...d, direction: d.n > 0 ? 'up' : d.n < 0 ? 'down' : 'flat' };
+  });
   broadcast('prices:sync', { items, timestamp: Date.now() });
 }
 
@@ -167,19 +168,26 @@ async function runSeesaw(menuItemId) {
     const up = r; // 厳密ゼロサム: 勝者上昇 = 犠牲合計下降
     if (up <= 0) return; // 上げ余地無し or 犠牲容量無し → 変動なし
 
-    const bcast = (it, price, dir) => ({
-      id: it.id, name: it.name, base_price: it.base_price, current_price: price,
-      pct_change: it.base_price > 0 ? Math.round((price - it.base_price) / it.base_price * 1000) / 10 : 0,
-      direction: dir,
-    });
+    // 表示層: 中心比(pricing_base)の n/center_pct・variable(シーソー対象は定義上true)・
+    // event(seesaw_win/lose)・delta(段差)を付す。event/delta はフロントの数秒ハイライト用。
+    const bcast = (it, price, dir, event, delta) => {
+      const pb = pm.pricingBase(it.base_price);
+      const n = pm.nForPrice(it.base_price, price);
+      return {
+        id: it.id, name: it.name, base_price: it.base_price, current_price: price,
+        pct_change: it.base_price > 0 ? Math.round((price - it.base_price) / it.base_price * 1000) / 10 : 0,
+        pricing_base: pb, n, center_pct: pb > 0 ? Math.round((price - pb) / pb * 1000) / 10 : 0,
+        variable: true, is_crashed: false, direction: dir, event, delta,
+      };
+    };
     const items = [];
     const wNew = pm.priceAtN(w.base_price, nW + up);
-    if (wNew !== w.cp) { await applyPriceChange(w, w.cp, wNew, 'order', 'seesaw_win'); items.push(bcast(w, wNew, 'up')); }
+    if (wNew !== w.cp) { await applyPriceChange(w, w.cp, wNew, 'order', 'seesaw_win'); items.push(bcast(w, wNew, 'up', 'seesaw_win', up)); }
     for (const v of victims) {
       const d = drops.get(v.id) || 0;
       if (d > 0) {
         const vNew = pm.priceAtN(v.base_price, v.n - d);
-        if (vNew !== v.cp) { await applyPriceChange(v, v.cp, vNew, 'order', 'seesaw_lose'); items.push(bcast(v, vNew, 'down')); }
+        if (vNew !== v.cp) { await applyPriceChange(v, v.cp, vNew, 'order', 'seesaw_lose'); items.push(bcast(v, vNew, 'down', 'seesaw_lose', d)); }
       }
     }
     if (items.length) broadcast('prices:updated', { items, timestamp: Date.now() });

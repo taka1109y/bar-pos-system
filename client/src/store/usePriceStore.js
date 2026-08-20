@@ -35,6 +35,9 @@ const usePriceStore = create((set, get) => ({
           ...item,
           previous_price: prev?.current_price ?? item.current_price,
           flash: item.direction,
+          // シーソー(seesaw_win/lose)の発生銘柄は数秒ハイライト用に {event, delta} を保持。
+          // 通常更新では既存の seesaw を保つ(進行中ハイライトを別更新で消さない)。
+          seesaw: item.event ? { event: item.event, delta: item.delta } : (prev?.seesaw ?? null),
         };
       }
       return { prices: updated };
@@ -52,6 +55,20 @@ const usePriceStore = create((set, get) => ({
         return { prices: updated };
       });
     }, 1100);
+
+    // シーソーのハイライト(勝者=緑点滅+▲段/犠牲=赤点滅+▼段)は数秒維持してから消す
+    const seesawIds = items.filter((it) => it.event).map((it) => it.id);
+    if (seesawIds.length) {
+      setTimeout(() => {
+        set((state) => {
+          const updated = { ...state.prices };
+          for (const id of seesawIds) {
+            if (updated[id]) updated[id] = { ...updated[id], seesaw: null };
+          }
+          return { prices: updated };
+        });
+      }, 3200);
+    }
   },
 
   getPriceById: (id) => get().prices[id],

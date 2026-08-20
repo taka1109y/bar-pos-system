@@ -1,7 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import usePriceStore from '../../store/usePriceStore';
 import Sparkline from './Sparkline';
 import { yen } from '../../utils/format';
+import { priceDisplay, centerPctLabel, PRICE_LEGEND } from '../../utils/priceTone';
+
+// 暴落の残り時間(M:SS)を1秒毎に返す。endsAt が無効/過去なら null。
+function useCrashRemain(endsAt) {
+  const [now, setNow] = useState(() => Date.now());
+  const end = endsAt ? new Date(endsAt).getTime() : 0;
+  const active = end > now;
+  useEffect(() => {
+    if (!end) return undefined;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [end]);
+  if (!active) return null;
+  const s = Math.max(0, Math.floor((end - now) / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
 
 const CATEGORY_STYLES = {
   'ドリンク': { emoji: '🍺', gradient: 'linear-gradient(135deg,#7b4f0d,#c88820)', glow: 'rgba(200,136,32,0.3)' },
@@ -79,13 +95,16 @@ export function CategorySidebar({
 // ───────────────────────────────────────────
 // 顧客画面用カード（iPad対応サイズ）
 // ───────────────────────────────────────────
-function CustomerMenuItem({ item, onAdd, categories, subcategories }) {
+function CustomerMenuItem({ item, onAdd, categories, subcategories, crashRemain }) {
   const livePrice = usePriceStore((s) => s.prices[item.id]);
   const price     = livePrice?.current_price ?? item.current_price;
-  const pctChange = livePrice?.pct_change ?? 0;
   const flash     = livePrice?.flash;
-  const isUp      = pctChange > 0;
-  const isDown    = pctChange < 0;
+  // 色/▲▼は「寄り付き価格(中心)比」。定価比は使わない。暴落中は 'crash' で上書き。
+  const disp      = priceDisplay(livePrice ?? item);
+  const isUp      = disp.tone === 'up';
+  const isDown    = disp.tone === 'down';
+  const crashed   = disp.tone === 'crash';
+  const see       = disp.seesaw; // {event, delta} | null
 
   const subcat   = subcategories.find((s) => s.id === item.subcategory_id);
   const cat      = categories.find((c) => c.id === item.category_id);
@@ -97,12 +116,18 @@ function CustomerMenuItem({ item, onAdd, categories, subcategories }) {
     ? (item.image_url.startsWith('http') ? item.image_url : `/uploads/${item.image_url}`)
     : null;
 
-  const flashClass = flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : '';
+  // seesaw 発生中は数秒 点滅(勝者=緑/犠牲=赤)。それ以外は通常フラッシュ。
+  const seeClass = see ? (see.event === 'seesaw_win' ? 'seesaw-win' : 'seesaw-lose') : '';
+  const flashClass = seeClass || (flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : '');
 
   return (
     <div
       className={`flex flex-col overflow-hidden ${flashClass}`}
-      style={{ background: '#1e1e28', border: '1px solid #252532', borderRadius: 12 }}
+      style={{
+        background: '#1e1e28',
+        border: crashed ? '1px solid #ff4466' : '1px solid #252532',
+        borderRadius: 12,
+      }}
     >
       {/* 画像エリア */}
       <div
@@ -133,15 +158,23 @@ function CustomerMenuItem({ item, onAdd, categories, subcategories }) {
         >
           {item.name}
         </p>
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-baseline gap-2 flex-wrap">
           <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 26, fontWeight: 700, color: '#ffc531', letterSpacing: '0.5px' }}>
             ¥{yen(price)}
           </span>
-          {item.is_drink && pctChange !== 0 && (
-            <span style={{ fontSize: 14, fontWeight: 700, color: isUp ? '#00e5a0' : '#ff4466' }}>
-              {isUp ? '▲' : '▼'}{Math.abs(pctChange).toFixed(1)}%
+          {crashed ? (
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#fff', background: '#e52233', padding: '1px 8px', borderRadius: 6, letterSpacing: '1px' }}>
+              CRASH{crashRemain ? ` ${crashRemain}` : ''}
             </span>
-          )}
+          ) : see ? (
+            <span style={{ fontSize: 14, fontWeight: 800, color: see.event === 'seesaw_win' ? '#00e5a0' : '#ff4466' }}>
+              {see.event === 'seesaw_win' ? '▲' : '▼'}{see.delta}段
+            </span>
+          ) : (isUp || isDown) ? (
+            <span style={{ fontSize: 14, fontWeight: 700, color: isUp ? '#00e5a0' : '#ff4466' }}>
+              {centerPctLabel(disp.tone, disp.centerPct)}
+            </span>
+          ) : null}
         </div>
         <Sparkline itemId={item.id} basePrice={item.base_price} isUp={isUp} isDown={isDown} darkBg={true} />
       </div>
@@ -166,31 +199,42 @@ function CustomerMenuItem({ item, onAdd, categories, subcategories }) {
 // ───────────────────────────────────────────
 // スタッフ画面用カード（従来デザイン維持）
 // ───────────────────────────────────────────
-function StaffMenuItem({ item, onAdd }) {
+function StaffMenuItem({ item, onAdd, crashRemain }) {
   const livePrice = usePriceStore((s) => s.prices[item.id]);
   const price     = livePrice?.current_price ?? item.current_price;
-  const pctChange = livePrice?.pct_change ?? 0;
   const flash     = livePrice?.flash;
-  const isUp   = pctChange > 0;
-  const isDown = pctChange < 0;
+  // 色/▲▼は「寄り付き価格(中心)比」。暴落は 'crash' で上書き。
+  const disp    = priceDisplay(livePrice ?? item);
+  const isUp    = disp.tone === 'up';
+  const isDown  = disp.tone === 'down';
+  const crashed = disp.tone === 'crash';
+  const see     = disp.seesaw;
+  const seeClass = see ? (see.event === 'seesaw_win' ? 'seesaw-win' : 'seesaw-lose') : '';
+  const flashClass = seeClass || (flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : '');
 
   return (
     <button
       onClick={() => onAdd(item)}
-      className={`flex flex-col justify-between bg-surface hover:bg-primary-50 active:scale-95 rounded-xl border border-line hover:border-primary-300 hover:shadow-sm transition-all text-left w-full overflow-hidden p-3.5 ${
-        flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : ''
-      }`}
+      className={`flex flex-col justify-between bg-surface hover:bg-primary-50 active:scale-95 rounded-xl border ${crashed ? 'border-red-400' : 'border-line'} hover:border-primary-300 hover:shadow-sm transition-all text-left w-full overflow-hidden p-3.5 ${flashClass}`}
     >
       {item.price_editable && (
         <span className="inline-flex self-start items-center px-1.5 py-0.5 mb-1.5 rounded bg-amber-50 text-amber-700 text-[10px] font-bold">時価</span>
       )}
       <span className="text-sm font-semibold text-body leading-snug mb-3 line-clamp-2">{item.name}</span>
-      <div className="flex items-baseline gap-1.5">
+      <div className="flex items-baseline gap-1.5 flex-wrap">
         <span className="text-base font-black text-primary-600">¥{yen(price)}</span>
-        {item.is_drink && (
-          <span className={`text-xs font-bold ${isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-faint'}`}>
-            {isUp ? '▲' : isDown ? '▼' : '—'}{pctChange !== 0 ? `${Math.abs(pctChange).toFixed(1)}%` : ''}
+        {crashed ? (
+          <span className="text-xs font-extrabold text-white bg-red-600 px-1.5 py-0.5 rounded tracking-wide">CRASH{crashRemain ? ` ${crashRemain}` : ''}</span>
+        ) : see ? (
+          <span className={`text-xs font-extrabold ${see.event === 'seesaw_win' ? 'text-emerald-600' : 'text-red-500'}`}>
+            {see.event === 'seesaw_win' ? '▲' : '▼'}{see.delta}段
           </span>
+        ) : (isUp || isDown) ? (
+          <span className={`text-xs font-bold ${isUp ? 'text-emerald-600' : 'text-red-500'}`}>
+            {centerPctLabel(disp.tone, disp.centerPct)}
+          </span>
+        ) : (
+          <span className="text-xs font-bold text-faint">—</span>
         )}
       </div>
     </button>
@@ -203,11 +247,13 @@ function StaffMenuItem({ item, onAdd }) {
 export default function MenuGrid({
   menuItems, categories, subcategories = [], onAddItem,
   showImage = false,
+  crashEndsAt = null,
   activeCategory: externalActiveCategory,
   activeSubcategory: externalActiveSubcategory,
 }) {
   const [internalActiveCategory,    setInternalActiveCategory]    = useState(null);
   const [internalActiveSubcategory, setInternalActiveSubcategory] = useState(null);
+  const crashRemain = useCrashRemain(crashEndsAt); // 暴落中カードの残り時間(M:SS)
 
   const activeCat = showImage
     ? (externalActiveCategory    ?? categories[0]?.id)
@@ -270,12 +316,17 @@ export default function MenuGrid({
       >
         {filteredItems.map((item) =>
           showImage ? (
-            <CustomerMenuItem key={item.id} item={item} onAdd={onAddItem} categories={categories} subcategories={subcategories} />
+            <CustomerMenuItem key={item.id} item={item} onAdd={onAddItem} categories={categories} subcategories={subcategories} crashRemain={crashRemain} />
           ) : (
-            <StaffMenuItem key={item.id} item={item} onAdd={onAddItem} />
+            <StaffMenuItem key={item.id} item={item} onAdd={onAddItem} crashRemain={crashRemain} />
           )
         )}
       </div>
+
+      {/* 凡例(常設): ▲▼ の基準を明示 */}
+      <p className={showImage ? 'text-xs text-center' : 'text-xs'} style={showImage ? { color: '#8a8a99' } : undefined}>
+        <span className={showImage ? '' : 'text-faint'}>{PRICE_LEGEND}</span>
+      </p>
     </div>
   );
 }
