@@ -140,7 +140,9 @@ function snapClampP6(base, price)  { return Math.max(softFloor(base), Math.min(m
 const BASE_MARKUP    = 1.10;   // pricing_base = base × 1.10（帯中心＝旧 anchor 概念を統合）
 const GRID_HALF_SPAN = 10;     // n∈[-10,+10] の21点
 const STEP_RATE      = 0.02;   // step = pricing_base × 2%（帯 = ±10step = ±約20%）
-const STEP_UNIT      = 5;      // step の丸め単位。2%を¥5単位で切り下げ→帯は必ず±20%以内(オーナー指定「帯の最大値±20%」)
+const STEP_UNIT      = 10;     // step の丸め単位(Phase7R2でオーナー承認 ¥5→¥10)。2%を¥10単位で切り下げ。
+                               // ※floor切下げにより 10step≤pricing_base×0.02×10=±20% は保たれるが、pricing_base<500(=最小¥10がpb×2%を上回る)の
+                               //   低価格銘柄のみ ±20%を超え得る(可動域比率は移行レポートで列挙)。丸め単位テーブル(unitForBase)は現行維持。
 const MARKUP_UNIT_TABLE = [
   { maxBase: 1000, unit: 10 },      // base<1000 → 10円
   { maxBase: 3000, unit: 50 },      // 1000≤base<3000 → 50円
