@@ -284,6 +284,12 @@ async function doMarketOpen(trigger = 'auto') {
     }
   }
   // Phase7: 期タイマー/カウントダウン廃止のため period_started_at/ends_at・period:tick は不要。
+  // Phase7R: 「本日の価格リセット」実施の証跡を無条件で記録する。価格が既に中心(pricing_base)で
+  // changed=0 でも“実施済み”として扱う(価格変動イベントの有無に依存しない堅牢な判定にする)。
+  await query(
+    `INSERT INTO system_settings (key, value) VALUES ('last_market_open_at', $1)
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [new Date().toISOString()]
+  );
   await broadcastPricesSync();
   broadcast('market:open', { timestamp: Date.now() });
   logger.info({ changed, total: items.length, trigger }, 'PricingEngine market open (寄り付き)');

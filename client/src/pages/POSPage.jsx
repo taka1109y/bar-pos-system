@@ -186,6 +186,8 @@ export default function POSPage() {
     };
     // 新規注文明細が入ったらレジ画面でも通知音を鳴らす（キッチンと同じ検知）
     const handleKitchenNewItem = () => { playNotification(); };
+    // 価格リセット(寄り付き market_open)実行で「本日の価格リセット未実施」バッジを即消す
+    const handleMarketOpen = () => { queryClient.invalidateQueries({ queryKey: ['system-settings'] }); };
 
     socket.on('prices:updated',       handlePricesUpdated);
     socket.on('prices:sync',          handlePricesSync);
@@ -195,6 +197,7 @@ export default function POSPage() {
     socket.on('crash:started',        handleCrashStarted);
     socket.on('crash:ended',          handleCrashEnded);
     socket.on('kitchen:new_item',     handleKitchenNewItem);
+    socket.on('market:open',          handleMarketOpen);
 
     return () => {
       socket.off('prices:updated',       handlePricesUpdated);
@@ -205,6 +208,7 @@ export default function POSPage() {
       socket.off('crash:started',        handleCrashStarted);
       socket.off('crash:ended',          handleCrashEnded);
       socket.off('kitchen:new_item',     handleKitchenNewItem);
+      socket.off('market:open',          handleMarketOpen);
     };
   }, []);
 
@@ -304,6 +308,17 @@ export default function POSPage() {
                 <span className="text-xs font-mono text-red-500 tabular-nums">
                   {String(Math.floor(crashElapsed / 3600)).padStart(2, '0')}:{String(Math.floor((crashElapsed % 3600) / 60)).padStart(2, '0')}:{String(crashElapsed % 60).padStart(2, '0')}
                 </span>
+              </button>
+            )}
+            {settings?.is_trading_night && !settings?.market_reset_done && (
+              <button
+                type="button"
+                onClick={() => { setSystemTab('pricing'); handleSetView('system'); }}
+                title="本日の価格リセット（寄り付き）がまだ実施されていません。プライシング画面で実行してください。"
+                className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                <span className="text-xs font-bold">本日の価格リセット未実施</span>
               </button>
             )}
           </div>

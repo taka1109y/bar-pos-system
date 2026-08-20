@@ -589,11 +589,15 @@ router.get('/discount-cost', async (req, res, next) => {
 
     const COST_EXPR = 'GREATEST(0, COALESCE(oi.base_price_at_order, m.base_price) - oi.unit_price) * oi.quantity';
     const DISCOUNTED = 'oi.unit_price < COALESCE(oi.base_price_at_order, m.base_price)';
+    // Phase7R 参考値: 純差分 Σ(約定単価 − base) × 数量(A1純差分)。値上がり分を相殺した実質差で、負値もあり得る。
+    // 値引き費用(COST_EXPR=値下がり分のみ)とは別に併記する参考指標(基準は旧base_priceのまま)。
+    const NET_EXPR = '(oi.unit_price - COALESCE(oi.base_price_at_order, m.base_price)) * oi.quantity';
 
     // 日次
     const { rows: daily } = await query(
       `SELECT (o.closed_at AT TIME ZONE $3)::date AS date,
          COALESCE(SUM(${COST_EXPR}), 0)::float AS cost,
+         COALESCE(SUM(${NET_EXPR}), 0)::float AS net,
          COUNT(*) FILTER (WHERE ${DISCOUNTED})::int AS count
        FROM orders o
        JOIN order_items oi ON oi.order_id = o.id
@@ -603,6 +607,7 @@ router.get('/discount-cost', async (req, res, next) => {
       [start, end, TZ]
     );
     const total = daily.reduce((s, d) => s + d.cost, 0);
+    const net_diff = daily.reduce((s, d) => s + d.net, 0); // 期間の純差分Σ(約定−base)。負値=期間全体では値上がりが上回った
 
     // 月次(end の月初〜end)
     const monthStart = `${end.slice(0, 7)}-01`;
@@ -623,7 +628,7 @@ router.get('/discount-cost', async (req, res, next) => {
     const cap_reach_pct = cap > 0 ? Math.round((month_total / cap) * 1000) / 10 : null;
 
     res.json({
-      start, end, daily, total, month_total, cap, over_cap, cap_reach_pct,
+      start, end, daily, total, net_diff, month_total, cap, over_cap, cap_reach_pct,
       note: '約定時点のbaseスナップ(base_price_at_order)優先。列追加以前の注文は現行base参照の近似',
     });
   } catch (err) {

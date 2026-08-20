@@ -193,8 +193,16 @@ function snapUpToGrid(base, price) {
 // 原価床(格子)= 原価×1.2 を格子へ上スナップ。原価欠損は 0。
 function costFloorGridNew(base, cost) { return cost > 0 ? snapUpToGrid(base, cost * COST_FLOOR_MULTIPLIER) : 0; }
 // 実効 floor = max(格子下限 floorPrice(n=-10), 原価×1.2格子)。原価が厳しい銘柄は floor が原価で持ち上がる。
-// これが stored min_price / シーソー犠牲の下限 / 暴落床(hard_floor) を兼ねる（旧 ×0.5/×0.7 は廃止）。
+// これが stored min_price / シーソー犠牲の下限 を兼ねる（旧 ×0.5/×0.7 は base基準として廃止）。
+// ※Phase7R: 暴落床は effectiveFloor と分離し crashFloor(pricing_base×比率) を使う（このeffectiveFloorは暴落床を兼ねない）。
 function effectiveFloor(base, cost) { return Math.max(floorPrice(base), costFloorGridNew(base, cost)); }
+// 暴落床(Phase7R・動的算出)= round_to_unit(max(原価×1.2, pricing_base×ratio))。ratio は crashSettings（default=0.5 / engine_off=0.7）。
+// 通常下限(effectiveFloor)とは別物＝暴落は pricing_base×比率まで深く落とす（床を分離）。原価欠損(cost<=0)は pricing_base×ratio のみ（呼出側が警告）。
+function crashFloor(base, cost, ratio) {
+  const byRatio = pricingBase(base) * ratio;
+  const byCost  = cost > 0 ? cost * COST_FLOOR_MULTIPLIER : 0;
+  return roundToUnit(Math.max(byRatio, byCost), unitForBase(base));
+}
 // 格子点判定（検証用・ランタイムには挿さない）
 function onGridNew(base, price) {
   const step = gridStep(base);
@@ -239,6 +247,6 @@ module.exports = {
   // Phase7 pricing_base 中心格子＋シーソー
   BASE_MARKUP, GRID_HALF_SPAN, STEP_RATE, STEP_UNIT, MARKUP_UNIT_TABLE, SEESAW_DIST,
   unitForBase, roundToUnit, pricingBase, gridStep, clampN, priceAtN, nForPrice,
-  floorPrice, ceilingPrice, snapUpToGrid, costFloorGridNew, effectiveFloor, onGridNew,
+  floorPrice, ceilingPrice, snapUpToGrid, costFloorGridNew, effectiveFloor, crashFloor, onGridNew,
   drawSeesawSteps, getSeesawDist, setSeesawDist,
 };

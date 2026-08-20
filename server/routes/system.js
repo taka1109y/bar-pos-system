@@ -3,6 +3,7 @@ const router = express.Router();
 const { query } = require('../db/database');
 const pm = require('../services/pricingModel');
 const { doMarketOpen } = require('../services/pricingEngine');
+const { nowInTZ, TZ } = require('../utils/time');
 
 const upsertSetting = (key, value) =>
   query(
@@ -42,7 +43,19 @@ function parseSettings(rows) {
 router.get('/settings', async (req, res, next) => {
   try {
     const { rows } = await query('SELECT key, value FROM system_settings');
-    res.json(parseSettings(rows));
+    const settings = parseSettings(rows);
+    // Phase7R: 「本日の価格リセット(＝寄り付き market_open)」の実施状況をレスポンスに付す。
+    // 判定はセッション基準: 最後の価格リセット時刻(system_settings.last_market_open_at・doMarketOpenが無条件記録)が
+    // register_opened_at 以降なら「本セッションで実施済み」。取引ナイト(金土)判定は register_opened_at の JST 曜日基準
+    // (日跨ぎ営業でも開店日で判定)。※価格変動イベント(price_events)ではなく専用キーを見る=changed=0でも実施済みを検知。
+    const lastMarketOpen = rows.find((r) => r.key === 'last_market_open_at')?.value || null;
+    const openedAt = settings.register_opened_at;
+    settings.last_market_open_at = lastMarketOpen;
+    settings.market_reset_done = !!(lastMarketOpen && openedAt && new Date(lastMarketOpen) > new Date(openedAt));
+    const dayRef = openedAt ? new Date(new Date(openedAt).toLocaleString('en-US', { timeZone: TZ })) : nowInTZ();
+    const jstDay = dayRef.getDay(); // 0=日..6=土
+    settings.is_trading_night = jstDay === 5 || jstDay === 6; // 金(5)・土(6)＝取引ナイト
+    res.json(settings);
   } catch (err) {
     next(err);
   }

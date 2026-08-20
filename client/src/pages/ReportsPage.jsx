@@ -70,6 +70,12 @@ export default function ReportsPage({ onClose, inline = false }) {
                   <span className="text-2xl font-bold text-heading tabular-nums">{yen(discount.total)}</span>
                 </div>
                 <p className="text-xs text-muted">期間内の値引き（約定 &lt; 定価）の合計。{discount.note}</p>
+                {discount.net_diff !== undefined && (
+                  <p className="text-xs text-muted mt-1">
+                    参考：純差分（売値 − 定価）の合計 <span className="tabular-nums font-medium text-body">{yen(discount.net_diff)}</span>
+                    。プラス＝定価より高く売れた分が値引きを上回った状態、マイナス＝値引きが上回った状態。
+                  </p>
+                )}
                 {discount.cap > 0 && (
                   <div className="mt-4">
                     <div className="flex items-center justify-between text-xs mb-1">

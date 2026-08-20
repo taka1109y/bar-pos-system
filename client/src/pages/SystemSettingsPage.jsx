@@ -233,11 +233,17 @@ function PriceModelTab() {
         </div>
       </Section>
 
-      <Section title="寄り付きリセット（価格を中心へ戻す）" desc="全ての変動対象銘柄を中心値（ベースプライス＝定価×1.10）へ戻します。レジオープンでは自動リセットしません（前の価格を持ち越し）。リセットしたいタイミングでスタッフが実行してください。">
+      <Section title="本日の価格リセット（寄り付き）" desc="全ての変動対象ドリンクの価格を中心値（ベースプライス＝定価×1.10）へ戻します。レジ開店では自動リセットしません（前回の価格を持ち越し）。金土の営業開始時に一度実行してください（＝開場の合図）。平日は持ち越しでも構いません。">
+        <div className="mb-3 text-sm leading-normal">
+          本日の価格リセット：{' '}
+          {settings?.market_reset_done
+            ? <span className="text-emerald-700 font-medium">実施済み{settings?.last_market_open_at ? `（${new Date(settings.last_market_open_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}）` : ''}</span>
+            : <span className="text-red-600 font-medium">未実施</span>}
+        </div>
         <div className="flex items-center gap-3">
           <Button loading={marketOpenMutation.isPending}
-            onClick={() => { if (window.confirm('全ての変動対象銘柄を寄り付き値へ戻します。よろしいですか？')) marketOpenMutation.mutate(); }}>
-            寄り付きリセットを実行
+            onClick={() => { if (window.confirm('全ての変動対象ドリンクの価格を中心値へ戻します。よろしいですか？')) marketOpenMutation.mutate(); }}>
+            価格をリセットする
           </Button>
           {openMsg && <span className="text-xs text-emerald-700">{openMsg}</span>}
         </div>

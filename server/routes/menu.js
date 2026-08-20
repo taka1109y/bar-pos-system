@@ -648,10 +648,14 @@ router.post('/crash/manual', async (req, res, next) => {
     try {
       await client.query('BEGIN');
       for (const item of targets) {
-        // Phase7: 暴落=hard_floor(=実効floor=max(格子下限 n=-10, 原価×1.2格子))へ即時。旧 ×0.5/×0.7 は廃止。
-        const crashPrice = pm.effectiveFloor(item.base_price, item.cost);
-        if (crashPrice >= item.current_price) continue; // 既に floor 以下なら下げない
-        if (!(item.cost > 0)) costMissing.push(item.name); // 原価欠損(床は格子下限のみ)
+        // Phase7R: 暴落床=crashFloor(=round_to_unit(max(原価×1.2, pricing_base×ratio)))へ即時。
+        // 通常下限(effectiveFloor=stored min_price)とは分離し、暴落は pricing_base×比率まで深く落とす。
+        // ratio: engine_on の変動ドリンク=0.5(深く) / engine_off かつ暴落可(高額グラス等)=0.7(浅め)。旧 base×0.5/0.7 は Phase7R で pricing_base 基準に復活。
+        // 約定(orders.js/payments.js)は current_price をそのまま unit_price へ使うため、暴落中は crash_floor 価格で約定が通る(格子アサーションは存在しない=除外不要)。
+        const crashRatio = item.engine_enabled ? crashCfg.CRASH_FLOOR_RATIO_DEFAULT : crashCfg.CRASH_FLOOR_RATIO_ENGINE_OFF;
+        const crashPrice = pm.crashFloor(item.base_price, item.cost, crashRatio);
+        if (crashPrice >= item.current_price) continue; // 既に暴落床以下なら下げない
+        if (!(item.cost > 0)) costMissing.push(item.name); // 原価欠損(床は pricing_base×率のみ)
         await client.query('UPDATE menu_items SET current_price = $1, is_crashed = TRUE WHERE id = $2', [crashPrice, item.id]);
         await client.query('INSERT INTO price_history (menu_item_id, price) VALUES ($1, $2)', [item.id, crashPrice]);
         await client.query(
@@ -698,9 +702,9 @@ router.post('/crash/manual', async (req, res, next) => {
       _manualCrashTimer = setTimeout(() => { performManualCrashReset('auto').catch(() => {}); }, crashCfg.MANUAL_CRASH_DURATION_MS);
     }
 
-    // Phase6-4: 原価欠損銘柄が暴落対象に含まれると hard_floor=base×ratio のみで床が守れないため警告。
+    // Phase6-4/7R: 原価欠損銘柄が暴落対象に含まれると 暴落床=pricing_base×率 のみで原価床が効かないため警告。
     const warning = costMissing.length
-      ? `原価未設定の銘柄が暴落しました（hard_floor=base×率のみ）。原価登録を推奨: ${costMissing.join('、')}`
+      ? `原価未設定の銘柄が暴落しました（暴落床=pricing_base×率のみ）。原価登録を推奨: ${costMissing.join('、')}`
       : null;
     res.json({ updated, endsAt: endsAtIso, cost_missing: costMissing, warning });
   } catch (err) { next(err); }
