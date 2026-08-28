@@ -9,8 +9,8 @@ import { yen, num } from '../utils/format';
 import { priceDisplay } from '../utils/priceTone';
 import { playNotification } from '../utils/audioAlert';
 
-const HEADER_ROW_HEIGHT_PX = 44; // thead の概算高さ
-const ROW_HEIGHT_PX        = 44; // カテゴリ見出し行・商品行 共通の概算高さ
+const HEADER_ROW_HEIGHT_PX = 44; // 列見出し行(thead)の概算高さ
+const ROW_HEIGHT_PX        = 60; // カテゴリ見出し行・商品行(スパークライン込み) 共通の概算高さ
 const PAGE_INTERVAL_MS     = 10_000; // ページ自動切替の間隔(固定10秒)
 
 // カテゴリの並び順(サーバーのORDER BYで既に保証済み)を維持したままグルーピングする
@@ -26,63 +26,66 @@ function groupByCategory(items) {
   return [...groups.values()];
 }
 
-// 画面に収まるだけ複数カテゴリを1ページにまとめ、収まらない分は次ページへ回す。
-// 1カテゴリ単独でページ容量を超える場合は、そのカテゴリ自体を複数ページに分割する。
+// 各ページを可能な限り「詰めて」埋める。カテゴリ境界でページを切らず、
+// 余地が尽きたらカテゴリを跨いで分割し、続きページには「続き」見出しを出す。
+// (見出し1行 + 最低1商品 が入らない場合のみ改ページ＝見出しだけがページ末尾に残らない)
 function buildPages(categoryGroups, maxRows) {
   const pages = [];
-  let current = [];
-  let currentRows = 0;
+  let page = [];
+  let used = 0; // 現ページで使用済みの行数(見出し+商品)
 
-  const flushCurrent = () => {
-    if (current.length > 0) pages.push(current);
-    current = [];
-    currentRows = 0;
-  };
+  const flush = () => { if (page.length > 0) pages.push(page); page = []; used = 0; };
 
   for (const group of categoryGroups) {
-    const groupRows = 1 + group.items.length; // 見出し1行 + 商品行
-    if (groupRows <= maxRows) {
-      if (currentRows + groupRows > maxRows) flushCurrent();
-      current.push(group);
-      currentRows += groupRows;
-    } else {
-      flushCurrent();
-      const itemsPerChunk = Math.max(maxRows - 1, 1);
-      for (let i = 0; i < group.items.length; i += itemsPerChunk) {
-        pages.push([{
-          categoryId:   group.categoryId,
-          categoryName: group.categoryName,
-          items:        group.items.slice(i, i + itemsPerChunk),
-        }]);
-      }
+    let idx = 0;
+    let continued = false;
+    while (idx < group.items.length) {
+      // 見出し1行 + 最低1商品 の余地がなければ改ページ
+      if (used >= maxRows - 1 && page.length > 0) flush();
+      const avail = maxRows - used - 1; // 見出し分を差し引いた残り
+      if (avail <= 0) { flush(); continue; }
+      const take = Math.min(avail, group.items.length - idx);
+      page.push({
+        categoryId:   group.categoryId,
+        categoryName: group.categoryName,
+        items:        group.items.slice(idx, idx + take),
+        continued,
+      });
+      used += 1 + take;
+      idx += take;
+      continued = true;
+      if (idx < group.items.length) flush(); // まだ残る=次ページへ続く
     }
   }
-  flushCurrent();
+  flush();
   return pages.length > 0 ? pages : [[]];
 }
 
+// 上部の流れるティッカー(取引所ボード風・銘柄と寄り付き比%が横に流れる)
 function Ticker({ prices }) {
   if (prices.length === 0) return null;
   const items = [...prices, ...prices];
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-700/60 overflow-hidden py-2">
-      <div className="flex whitespace-nowrap" style={{ animation: 'ticker 20s linear infinite' }}>
+    <div className="board-mono flex-shrink-0 overflow-hidden border-y border-slate-700/40 py-1.5 mb-3">
+      <div className="flex whitespace-nowrap" style={{ animation: 'ticker 26s linear infinite' }}>
         {items.map((item, i) => {
-          // 中心(寄り付き)比。engine_off/時価/暴落は色/％を出さない(暴落はCRASH)。
+          // 中心(寄り付き)比。engine_off/時価/暴落は色/％を出さない(暴落は CRASH)。
           const disp = priceDisplay(item);
           const isUp = disp.tone === 'up', isDown = disp.tone === 'down';
-          const pctColor = disp.crashed ? 'text-red-400' : isUp ? 'text-green-400' : isDown ? 'text-red-400' : 'text-slate-500';
+          const pctColor = disp.crashed ? 'text-red-400' : isUp ? 'text-[#1fe08a]' : isDown ? 'text-[#ff415e]' : 'text-slate-500';
           const centerPct = Number(item.center_pct) || 0;
           const pctDisplay = disp.crashed
             ? 'CRASH'
             : (disp.variable && (isUp || isDown))
-              ? (centerPct < 0 ? `-${num(Math.abs(centerPct), 1)}%` : `${num(Math.abs(centerPct), 1)}%`)
+              ? `${isUp ? '▲' : '▼'}${num(Math.abs(centerPct), 1)}%`
               : '';
           return (
-            <span key={i} className="inline-flex items-center gap-3 mx-10">
-              <span className="text-slate-300 font-semibold tracking-wide">{item.name}</span>
-              <span className="text-amber-300 font-bold tabular-nums">¥{yen(item.current_price)}</span>
-              {pctDisplay && <span className={`font-bold tabular-nums ${pctColor}`}>{pctDisplay}</span>}
+            <span key={i} className="inline-flex items-center gap-3 text-[1.375rem]">
+              <span className="text-slate-300 font-medium tracking-wide">{item.name}</span>
+              <span className="text-[#ffd36b] font-semibold tabular-nums">¥{yen(item.current_price)}</span>
+              {pctDisplay && <span className={`font-semibold tabular-nums ${pctColor}`}>{pctDisplay}</span>}
+              {/* 塊同士の区切り(前の価格と次の商品名がくっつかないように) */}
+              <span className="mx-8 text-slate-600" aria-hidden="true">・</span>
             </span>
           );
         })}
@@ -99,7 +102,7 @@ function Clock() {
     return () => clearInterval(t);
   }, []);
   return (
-    <span className="font-mono text-amber-400 text-2xl font-bold tracking-widest">
+    <span className="board-mono text-[#ffd36b] text-[2.875rem] font-semibold tracking-wider tabular-nums">
       {time.toLocaleTimeString('ja-JP')}
     </span>
   );
@@ -247,38 +250,41 @@ export default function BoardPage() {
 
   // pages が短くなって pageIndex が範囲外になっても、setState を使わずその場で安全な値に丸める
   const currentPage = pages.length > 0 ? pages[pageIndex % pages.length] : [];
+  const pageLabel = `P.${(pageIndex % pages.length) + 1}/${pages.length}`;
 
   return (
-    <div className={`h-screen flex flex-col overflow-hidden text-white p-8 pb-16 transition-colors duration-500 ${crashActive ? 'bg-red-950' : 'bg-slate-950'}`}>
-      {/* 暴落演出オーバーレイ（フェーズ3）: 全体赤転＋残り時間 */}
+    <div
+      className={`board-mono h-screen flex flex-col overflow-hidden text-white p-8 transition-colors duration-500 ${crashActive ? 'bg-red-950' : 'bg-[#060a12]'}`}
+      style={!crashActive ? { backgroundImage: 'radial-gradient(120% 90% at 50% -10%, #0c1524 0%, #05080e 62%)' } : undefined}
+    >
+      {/* 暴落演出オーバーレイ（フェーズ3）: 全体赤転＋残り時間（アイコンなし） */}
       {crashActive && (
         <>
           <div className="pointer-events-none fixed inset-0 z-40 border-[10px] border-red-600 animate-pulse" style={{ boxShadow: 'inset 0 0 120px rgba(220,38,38,0.55)' }} />
-          <div className="fixed top-0 left-1/2 -translate-x-1/2 z-50 mt-3 px-6 py-2 rounded-full bg-red-600 text-white font-black text-xl shadow-lg flex items-center gap-3">
-            <span className="animate-pulse">🔻 暴落中</span>
-            <span className="tabular-nums">残り {crashMMSS}</span>
+          <div className="board-display fixed top-0 left-1/2 -translate-x-1/2 z-50 mt-3 px-8 py-2 rounded-full bg-red-600 text-white font-bold text-2xl tracking-wider shadow-lg flex items-center gap-3">
+            <span>暴落中</span>
+            <span className="board-mono tabular-nums">残り {crashMMSS}</span>
           </div>
         </>
       )}
-      {/* 開場演出オーバーレイ（Phase6-3）: 寄り付き */}
+      {/* 開場演出オーバーレイ（Phase6-3）: 寄り付き＝価格がリセットされました（アイコンなし） */}
       {marketOpenShow && !crashActive && (
         <>
           <div className="pointer-events-none fixed inset-0 z-40 border-[10px] border-emerald-500 animate-pulse" style={{ boxShadow: 'inset 0 0 120px rgba(16,185,129,0.5)' }} />
-          <div className="fixed top-0 left-1/2 -translate-x-1/2 z-50 mt-3 px-8 py-2 rounded-full bg-emerald-500 text-white font-black text-2xl shadow-lg flex items-center gap-3">
-            <span className="animate-pulse">🔔 OPEN</span>
-            <span className="tracking-widest">寄り付き</span>
+          <div className="board-display fixed top-0 left-1/2 -translate-x-1/2 z-50 mt-3 px-8 py-2 rounded-full bg-emerald-500 text-white font-bold text-2xl tracking-wider shadow-lg">
+            価格がリセットされました
           </div>
         </>
       )}
       {/* ヘッダー */}
-      <div className="flex items-center justify-between mb-8 flex-shrink-0">
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-5">
           <img src="/FANZONE_logo_A2.png" alt="ロゴ" className="h-14 w-auto object-contain" />
           <div>
-            <h1 className="text-4xl font-black tracking-widest leading-tight text-white">
-              SPORTS BAR
+            <h1 className="board-display text-[3.5rem] font-bold tracking-[0.12em] leading-none text-white">
+              FANZONE EXCHANGE
             </h1>
-            <p className="text-slate-500 text-sm mt-1 tracking-[0.4em] font-semibold uppercase">
+            <p className="text-slate-500 text-sm mt-2 tracking-[0.42em] font-semibold uppercase">
               Live Drink Prices
             </p>
           </div>
@@ -286,12 +292,17 @@ export default function BoardPage() {
         <div className="text-right">
           <Clock />
           {priceOffline ? (
-            <p className="text-red-400 text-sm mt-1 tracking-wider font-bold">⚠ 接続が切れています・価格更新停止中</p>
+            <p className="text-red-400 text-base mt-1.5 tracking-wider font-bold">⚠ 接続が切れています・価格更新停止中</p>
           ) : (
-            <p className="text-slate-600 text-xs mt-1 tracking-wider">価格変動中</p>
+            <p className="text-slate-500 text-sm mt-1.5 tracking-[0.2em] uppercase">
+              <span className="text-[#1fe08a]">●</span> Market Open ・ 変動中 ・ {pageLabel}
+            </p>
           )}
         </div>
       </div>
+
+      {/* 上部ティッカー */}
+      {prices.length > 0 && <Ticker prices={prices} />}
 
       {/* 価格テーブル */}
       {prices.length === 0 ? (
@@ -300,42 +311,51 @@ export default function BoardPage() {
         </div>
       ) : (
         <div ref={tableAreaRef} className="flex-1 min-h-0">
-          <div className="h-full rounded-xl overflow-hidden border border-slate-700/50 flex flex-col">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-slate-900 text-xs text-slate-500 uppercase tracking-widest border-b border-slate-700">
-                  <th className="px-4 py-3 text-left">商品名</th>
-                  <th className="px-4 py-3 text-right">基準値</th>
-                  <th className="px-4 py-3 text-right">現在値</th>
-                  <th className="px-4 py-3 text-right">変動幅(円)</th>
-                  <th className="px-4 py-3 text-right">変動幅(%)</th>
-                  <th className="px-4 py-3 text-right">同日高値</th>
-                  <th className="px-4 py-3 text-right">同日底値</th>
-                </tr>
-              </thead>
-              <tbody>
-                {currentPage.map((group) => (
+          <table className="w-full table-fixed">
+            <colgroup>
+              <col style={{ width: '25%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '11%' }} />
+            </colgroup>
+            <thead>
+              <tr className="text-slate-400 text-sm uppercase tracking-[0.2em] border-b border-slate-700/60">
+                <th className="px-4 py-2.5 text-left font-medium">商品名</th>
+                <th className="px-4 py-2.5 text-left font-medium">値動き</th>
+                <th className="px-4 py-2.5 text-right font-medium">基準値</th>
+                <th className="px-4 py-2.5 text-right font-medium">現在値</th>
+                <th className="px-4 py-2.5 text-right font-medium">変動幅(%)</th>
+                <th className="px-4 py-2.5 text-right font-medium">同日高値</th>
+                <th className="px-4 py-2.5 text-right font-medium">同日底値</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(() => {
+                // 商品行(カテゴリ見出しを除く)の通し番号でゼブラ背景を決める。ページ毎にリセット。
+                let rowIdx = 0;
+                return currentPage.map((group) => (
                   <Fragment key={group.categoryId}>
-                    <CategoryHeaderRow name={group.categoryName} />
+                    <CategoryHeaderRow name={group.categoryName} continued={group.continued} />
                     {group.items.map((item) => (
-                      <PriceRow key={item.id} item={item} crashRemain={crashActive ? crashMMSS : null} />
+                      <PriceRow key={item.id} item={item} zebra={rowIdx++ % 2 === 1} />
                     ))}
                   </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                ));
+              })()}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {/* フッター */}
-      <div className="mt-8 text-center text-slate-700 text-sm tracking-wider flex-shrink-0">
-        価格は需要に応じてリアルタイムで変動します
+      {/* フッター（凡例） */}
+      <div className="mt-4 text-center text-slate-600 text-sm tracking-wider flex-shrink-0">
+        ▲▼は本日の寄り付き価格（基準値）との比較
         <span className="mx-3 text-slate-800">|</span>
-        <span className="text-slate-600">▲▼は本日の寄り付き価格（基準値）との比較</span>
+        <span className="text-slate-700">価格は需要に応じてリアルタイムで変動します</span>
       </div>
-
-      <Ticker prices={prices} />
     </div>
   );
 }

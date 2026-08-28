@@ -8,6 +8,15 @@ const pm = require('../services/pricingModel');
 // GET /api/prices
 router.get('/', async (req, res, next) => {
   try {
+    // 「同日高値/底値」の集計起点。バーは深夜を跨ぐため、暦日ではなくレジオープン(register_opened_at)
+    // からの営業セッションを基準にする(レジ日計 /reports/daily の since と同じ考え方)。
+    // レジ未オープン時は register_opened_at を使わず、暦日(JSTの今日)にフォールバックする。
+    const { rows: setRows } = await query(
+      `SELECT key, value FROM system_settings WHERE key IN ('register_open','register_opened_at')`
+    );
+    const smap = Object.fromEntries(setRows.map((r) => [r.key, r.value]));
+    const sessionStart = (smap.register_open === 'true' && smap.register_opened_at) ? smap.register_opened_at : null;
+
     const { rows } = await query(`
       SELECT
         m.id, m.name,
@@ -29,12 +38,13 @@ router.get('/', async (req, res, next) => {
           MAX(price)::float AS day_high,
           MIN(price)::float AS day_low
         FROM price_history
-        WHERE (recorded_at AT TIME ZONE $1)::date = (NOW() AT TIME ZONE $1)::date
+        -- レジオープン以降($2)。$2 が NULL(未オープン)なら JST の当日0時から。
+        WHERE recorded_at >= COALESCE($2::timestamptz, (date_trunc('day', NOW() AT TIME ZONE $1) AT TIME ZONE $1))
         GROUP BY menu_item_id
       ) dh ON dh.menu_item_id = m.id
       WHERE m.is_drink = TRUE AND m.is_active = TRUE AND m.is_staff_only = FALSE
       ORDER BY c.sort_order, sc.sort_order NULLS LAST, m.sort_order, m.name
-    `, [TZ]);
+    `, [TZ, sessionStart]);
 
     // 表示は「寄り付き価格(pricing_base=中心)比」の n/center_pct で行う(定価比 pct_change は互換のため残置)。
     const withDisplay = rows.map((item) => {
