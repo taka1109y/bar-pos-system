@@ -141,7 +141,7 @@ router.post('/', async (req, res, next) => {
 
     // チャージ設定を読み取り
     const { chargeEnabled, slots } = await loadChargeSettings();
-    const guestCountNum = clampInt(guest_count, 1, MAX_GUEST_COUNT, 1); // 上限クランプ(チャージ桁溢れ防止)
+    const guestCountNum = clampInt(guest_count, 0, MAX_GUEST_COUNT, 1); // 下限0(飲み直し等でチャージ0)〜上限クランプ(桁溢れ防止)
     const { charge_per_person, charge_amount } = (!isImmediate && chargeEnabled)
       ? resolveCharge(slots, guestCountNum)
       : { charge_per_person: 0, charge_amount: 0 };
@@ -547,7 +547,7 @@ router.patch('/:id/guest-count', async (req, res, next) => {
   const client = await pool.connect();
   try {
     const { guest_count } = req.body;
-    const guestCountNum = clampInt(guest_count, 1, MAX_GUEST_COUNT, 1);
+    const guestCountNum = clampInt(guest_count, 0, MAX_GUEST_COUNT, 1); // 下限0(飲み直し等でチャージ0円)
 
     await client.query('BEGIN');
 
