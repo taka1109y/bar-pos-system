@@ -1,4 +1,4 @@
-const { query } = require('../db/database');
+const { query, pool } = require('../db/database');
 const { broadcast } = require('./socketService');
 const pricingSettings = require('./pricingSettings');
 const pm = require('./pricingModel');
@@ -132,9 +132,9 @@ async function runSeesaw(menuItemId) {
     const rng = makeRng(seed);
     const k = pm.drawSeesawSteps(rng);
 
-    // 勝者の上げ余地(ceiling=n+10まで)
+    // 勝者の上げ余地(ceiling=n+half まで。half は動く範囲の設定に追従)
     const nW = pm.nForPrice(w.base_price, w.cp);
-    const up0 = Math.min(k, pm.GRID_HALF_SPAN - nW);
+    const up0 = Math.min(k, pm.getGridHalfSpan() - nW);
 
     // 犠牲候補: 同カテゴリの engine_on 変動ドリンク(勝者除く)。stored min_price=実効floor を下限に使う。
     const { rows: cand } = await query(
@@ -304,7 +304,53 @@ async function doMarketOpen(trigger = 'auto') {
   return { changed, total: items.length };
 }
 
+// ── 動く範囲（±%）の変更時：全 engine_on 変動ドリンクの stored min/max を新スパンで作り直す ──
+// ・min_price = effectiveFloor(base, cost) = max(新・帯下限, 原価×1.2格子) ← 原価割れは構造上ゼロ。
+// ・max_price = ceilingPrice(base)（新・帯上限）。
+// ・current_price は新[min,max]へクランプ（広げる時は現価格のまま／狭める時のみ上下限へ丸め）。暴落中は current を触らない。
+// setGridHalfSpan() で runtime を更新した後に呼ぶこと（ceilingPrice/effectiveFloor が新スパンを参照する）。
+// 単一トランザクションで実行し、最後に prices:sync で板・注文画面へ即反映する。
+async function recomputeBands() {
+  const client = await pool.connect();
+  let changed = 0, total = 0;
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(`
+      SELECT id, name, base_price::float AS base, current_price::float AS cp,
+             cost_price::float AS cost, is_crashed
+        FROM menu_items
+       WHERE is_active = TRUE AND is_drink = TRUE AND engine_enabled = TRUE
+         AND price_editable = FALSE AND min_price <> max_price
+    `);
+    total = rows.length;
+    for (const r of rows) {
+      const newMin = pm.effectiveFloor(r.base, r.cost || 0);
+      const newMax = pm.ceilingPrice(r.base);
+      // 縮退(原価過大で min>=max)は固定扱い＝上限に寄せる。
+      const lo = Math.min(newMin, newMax);
+      const hi = newMax;
+      // 暴落中は current(=暴落床) を保持。それ以外は新[lo,hi]へクランプ(広げる時は現価格のまま)。
+      const newCur = r.is_crashed ? r.cp : Math.min(hi, Math.max(lo, r.cp));
+      await client.query(
+        'UPDATE menu_items SET min_price = $1, max_price = $2, current_price = $3 WHERE id = $4',
+        [lo, hi, newCur, r.id]
+      );
+      if (newCur !== r.cp) changed++;
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    logger.error({ err: e }, 'recomputeBands failed');
+    throw e;
+  } finally {
+    client.release();
+  }
+  await broadcastPricesSync();
+  logger.info({ total, changed, halfSpan: pm.getGridHalfSpan() }, 'PricingEngine recomputeBands (動く範囲の再計算)');
+  return { total, changed };
+}
+
 module.exports = {
   startPricingEngine, restartInterval, triggerTick,
-  stepUpOnOrder, runSeesaw, runPeriodDecay, broadcastPricesSync, doMarketOpen,
+  stepUpOnOrder, runSeesaw, runPeriodDecay, broadcastPricesSync, doMarketOpen, recomputeBands,
 };

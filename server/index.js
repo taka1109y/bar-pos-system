@@ -107,7 +107,7 @@ async function main() {
   const { seed, seedSubcategories, ensureImmediateTable } = require('./db/seed');
   const { startPricingEngine } = require('./services/pricingEngine');
   const { loadPersistedPricingSettings } = require('./routes/settings');
-  const { loadPersistedSeesawDist } = require('./routes/system');
+  const { loadPersistedSeesawDist, loadPersistedGridHalfSpan } = require('./routes/system');
 
   await initDb();
   await seed();
@@ -115,6 +115,7 @@ async function main() {
   await ensureImmediateTable();
   await loadPersistedPricingSettings();
   await loadPersistedSeesawDist();
+  await loadPersistedGridHalfSpan();
   startPricingEngine();
   // フェーズ3: 手動暴落の継続時間経過を独立監視して自動解除（価格tick間隔に依存しない）
   require('./routes/menu').startCrashWatcher();

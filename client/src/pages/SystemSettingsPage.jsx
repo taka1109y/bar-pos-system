@@ -166,14 +166,16 @@ function PriceModelTab() {
     onError: () => { setCapMsg('エラーが発生しました'); setTimeout(() => setCapMsg(''), 3000); },
   });
 
-  // シーソー確率の編集（+1/+2/+3 段の確率。合計=1）
-  const [seesawInputs, setSeesawInputs] = useState(['0.6', '0.3', '0.1']);
+  // シーソー確率の編集（+1〜+5 段の確率。合計=1）
+  const SEESAW_MAX_STEPS = 5; // 手入力・プリセットで扱う最大段数（上がれる段数は「動く範囲」を超えられない）
+  const [seesawInputs, setSeesawInputs] = useState(['0.6', '0.3', '0.1', '0', '0']);
   const [seesawMsg, setSeesawMsg] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false); // 「詳しく設定する」開閉
   useEffect(() => {
     const dist = settings?.price_model?.seesaw_dist;
     if (Array.isArray(dist)) {
       const p = (s) => { const d = dist.find((x) => x.steps === s); return d ? String(d.p) : '0'; };
-      setSeesawInputs([p(1), p(2), p(3)]);
+      setSeesawInputs(Array.from({ length: SEESAW_MAX_STEPS }, (_, i) => p(i + 1)));
     }
   }, [settings]);
   const saveSeesawMutation = useMutation({
@@ -181,6 +183,23 @@ function PriceModelTab() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['system-settings'] }); setSeesawMsg('保存しました'); setTimeout(() => setSeesawMsg(''), 3000); },
     onError: (e) => { setSeesawMsg(e.message || 'エラーが発生しました'); setTimeout(() => setSeesawMsg(''), 4000); },
   });
+
+  // 動く範囲（帯の半幅＝片側の段数）の変更。変更時、サーバが全商品の上限・下限を作り直す。
+  const [bandMsg, setBandMsg] = useState('');
+  const saveBandMutation = useMutation({
+    mutationFn: (half) => api.updateSystemSettings({ grid_half_span: half }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['system-settings'] });
+      setBandMsg('動く範囲を変更し、全商品の上限・下限を作り直しました');
+      setTimeout(() => setBandMsg(''), 4000);
+    },
+    onError: (e) => { setBandMsg(e.message || 'エラーが発生しました'); setTimeout(() => setBandMsg(''), 4000); },
+  });
+  const BAND_PRESETS = [
+    { half: 10, label: '±20%' },
+    { half: 15, label: '±30%' },
+    { half: 20, label: '±40%' },
+  ];
 
   if (isLoading || !settings) return <p className="text-sm text-muted">読み込み中...</p>;
 
@@ -196,41 +215,138 @@ function PriceModelTab() {
   const seesawSum   = seesawInputs.reduce((s, v) => s + (Number(v) || 0), 0);
   const seesawSumOk = Math.abs(seesawSum - 1) < 1e-6;
   const setSee = (i, v) => setSeesawInputs((arr) => arr.map((x, idx) => (idx === i ? v : x)));
-  const handleSaveSeesaw = () => saveSeesawMutation.mutate([
-    { steps: 1, p: Number(seesawInputs[0]) || 0 },
-    { steps: 2, p: Number(seesawInputs[1]) || 0 },
-    { steps: 3, p: Number(seesawInputs[2]) || 0 },
-  ]);
+  // 保存時は 0% の段を除いて送る（steps>=1・p>0・合計1 を満たす）。
+  const handleSaveSeesaw = () => saveSeesawMutation.mutate(
+    seesawInputs.map((v, i) => ({ steps: i + 1, p: Number(v) || 0 })).filter((d) => d.p > 0)
+  );
+
+  // ── 上がりやすさプリセット（+1〜+5段の確率・合計1・5要素）──
+  // プリセットは入力補助にすぎず、保存する値の意味（各段の確率）は変えない。
+  // 段が大きいほど、1注文で下がる銘柄が増える（ゼロサム＝上がった段数＝下がる銘柄数）。
+  const SEESAW_PRESETS = [
+    { id: 'calm',   label: 'おとなしめ',  p: [0.8, 0.15, 0.05, 0,    0],    note: '1段ずつ小さく動きます（いちどに動く銘柄は少なめ）' },
+    { id: 'normal', label: 'ふつう',      p: [0.6, 0.30, 0.10, 0,    0],    note: 'ときどき2〜3段。標準の動きです' },
+    { id: 'wild',   label: '派手',        p: [0.3, 0.40, 0.30, 0,    0],    note: '大きく動きやすい（いちどに2〜3銘柄が下がります）' },
+    { id: 'wilder', label: 'もっと派手',  p: [0.05, 0.10, 0.25, 0.30, 0.30], note: 'かなり大きく動きます（いちどに3〜5銘柄が下がります）' },
+  ];
+  const curP = seesawInputs.map((v) => Number(v) || 0);
+  // 現在の入力がどのプリセットと一致するか（各段 ±0.001）。なければ 'custom'。
+  const eqP = (a, b) => a.every((x, i) => Math.abs(x - (b[i] || 0)) < 1e-3);
+  const activePreset = (SEESAW_PRESETS.find((pr) => eqP(pr.p, curP)) || {}).id || 'custom';
+  const activeNote   = (SEESAW_PRESETS.find((pr) => pr.id === activePreset) || {}).note || '数字を手で調整した設定です';
+  // プリセット選択＝確率をセットして即保存（合計1が保証されるためサーバ検証を必ず通る）。
+  const applyPreset = (id) => {
+    const pr = SEESAW_PRESETS.find((x) => x.id === id);
+    if (!pr) return;
+    setSeesawInputs(pr.p.map(String));
+    saveSeesawMutation.mutate(pr.p.map((p, i) => ({ steps: i + 1, p })).filter((d) => d.p > 0));
+  };
+  // 具体例プレビュー用：最頻段（確率が最大の段）と各段の%（0%の段は表示しない）。
+  const modeK = curP.indexOf(Math.max(...curP)) + 1;
+  const pctOf = (i) => Math.round((Number(seesawInputs[i]) || 0) * 100);
+  const seesawPctText = curP.map((p, i) => (p > 0 ? `+${i + 1}段 ${Math.round(p * 100)}％` : null)).filter(Boolean).join(' ／ ');
+
+  // 動く範囲（現在値・プリセット一致判定・変更ハンドラ）
+  const curHalf = model.grid_half_span ?? 10;
+  const applyBand = (half) => {
+    if (half === curHalf) return;
+    const label = (BAND_PRESETS.find((b) => b.half === half) || {}).label || `±${half * 2}%`;
+    if (window.confirm(`動く範囲を ${label} に変更します。全商品の上限・下限を作り直します（原価割れはしません）。よろしいですか？`)) {
+      saveBandMutation.mutate(half);
+    }
+  };
 
   return (
     <div className="space-y-4">
       <Alert tone="info">
-        価格は「定価×{baseMarkup}」を中心に、上下{gridPoints}点（中心±{bandPct}%）の格子で動きます。
-        注文が入ると当該銘柄が抽選で+1〜3段上昇し、その上昇分を同カテゴリの他銘柄へ配分（下降）します（カテゴリ内でゼロサム＝平均は中心付近を維持）。時間による自動下降はありません。市場オープンで全銘柄が中心（定価×{baseMarkup}）へ戻ります。下限は原価が厳しい銘柄では原価×1.2で持ち上がります。
+        <div className="font-medium mb-1">お酒の値段は、注文が入ると自動で動きます</div>
+        <ul className="list-disc pl-5 space-y-0.5 leading-relaxed">
+          <li>注文された銘柄 → <span className="text-emerald-700 font-medium">値上がり</span></li>
+          <li>同じカテゴリ（例：ビール）の他の銘柄 → その分だけ <span className="text-red-600 font-medium">値下がり</span></li>
+          <li>上がった分を他が引き受けるので、<span className="font-medium">カテゴリ全体の平均は変わりません</span></li>
+          <li>時間が経っても下がりません。値段は「基準価格（定価×{baseMarkup}）」を中心に、最大 ±{bandPct}% の範囲で動きます</li>
+          <li>下の「本日の価格リセット」を押すと、全部を基準価格へ戻せます</li>
+        </ul>
       </Alert>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatTile label="帯中心" value={`定価 ×${baseMarkup}`} sub="pricing_base（寄り付き値）" />
-        <StatTile label="格子" value={`${gridPoints} 点`} sub={`中心 ±${bandPct}%`} />
-        <StatTile label="シーソー抽選" value={seesawText} sub="勝者の上昇段（犠牲は同カテゴリへ配分）" />
-        <StatTile label="暴落状態" value={isCrashing ? `残り ${crashRemain}` : '通常'} sub={isCrashing ? '暴落床へ急落中' : '発生していません'} deltaTone={isCrashing ? 'down' : 'neutral'} delta={isCrashing ? '暴落中' : null} />
+        <StatTile label="基準価格" value={`定価 ×${baseMarkup}`} sub="ここを中心に上下します" />
+        <StatTile label="動く範囲" value={`±${bandPct}%`} sub="基準からの最大の上下幅" />
+        <StatTile label="上がりやすさ" value={seesawText} sub="1回の注文で何段上がるか" />
+        <StatTile label="暴落" value={isCrashing ? `残り ${crashRemain}` : '通常'} sub={isCrashing ? '価格が急落中' : '発生していません'} deltaTone={isCrashing ? 'down' : 'neutral'} delta={isCrashing ? '暴落中' : null} />
       </div>
 
-      <Section title="シーソー確率の設定" desc="注文時、勝者が何段上昇するかの抽選確率です。合計は必ず 1.0（変更は次の注文から反映・既存価格は動きません）。犠牲側は上昇分を同カテゴリへ -1 段ずつ配分します。">
-        <div className="flex flex-wrap items-end gap-4">
-          {['+1段', '+2段', '+3段'].map((lbl, i) => (
-            <Field key={lbl} label={lbl} className="w-24">
-              <Input type="number" min="0" max="1" step="0.05" value={seesawInputs[i]} onChange={(e) => setSee(i, e.target.value)} />
-            </Field>
-          ))}
-          <div className="leading-normal pb-2">
-            <span className={`text-sm font-medium ${seesawSumOk ? 'text-emerald-600' : 'text-danger'}`}>
-              合計 {seesawSum.toFixed(2)} {seesawSumOk ? '✓' : '（1.00 にしてください）'}
-            </span>
+      <Section title="注文で何段上がるか（値動きの大きさ）" desc="注文されたお酒が一度に何段上がるかの“出やすさ”です。段が大きいほど、いちどに動く銘柄が増えます。変更は次の注文から反映されます（今ついている価格は動きません）。">
+        {/* プリセット（おとなしめ／ふつう／派手）＝クリックで即保存 */}
+        <Segmented
+          className="[&>button]:flex-1 w-full max-w-md"
+          value={activePreset}
+          onChange={applyPreset}
+          options={[
+            ...SEESAW_PRESETS.map((pr) => ({ value: pr.id, label: pr.label })),
+            ...(activePreset === 'custom' ? [{ value: 'custom', label: 'カスタム' }] : []),
+          ]}
+        />
+        <p className="mt-2 text-sm text-muted leading-relaxed">{activeNote}</p>
+
+        {/* 具体例プレビュー（選んだ設定に応じて文章が変わる） */}
+        <div className="mt-3 rounded-lg border border-line bg-surface-sunken p-3 text-sm leading-relaxed">
+          <span className="font-medium">例：</span>
+          コロナを1杯頼むと、コロナが <span className="text-emerald-700 font-medium">+{modeK}段</span> ほど上がり、
+          同じ「ビール」の他のお酒が合計 {modeK}段ぶん <span className="text-red-600 font-medium">下がります</span>
+          （{modeK}銘柄が1段ずつ）。連続で頼むと、下がる相手は毎回変わります。
+          <div className="mt-1 text-xs text-muted">
+            1段の値幅は銘柄ごとに違います（安いお酒は¥10、高いお酒は数十円）。
+            出やすさ … {seesawPctText}
           </div>
-          <Button loading={saveSeesawMutation.isPending} disabled={!seesawSumOk} onClick={handleSaveSeesaw}>保存</Button>
-          {seesawMsg && <span className="text-sm text-emerald-700 pb-2">{seesawMsg}</span>}
         </div>
+
+        {/* 詳しく設定する（手入力・普段は畳む） */}
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="mt-3 text-sm text-primary-600 hover:text-primary-700 font-medium cursor-pointer"
+        >
+          詳しく設定する {showAdvanced ? '▴' : '▾'}
+        </button>
+        {showAdvanced && (
+          <div className="mt-2">
+            <p className="text-xs text-muted mb-2 leading-relaxed">各段の出やすさ（0〜1）を手で調整できます。全部の合計を必ず 1.00 にしてください。使わない段は 0 のままでOK（例：+4段・+5段を増やすと、いちどに下がる銘柄が増えます）。</p>
+            <div className="flex flex-wrap items-end gap-4">
+              {['+1段', '+2段', '+3段', '+4段', '+5段'].map((lbl, i) => (
+                <Field key={lbl} label={lbl} className="w-24">
+                  <Input type="number" min="0" max="1" step="0.05" value={seesawInputs[i]} onChange={(e) => setSee(i, e.target.value)} />
+                </Field>
+              ))}
+              <div className="leading-normal pb-2">
+                <span className={`text-sm font-medium ${seesawSumOk ? 'text-emerald-600' : 'text-danger'}`}>
+                  合計 {seesawSum.toFixed(2)} {seesawSumOk ? '✓' : '（1.00 にしてください）'}
+                </span>
+              </div>
+              <Button loading={saveSeesawMutation.isPending} disabled={!seesawSumOk} onClick={handleSaveSeesaw}>保存</Button>
+            </div>
+          </div>
+        )}
+        {seesawMsg && <p className="mt-2 text-sm text-emerald-700">{seesawMsg}</p>}
+      </Section>
+
+      <Section title="動く範囲（値段が上下できる幅）" desc="基準価格から上下どこまで動けるかです。範囲を広げても、1段の値幅（1回の動き）は変わりません。範囲を変えると全商品の上限・下限を作り直します（原価割れはしません）。上がれる段数もこの範囲までです。">
+        <Segmented
+          className="[&>button]:flex-1 w-full max-w-md"
+          value={curHalf}
+          onChange={applyBand}
+          options={[
+            ...BAND_PRESETS.map((b) => ({ value: b.half, label: b.label })),
+            ...(BAND_PRESETS.some((b) => b.half === curHalf) ? [] : [{ value: curHalf, label: `±${curHalf * 2}%` }]),
+          ]}
+        />
+        <p className="mt-2 text-sm text-muted leading-relaxed">
+          今の範囲：<span className="font-medium text-heading">±{bandPct}%</span>
+          （基準価格の {100 - bandPct}%〜{100 + bandPct}% の間で動きます）。
+          広げると安いお酒はより深く下がれますが、<span className="font-medium">原価×1.2 より下には決してなりません</span>。
+        </p>
+        {saveBandMutation.isPending && <p className="mt-2 text-sm text-muted">全商品の上限・下限を作り直しています…</p>}
+        {bandMsg && <p className="mt-2 text-sm text-emerald-700">{bandMsg}</p>}
       </Section>
 
       <Section title="本日の価格リセット（寄り付き）" desc="全ての変動対象ドリンクの価格を中心値（ベースプライス＝定価×1.10）へ戻します。レジ開店では自動リセットしません（前回の価格を持ち越し）。金土の営業開始時に一度実行してください（＝開場の合図）。平日は持ち越しでも構いません。">
@@ -249,7 +365,7 @@ function PriceModelTab() {
         </div>
       </Section>
 
-      <Section title="月次 値引き費用の上限（暴落原資）" desc="値引き費用（約定＜定価の合計）の月次上限。0 で無効。超過すると売上管理の「値引き費用」カードに警告が出ます。">
+      <Section title="値引きに使う金額の上限（1か月）" desc="お店が値引き（定価より安く売った分の合計）に使える1か月の上限です。0で無制限。超えると売上管理に警告が出ます。">
         <div className="flex items-end gap-3">
           <Field label="上限（円 / 0=無効）">
             <Input type="number" min={0} step={1000} className="w-40 text-right" value={capInput ?? settings.monthly_discount_cap ?? 0} onChange={(e) => setCapInput(e.target.value)} />
@@ -260,7 +376,7 @@ function PriceModelTab() {
         </div>
       </Section>
 
-      <p className="text-xs text-muted">※ この画面は状態確認用です。暴落の発動／解除は下の「暴落」、商品ごとの価格レンジは「商品管理」で操作します。</p>
+      <p className="text-xs text-muted">※ この画面は状態確認と設定用です。暴落の発動／解除は下の「暴落」、商品ごとの価格の上限・下限は「商品管理」で操作します。</p>
     </div>
   );
 }

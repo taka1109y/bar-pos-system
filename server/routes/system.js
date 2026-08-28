@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../db/database');
 const pm = require('../services/pricingModel');
-const { doMarketOpen } = require('../services/pricingEngine');
+const { doMarketOpen, recomputeBands } = require('../services/pricingEngine');
 const { nowInTZ, TZ } = require('../utils/time');
 
 const upsertSetting = (key, value) =>
@@ -31,10 +31,11 @@ function parseSettings(rows) {
     crash_ends_at:        s.crash_ends_at ?? null,
     // 価格モデル(Phase7)の定数（管理画面の「価格モデル」タブ表示用）
     price_model: {
-      base_markup: pm.BASE_MARKUP,                          // pricing_base = base × 1.10（帯中心）
-      grid_points: pm.GRID_HALF_SPAN * 2 + 1,               // 21点格子(n∈[-10,+10])
-      band_pct:    Math.round(pm.GRID_HALF_SPAN * pm.STEP_RATE * 1000) / 10, // 帯 ±20%
-      seesaw_dist: pm.getSeesawDist(),                      // シーソー勝者上昇段の抽選（管理画面で編集可）
+      base_markup:    pm.BASE_MARKUP,                              // pricing_base = base × 1.10（帯中心）
+      grid_half_span: pm.getGridHalfSpan(),                        // 片側の段数（動く範囲。管理画面で変更可）
+      grid_points:    pm.getGridHalfSpan() * 2 + 1,                // 格子点数(=half×2+1。既定21点)
+      band_pct:       Math.round(pm.getGridHalfSpan() * pm.STEP_RATE * 1000) / 10, // 帯 ±%（既定 ±20%）
+      seesaw_dist:    pm.getSeesawDist(),                          // シーソー勝者上昇段の抽選（管理画面で編集可）
     },
   };
 }
@@ -144,6 +145,18 @@ router.patch('/settings', async (req, res, next) => {
       await upsertSetting('seesaw_dist', JSON.stringify(pm.getSeesawDist()));
     }
 
+    // 動く範囲（帯の半幅＝片側の段数）。runtime 上書き＋DB永続化のあと、全変動ドリンクの
+    // stored min/max を新スパンで再計算する（原価床 effectiveFloor により原価割れは構造上ゼロ）。
+    if (req.body.grid_half_span !== undefined) {
+      try {
+        pm.setGridHalfSpan(req.body.grid_half_span);
+      } catch (e) {
+        return res.status(400).json({ error: e.message });
+      }
+      await upsertSetting('grid_half_span', String(pm.getGridHalfSpan()));
+      await recomputeBands(); // stored min/max 再計算＋prices:sync ブロードキャスト
+    }
+
     const { rows } = await query('SELECT key, value FROM system_settings');
     res.json(parseSettings(rows));
   } catch (err) {
@@ -172,5 +185,17 @@ async function loadPersistedSeesawDist() {
   }
 }
 
+// 起動時: 永続化済みの動く範囲(system_settings.grid_half_span)を runtime に反映する。
+// stored min/max は前回変更時に既に新スパンで保存済みのため、ここでは runtime を合わせるだけ（再計算不要）。
+async function loadPersistedGridHalfSpan() {
+  try {
+    const { rows } = await query(`SELECT value FROM system_settings WHERE key = 'grid_half_span'`);
+    if (rows[0] && rows[0].value) pm.setGridHalfSpan(parseInt(rows[0].value, 10));
+  } catch (e) {
+    // 不正値なら既定(±20%)のまま起動する（握りつぶす）
+  }
+}
+
 module.exports = router;
 module.exports.loadPersistedSeesawDist = loadPersistedSeesawDist;
+module.exports.loadPersistedGridHalfSpan = loadPersistedGridHalfSpan;

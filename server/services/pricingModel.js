@@ -138,7 +138,7 @@ function snapClampP6(base, price)  { return Math.max(softFloor(base), Math.min(m
 // 丸め単位は base で決定: base<1000→10 / <3000→50 / ≥3000→100（step も同単位・最低 unit）。
 // engine_off/固定/時価は markup 非適用＝常に定価(base)。markup は engine_on 変動ドリンクの帯中心にのみ効く。
 const BASE_MARKUP    = 1.10;   // pricing_base = base × 1.10（帯中心＝旧 anchor 概念を統合）
-const GRID_HALF_SPAN = 10;     // n∈[-10,+10] の21点
+const GRID_HALF_SPAN = 10;     // n∈[-10,+10] の21点（＝既定の動く範囲 ±20%。管理画面から変更可＝getGridHalfSpan()）
 const STEP_RATE      = 0.02;   // step = pricing_base × 2%（帯 = ±10step = ±約20%）
 const STEP_UNIT      = 10;     // step の丸め単位(Phase7R2でオーナー承認 ¥5→¥10)。2%を¥10単位で切り下げ。
                                // ※floor切下げにより 10step≤pricing_base×0.02×10=±20% は保たれるが、pricing_base<500(=最小¥10がpb×2%を上回る)の
@@ -175,8 +175,22 @@ function gridStep(base) {
   const raw = pricingBase(base) * STEP_RATE;
   return Math.max(STEP_UNIT, Math.floor(raw / STEP_UNIT) * STEP_UNIT);
 }
-// n をクランプ [-10,+10]
-function clampN(n) { return Math.max(-GRID_HALF_SPAN, Math.min(GRID_HALF_SPAN, n)); }
+// ── 動く範囲（帯の半幅＝片側の段数）のランタイム上書き（管理画面から変更可）──
+// null=既定 GRID_HALF_SPAN(=10, ±20%)。±% = getGridHalfSpan() × STEP_RATE。
+// step(1段の値幅)は変えず段数のみ増減するため、格子・約定価格の整合はそのまま保たれる。
+// 変更時は呼出側(system.js)が全変動ドリンクの stored min/max を再計算する（pricingEngine.recomputeBands）。
+let runtimeGridHalfSpan = null;
+function getGridHalfSpan() { return runtimeGridHalfSpan != null ? runtimeGridHalfSpan : GRID_HALF_SPAN; }
+// n(片側の段数)を 1〜40 の整数で上書き（±80%まで）。範囲外は例外。
+function setGridHalfSpan(n) {
+  const v = Number(n);
+  if (!Number.isInteger(v) || v < 1 || v > 40) throw new Error(`Invalid value: grid_half_span は 1〜40 の整数が必要 (${n})`);
+  runtimeGridHalfSpan = v;
+  return v;
+}
+
+// n をクランプ [-half,+half]（half は動く範囲の設定に追従）
+function clampN(n) { const h = getGridHalfSpan(); return Math.max(-h, Math.min(h, n)); }
 // 価格 = pricing_base + n×step（n はクランプ）
 function priceAtN(base, n) { return pricingBase(base) + clampN(n) * gridStep(base); }
 // 価格 → n（最寄り・クランプ）
@@ -185,8 +199,8 @@ function nForPrice(base, price) {
   if (step <= 0) return 0;
   return clampN(Math.round((price - pricingBase(base)) / step));
 }
-function floorPrice(base)   { return priceAtN(base, -GRID_HALF_SPAN); } // n=-10 = pricing_base-10step（純格子下限≒-20%）
-function ceilingPrice(base) { return priceAtN(base, +GRID_HALF_SPAN); } // n=+10 = pricing_base+10step（≒+20%）
+function floorPrice(base)   { return priceAtN(base, -getGridHalfSpan()); } // n=-half = 純格子下限（既定 -20%。動く範囲設定に追従）
+function ceilingPrice(base) { return priceAtN(base, +getGridHalfSpan()); } // n=+half = 帯上限（既定 +20%。動く範囲設定に追従）
 // 価格を格子(pricing_base + n×step)へ上スナップ
 function snapUpToGrid(base, price) {
   const pb = pricingBase(base), step = gridStep(base);
@@ -266,4 +280,5 @@ module.exports = {
   unitForBase, roundToUnit, pricingBase, gridStep, clampN, priceAtN, nForPrice,
   floorPrice, ceilingPrice, snapUpToGrid, costFloorGridNew, effectiveFloor, crashFloor, onGridNew,
   displayInfo, drawSeesawSteps, getSeesawDist, setSeesawDist,
+  getGridHalfSpan, setGridHalfSpan,
 };
