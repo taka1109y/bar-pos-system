@@ -3,6 +3,7 @@ const router = express.Router();
 const { pool, query } = require('../db/database');
 const { broadcastToRoom, broadcast } = require('../services/socketService');
 const { triggerTick, runSeesaw } = require('../services/pricingEngine');
+const { parsePayParams, settleOrderTx } = require('../services/paymentCore');
 const { nowInTZ, isHourInRange } = require('../utils/time');
 const { clampInt } = require('../utils/validate');
 const logger = require('../utils/logger');
@@ -171,6 +172,101 @@ router.post('/', async (req, res, next) => {
       return res.status(409).json({ error: 'Table already has an open order', orderId: existing[0]?.id });
     }
     next(err);
+  }
+});
+
+// POST /api/orders/immediate-checkout — 即会計(record-only)。
+// open注文を一切残さず、1トランザクションで「注文作成 → 明細一括記録 → 会計確定(paid)」を行う。
+// 明細はクライアントで解決済みの行(単価・商品名・選択肢)をそのまま記録する(表示価格＝請求価格)。
+// base_price は約定時点をサーバでスナップ。失敗時は全ロールバックで何も残らない。
+router.post('/immediate-checkout', async (req, res, next) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items is required' });
+  }
+  let params;
+  try { params = parsePayParams(req.body); }
+  catch (e) { if (e && e.status) return res.status(e.status).json({ error: e.error }); throw e; }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 即会計テーブル
+    const { rows: trows } = await client.query(
+      `SELECT id FROM tables WHERE table_type = 'immediate' AND is_active = TRUE ORDER BY id LIMIT 1`
+    );
+    const table = trows[0];
+    if (!table) { await client.query('ROLLBACK'); return res.status(500).json({ error: '即会計テーブルが見つかりません' }); }
+
+    // 冪等: 同一キーで既に会計済みの注文があれば、その結果を再構成して返す(再送の二重会計防止)
+    if (params.idempotency_key) {
+      const { rows: dup } = await client.query(
+        `SELECT id FROM orders WHERE idempotency_key = $1 AND status = 'paid' ORDER BY id DESC LIMIT 1`,
+        [params.idempotency_key]
+      );
+      if (dup[0]) {
+        const out = await settleOrderTx(client, dup[0].id, params); // paid+同キー → idempotent 結果
+        await client.query('COMMIT');
+        return res.json(out.result);
+      }
+    }
+
+    // 注文作成(即会計・チャージ0・guest 1)。テーブルは occupied にしない(常に available)。
+    const { rows: orows } = await client.query(
+      `INSERT INTO orders (table_id, guest_count, charge_per_person, charge_amount) VALUES ($1, 1, 0, 0) RETURNING id`,
+      [table.id]
+    );
+    const orderId = orows[0].id;
+
+    // 明細を一括記録(クライアント解決済みの行をそのまま。base_price は現行値をスナップ)
+    const ids = [...new Set(items.map((i) => Number(i.menu_item_id)))];
+    const { rows: menus } = await client.query(
+      `SELECT id, base_price::float AS base_price, is_drink FROM menu_items WHERE id = ANY($1::int[]) AND is_active = TRUE`,
+      [ids]
+    );
+    const menuMap = new Map(menus.map((m) => [m.id, m]));
+    const drinkIds = [];
+    for (const it of items) {
+      const mid = Number(it.menu_item_id);
+      const m = menuMap.get(mid);
+      if (!m) { await client.query('ROLLBACK'); return res.status(404).json({ error: `商品が見つかりません (id=${it.menu_item_id})` }); }
+      const qty = Number(it.quantity);
+      if (!Number.isInteger(qty) || qty < 1) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'quantity must be a positive integer' }); }
+      const price = Math.round(Number(it.unit_price));
+      if (!Number.isFinite(price) || price < 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'unit_price must be a non-negative number' }); }
+      const name = String(it.item_name ?? '').trim().slice(0, 100) || '商品';
+      const sel  = (typeof it.selected_option === 'string' && it.selected_option.trim().length > 0) ? it.selected_option.trim().slice(0, 200) : null;
+      await client.query(
+        `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, item_name, selected_option, base_price_at_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [orderId, mid, qty, price, name, sel, m.base_price]
+      );
+      if (m.is_drink) {
+        await client.query('INSERT INTO pricing_events (menu_item_id, quantity) VALUES ($1, $2)', [mid, qty]);
+        drinkIds.push(mid);
+      }
+    }
+
+    await recalcTotal(client, orderId);
+
+    // 会計確定(paid)。即会計テーブルなのでチャージ/深夜は 0。
+    let out;
+    try { out = await settleOrderTx(client, orderId, params); }
+    catch (e) { if (e && e.status) { await client.query('ROLLBACK'); return res.status(e.status).json({ error: e.error }); } throw e; }
+
+    await client.query('COMMIT');
+
+    // コミット後: ドリンクのシーソー発火(会計時にまとめて価格反映) と キッチン/一覧通知
+    for (const id of drinkIds) runSeesaw(id);
+    broadcast('orders:changed', { tableId: table.id });
+
+    res.json(out.result);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(err);
+  } finally {
+    client.release();
   }
 });
 

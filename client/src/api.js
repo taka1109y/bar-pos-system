@@ -94,6 +94,31 @@ export const api = {
       }),
     }),
 
+  // 即会計(record-only): open注文を作らず、商品(解決済み行)＋支払いを1回で確定
+  immediateCheckout: ({
+    items,
+    paymentMethod    = 'cash',
+    payments         = null,
+    discountAmount   = 0,
+    memo             = null,
+    giftCertAmount   = 0,
+    giftCertNoChange = false,
+    idempotencyKey   = null,
+  }) =>
+    req('/orders/immediate-checkout', {
+      method: 'POST',
+      body: JSON.stringify({
+        items,
+        payment_method:      paymentMethod,
+        ...(payments ? { payments } : {}),
+        discount_amount:     discountAmount,
+        memo:                memo || null,
+        gift_cert_amount:    giftCertAmount,
+        gift_cert_no_change: giftCertNoChange,
+        idempotency_key:     idempotencyKey,
+      }),
+    }),
+
   // System
   getSystemSettings: () => req('/system/settings'),
   updateSystemSettings: (data) => req('/system/settings', { method: 'PATCH', body: JSON.stringify(data) }),

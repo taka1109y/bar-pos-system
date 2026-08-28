@@ -84,78 +84,53 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
   const [priceEditItem,      setPriceEditItem]      = useState(null);
   const [choiceItem,         setChoiceItem]         = useState(null);
 
-  // 即会計専用テーブル取得（起動後は変わらないので staleTime: Infinity）
-  const { data: immediateTable } = useQuery({
-    queryKey: ['immediate-table'],
-    queryFn: api.getImmediateTable,
-    staleTime: Infinity,
-  });
   // 暴落中カードの残り時間表示用(crash_ends_at)
   const { data: sysSettings } = useQuery({ queryKey: ['system-settings'], queryFn: api.getSystemSettings, staleTime: 60_000 });
-  const tableId = immediateTable?.id;
 
-  // 現在のオープン注文取得
-  const orderKey = ['order', tableId];
-  const { data: order } = useQuery({
-    queryKey: orderKey,
-    queryFn: () => api.getOrderByTable(tableId),
-    enabled: !!tableId,
-    refetchInterval: 10_000, // socket 取りこぼし/切断中の保険
-  });
+  // record-only: サーバに open 注文を作らず、商品は会計時までクライアントのカート(staged)に保持する。
+  // 会計を押すまでサーバには何も残らない=離脱しても未会計は発生しない。
+  const [staged, setStaged] = useState([]); // [{ key, menu_item_id, item_name, unit_price, quantity, is_drink, selected_option }]
+  const lineKeyRef = useRef(0);
 
-  // Socket: リアルタイム更新 + 再接続時の再同期
-  useEffect(() => {
-    if (!tableId) return;
-    const handler = (data) => {
-      if (data.tableId !== tableId) return;
-      queryClient.setQueryData(orderKey, (old) => ({
-        ...(old ?? {}),
-        id:                data.orderId,
-        table_id:          tableId,
-        items:             data.items,
-        total_amount:      data.total,
-        charge_amount:     0,
-        charge_per_person: 0,
-        guest_count:       1,
-      }));
-    };
-    const handleReconnect = () => queryClient.invalidateQueries({ queryKey: orderKey });
-    socket.on('order:updated', handler);
-    socket.on('connect',       handleReconnect);
-    return () => {
-      socket.off('order:updated', handler);
-      socket.off('connect',       handleReconnect);
-    };
-  }, [tableId]);
-
-  // 注文作成（アイテム追加時に存在しなければ遅延作成）
-  const createOrderMutation = useMutation({
-    mutationFn: () => api.createOrder(tableId, 1),
-    onError: (e) => useToastStore.getState().error(e?.message || '注文の作成に失敗しました'),
-  });
-
-  const addItemMutation = useMutation({
-    mutationFn: ({ orderId, menuItemId, unit_price, item_name, selected_option, selected_options, selected_option_counts, idempotency_key }) =>
-      api.addOrderItem(orderId, { menu_item_id: menuItemId, quantity: 1, unit_price, item_name, selected_option, selected_options, selected_option_counts, idempotency_key }),
-    // 冪等キーを操作単位で付与(onMutateは1回のみ→自動リトライでも同一キー→サーバで二重明細防止)
-    onMutate: (vars) => { if (vars && !vars.idempotency_key) vars.idempotency_key = newIdempotencyKey(); },
-    onError: (e) => useToastStore.getState().error(e?.message || '注文の追加に失敗しました'),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
-  });
-
-  const updateItemMutation = useMutation({
-    mutationFn: ({ orderId, itemId, quantity }) =>
-      api.updateOrderItem(orderId, itemId, { quantity }),
-    onError: (e) => useToastStore.getState().error(e?.message || '数量の変更に失敗しました'),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: orderKey }),
-  });
+  // カートへ追加。merge=true(通常商品)は同一行(商品/単価/名称/選択肢が一致)へ数量加算。
+  // 時価・選択肢商品は1点ごとに価格/内容が異なり得るため merge=false で常に新規行。
+  const addStaged = (line, merge) => {
+    setStaged((prev) => {
+      if (merge) {
+        const idx = prev.findIndex((l) =>
+          l.menu_item_id === line.menu_item_id &&
+          l.unit_price === line.unit_price &&
+          l.item_name === line.item_name &&
+          (l.selected_option ?? null) === (line.selected_option ?? null));
+        if (idx >= 0) {
+          const next = prev.slice();
+          next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 };
+          return next;
+        }
+      }
+      return [...prev, { key: ++lineKeyRef.current, quantity: 1, selected_option: null, ...line }];
+    });
+  };
+  const setLineQty = (key, qty) => setStaged((prev) =>
+    qty <= 0 ? prev.filter((l) => l.key !== key) : prev.map((l) => (l.key === key ? { ...l, quantity: qty } : l)));
+  const clearStaged = () => setStaged([]);
 
   const idemKeyRef = useRef(null);
   const [payError, setPayError] = useState('');
   const payMutation = useMutation({
-    mutationFn: () => api.pay(order.id, splitMode
-      ? { payments: splitPayments, discountAmount, memo: null, idempotencyKey: idemKeyRef.current }
-      : { paymentMethod, discountAmount, memo: null, giftCertAmount: effectiveGiftCert, giftCertNoChange, idempotencyKey: idemKeyRef.current }),
+    mutationFn: () => api.immediateCheckout({
+      items: staged.map((l) => ({
+        menu_item_id:   l.menu_item_id,
+        quantity:       l.quantity,
+        unit_price:     l.unit_price,
+        item_name:      l.item_name,
+        selected_option: l.selected_option ?? null,
+      })),
+      ...(splitMode
+        ? { payments: splitPayments, discountAmount }
+        : { paymentMethod, discountAmount, giftCertAmount: effectiveGiftCert, giftCertNoChange }),
+      idempotencyKey: idemKeyRef.current,
+    }),
     onError: (e) => setPayError(e?.message || '会計に失敗しました。通信状態を確認してください。'),
     onSuccess: () => {
       setPayError('');
@@ -176,25 +151,8 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
     },
   });
 
-  // 注文が無ければ遅延作成して order id を返す（無ければ null）
-  const ensureOrderId = async () => {
-    let orderId = order?.id;
-    if (!orderId) {
-      if (createOrderMutation.isPending) return null;
-      try {
-        const newOrder = await createOrderMutation.mutateAsync();
-        queryClient.setQueryData(orderKey, newOrder);
-        orderId = newOrder.id;
-      } catch {
-        return null;
-      }
-    }
-    return orderId;
-  };
-
-  // メニュータップ → 時価商品は価格入力モーダル、それ以外は確認なしで即追加
-  const handleAddItem = async (menuItem) => {
-    if (!tableId) return;
+  // メニュータップ → 時価商品は価格入力モーダル、質問商品は選択、その他はカートへ加算
+  const handleAddItem = (menuItem) => {
     if (menuItem.price_editable) {
       setPriceEditItem({
         menu_item_id: menuItem.id,
@@ -203,7 +161,6 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
       });
       return;
     }
-    // 質問が設定された商品は選択肢を選ばせる（単一/複数）
     if (menuItem.question_text) {
       setChoiceItem({
         menu_item_id:  menuItem.id,
@@ -214,49 +171,65 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
       });
       return;
     }
-    const orderId = await ensureOrderId();
-    if (!orderId) return;
-    addItemMutation.mutate({ orderId, menuItemId: menuItem.id });
+    addStaged({
+      menu_item_id: menuItem.id,
+      item_name:    menuItem.name,
+      unit_price:   Math.round(menuItem.current_price ?? menuItem.base_price ?? 0),
+      is_drink:     !!menuItem.is_drink,
+    }, true);
   };
 
-  // 質問商品の選択確定 → 遅延作成した注文へ追加
-  const handleChoiceConfirm = async (chosen) => {
-    const orderId = await ensureOrderId();
-    if (!orderId) { setChoiceItem(null); return; }
-    const payload = choiceItem.allowQuantity
-      ? { selected_option_counts: chosen.map((c) => ({ label: c.label, count: c.count })) }
-      : choiceItem.allowMultiple
-        ? { selected_options: chosen.map((c) => c.label) }
-        : { selected_option: chosen[0].label };
-    addItemMutation.mutate({
-      orderId,
-      menuItemId: choiceItem.menu_item_id,
-      ...payload,
-    });
+  // 質問商品の選択確定 → 単価(priceDelta加算)と選択肢文字列を確定してカートへ
+  const handleChoiceConfirm = (chosen) => {
+    const mi = menuItems.find((m) => m.id === choiceItem.menu_item_id);
+    const choices = mi?.question_choices || [];
+    const deltaOf = (label) => Number((choices.find((c) => c.label === label)?.priceDelta) || 0);
+    let price = Math.round(mi?.current_price ?? mi?.base_price ?? 0);
+    let labelStr = '';
+    if (choiceItem.allowQuantity) {
+      price += chosen.reduce((s, c) => s + deltaOf(c.label) * (parseInt(c.count, 10) || 0), 0);
+      labelStr = chosen.map((c) => `${c.label}×${c.count}`).join(', ');
+    } else if (choiceItem.allowMultiple) {
+      const labels = [...new Set(chosen.map((c) => c.label))];
+      price += labels.reduce((s, l) => s + deltaOf(l), 0);
+      labelStr = labels.join(', ');
+    } else {
+      price += deltaOf(chosen[0].label);
+      labelStr = chosen[0].label;
+    }
+    addStaged({
+      menu_item_id:   choiceItem.menu_item_id,
+      item_name:      mi?.name ?? '商品',
+      unit_price:     price,
+      is_drink:       !!mi?.is_drink,
+      selected_option: labelStr,
+    }, false);
     setChoiceItem(null);
   };
 
-  // 時価商品の価格・商品名を確定して追加
-  const handlePriceConfirm = async (name, price) => {
-    const orderId = await ensureOrderId();
-    if (!orderId) return;
-    addItemMutation.mutate({ orderId, menuItemId: priceEditItem.menu_item_id, unit_price: price, item_name: name });
+  // 時価商品の価格・商品名を確定してカートへ
+  const handlePriceConfirm = (name, price) => {
+    const mi = menuItems.find((m) => m.id === priceEditItem.menu_item_id);
+    addStaged({
+      menu_item_id: priceEditItem.menu_item_id,
+      item_name:    name,
+      unit_price:   Math.round(price),
+      is_drink:     !!mi?.is_drink,
+    }, false);
     setPriceEditItem(null);
   };
 
-  const handleQtyIncrease = (item) => {
-    if (!order) return;
-    const mi = menuItems.find((m) => m.id === item.menu_item_id);
+  const handleQtyIncrease = (line) => {
+    const mi = menuItems.find((m) => m.id === line.menu_item_id);
     if (mi?.price_editable) {
-      // 時価商品は1点ごとに価格が異なり得るため、追加のたびに価格を入力させる
+      // 時価商品は1点ごとに価格が異なり得るため、追加のたびに価格を入力させる（新規行）
       setPriceEditItem({
-        menu_item_id: item.menu_item_id,
-        defaultName:  item.item_name,
-        defaultPrice: Math.round(item.unit_price),
+        menu_item_id: line.menu_item_id,
+        defaultName:  line.item_name,
+        defaultPrice: Math.round(line.unit_price),
       });
       return;
     }
-    // 質問商品は追加のたびに選び直させる
     if (mi?.question_text) {
       setChoiceItem({
         menu_item_id:  mi.id,
@@ -267,17 +240,14 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
       });
       return;
     }
-    addItemMutation.mutate({ orderId: order.id, menuItemId: item.menu_item_id });
+    setLineQty(line.key, line.quantity + 1);
   };
 
-  const handleQtyDecrease = (item) => {
-    if (!order) return;
-    updateItemMutation.mutate({ orderId: order.id, itemId: item.id, quantity: item.quantity - 1 });
-  };
+  const handleQtyDecrease = (line) => setLineQty(line.key, line.quantity - 1);
 
   const handlePayResultClose = () => {
     setPayResult(null);
-    queryClient.invalidateQueries({ queryKey: orderKey });
+    clearStaged();
     setReceivedInput('');
     setPaymentMethod('cash');
     setShowOtherPayment(false);
@@ -296,7 +266,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
   };
 
   // ── 金額計算 ──
-  const itemsSubtotal  = order?.items?.reduce((s, i) => s + i.quantity * i.unit_price, 0) ?? 0;
+  const itemsSubtotal  = staged.reduce((s, i) => s + i.quantity * i.unit_price, 0);
   const discountNum    = Math.max(0, parseFloat(savedDiscountInput) || 0); // 負値禁止
   const discountAmount = savedDiscountType === 'amount'
     ? Math.min(discountNum, itemsSubtotal)
@@ -351,10 +321,10 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
     setSplitInput('');
   };
 
-  const canPay = !!order && (order.items?.length ?? 0) > 0 && !payMutation.isPending
+  const canPay = staged.length > 0 && !payMutation.isPending
     && (splitMode ? (finalTotal > 0 && enteredSum >= finalTotal && cashlessSum <= finalTotal) : (isCash ? totalPaid >= finalTotal : true));
 
-  const items = order?.items ?? [];
+  const items = staged;
 
   return (
     <>
@@ -432,24 +402,25 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
             ) : (
               <div className="divide-y divide-line">
                 {items.map((item) => (
-                  <div key={item.id} className="flex items-center gap-2 px-3 py-2.5">
+                  <div key={item.key} className="flex items-center gap-2 px-3 py-2.5">
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-body truncate">{item.item_name}</p>
+                      <p className="text-xs font-medium text-body truncate">
+                        {item.item_name}
+                        {item.selected_option && <span className="text-faint">（{item.selected_option}）</span>}
+                      </p>
                       <p className="text-[11px] text-faint mt-0.5">¥{yen(item.unit_price)}</p>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <button
                         onClick={() => handleQtyDecrease(item)}
-                        disabled={updateItemMutation.isPending}
-                        className="w-9 h-9 rounded-lg bg-slate-200 hover:bg-slate-300 text-body text-sm font-bold flex items-center justify-center transition-colors disabled:opacity-50"
+                        className="w-9 h-9 rounded-lg bg-slate-200 hover:bg-slate-300 text-body text-sm font-bold flex items-center justify-center transition-colors"
                       >
                         −
                       </button>
                       <span className="w-5 text-center text-xs font-bold text-heading">{item.quantity}</span>
                       <button
                         onClick={() => handleQtyIncrease(item)}
-                        disabled={addItemMutation.isPending}
-                        className="w-9 h-9 rounded-lg bg-primary-500 hover:bg-primary-700 text-white text-sm font-bold flex items-center justify-center transition-colors disabled:opacity-50"
+                        className="w-9 h-9 rounded-lg bg-primary-500 hover:bg-primary-700 text-white text-sm font-bold flex items-center justify-center transition-colors"
                       >
                         +
                       </button>
@@ -727,7 +698,7 @@ export default function ImmediateCheckoutPanel({ menuItems, categories, subcateg
           defaultPrice={priceEditItem.defaultPrice}
           onConfirm={handlePriceConfirm}
           onClose={() => setPriceEditItem(null)}
-          isPending={addItemMutation.isPending || createOrderMutation.isPending}
+          isPending={false}
         />
       )}
       {choiceItem && (
