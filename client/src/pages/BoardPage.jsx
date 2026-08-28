@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import socket from '../socket';
 import usePriceStore from '../store/usePriceStore';
@@ -210,19 +210,30 @@ export default function BoardPage() {
 
   const hasData = prices.length > 0;
 
-  // 表示エリアの実高さから、1ページに収まる行数を計算する
-  useEffect(() => {
+  // 表示エリアの実高さと「実際の行高(DOM実測)」から、1ページに収まる行数を計算する。
+  // 固定の概算値ではなく実測にすることで、下の凡例直前まで余白なく詰め、かつはみ出しも防ぐ。
+  // 行高は最も背の高い「商品行(.board-item-row)」を基準にする(カテゴリ見出しは低いため安全側)。
+  const measureMaxRows = useCallback(() => {
     const el = tableAreaRef.current;
     if (!el) return;
-    const compute = () => {
-      const available = el.clientHeight - HEADER_ROW_HEIGHT_PX;
-      setMaxRows(Math.max(Math.floor(available / ROW_HEIGHT_PX), 3));
-    };
-    compute();
-    const ro = new ResizeObserver(compute);
-    ro.observe(el);
+    const thead   = el.querySelector('thead');
+    const itemRow = el.querySelector('tr.board-item-row');
+    const headH = thead?.offsetHeight   || HEADER_ROW_HEIGHT_PX;
+    const rowH  = itemRow?.offsetHeight  || ROW_HEIGHT_PX;
+    const available = el.clientHeight - headH;
+    const next = Math.max(Math.floor((available - 2) / rowH), 3); // -2px は端数の安全マージン
+    setMaxRows((prev) => (prev === next ? prev : next));
+  }, []);
+
+  useEffect(() => {
+    if (!tableAreaRef.current) return;
+    measureMaxRows();
+    const ro = new ResizeObserver(measureMaxRows);
+    ro.observe(tableAreaRef.current);
+    // Webフォント(IBM Plex Mono)読込後に行高が変わるため再計測する
+    if (document.fonts?.ready) document.fonts.ready.then(measureMaxRows).catch(() => {});
     return () => ro.disconnect();
-  }, [hasData]);
+  }, [hasData, measureMaxRows]);
 
   const pages = useMemo(
     () => buildPages(groupByCategory(prices), maxRows),

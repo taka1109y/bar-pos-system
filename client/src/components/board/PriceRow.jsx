@@ -61,7 +61,7 @@ export default function PriceRow({ item, zebra = false }) {
     : `${zebraBg} ${flashDir}`;
 
   return (
-    <tr key={flashKey} className={`border-b border-slate-700/40 ${rowBase}`}>
+    <tr key={flashKey} className={`board-item-row border-b border-slate-700/40 ${rowBase}`}>
       {/* 商品名 + 段数バッジ */}
       <td className="px-4 py-3 text-slate-200 font-medium text-[1.375rem] whitespace-nowrap overflow-hidden text-ellipsis">
         <span className="align-middle">{item.name}</span>
