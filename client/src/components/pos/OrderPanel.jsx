@@ -219,6 +219,15 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
 
   useEffect(() => { showPaymentRef.current = showPayment; }, [showPayment]);
 
+  // 会計が完了するとサーバのopen注文が無くなり order は null になる。
+  // 「会計完了」画面(PaymentResultModal)は PaymentModal の内部に描画されるため、
+  // order を条件に描画していると会計直後の再取得(refetchInterval 10秒/フォーカス復帰)で
+  // モーダルごと消えてしまう(=会計金額の画面がすぐ消える)。
+  // 会計モーダルを開いている間は直前の伝票スナップショットを使い、
+  // スタッフが閉じる操作をするまで表示を保持する。
+  const lastOrderRef = useRef(null);
+  useEffect(() => { if (order) lastOrderRef.current = order; }, [order]);
+
   const openOrderMutation = useMutation({
     mutationFn: (guestCount) => api.createOrder(table.id, guestCount ?? 1),
     onError: toastErr,
@@ -383,10 +392,27 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
     ? Math.round(itemsSubtotal * lnRate) : 0;
   const total = itemsSubtotal + chargeAmt + lateNightAmt;
 
+  // 会計モーダル(会計完了画面を含む)。会計後に order が null になっても
+  // 直前のスナップショットで描画を維持し、閉じる操作まで消えないようにする。
+  const paymentOrder   = order ?? lastOrderRef.current;
+  const paymentModalEl = showPayment && paymentOrder ? (
+    <PaymentModal
+      order={paymentOrder}
+      table={table}
+      onClose={() => setShowPayment(false)}
+      onPaid={() => {
+        setShowPayment(false);
+        onClose();
+      }}
+    />
+  ) : null;
+
   // 注文なし（ローディング完了後）は人数選択画面を表示
+  // ※会計直後もここに来るため、会計モーダルは必ず一緒に描画する(消えないように)
   if (!isLoading && !order) {
     return (
       <div className="flex flex-col flex-1 bg-surface overflow-hidden">
+        {paymentModalEl}
         {/* ヘッダー */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-surface-sunken flex-shrink-0">
           <div>
@@ -686,17 +712,7 @@ export default function OrderPanel({ table, menuItems, categories, subcategories
         />
       )}
 
-      {showPayment && order && (
-        <PaymentModal
-          order={order}
-          table={table}
-          onClose={() => setShowPayment(false)}
-          onPaid={() => {
-            setShowPayment(false);
-            onClose();
-          }}
-        />
-      )}
+      {paymentModalEl}
     </div>
   );
 }
