@@ -1,0 +1,17 @@
+{
+  "name": "FANZONE 価格ボード",
+  "short_name": "価格ボード",
+  "description": "ドリンク価格のライブ表示（店内サイネージ）",
+  "start_url": "/board",
+  "scope": "/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#060a12",
+  "theme_color": "#060a12",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

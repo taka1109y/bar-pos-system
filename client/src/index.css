@@ -74,6 +74,23 @@ body {
   min-height: 100vh;
 }
 
+/* 価格ボード(全画面サイネージ)のルート高さ。
+   100vh は URLバー/ナビゲーションバーの領域を含むため、Android 等では
+   実際の可視領域より大きくなり下端が見切れる。
+   ※最終的な高さは BoardPage が visualViewport の実測値を px で上書きする(全ブラウザ対応)。
+     ここは JS 適用前の初期値・JS無効時のフォールバック。 */
+.board-viewport {
+  height: 100vh;
+}
+
+/* svh(小ビューポート=バー表示時の最小可視高さ)対応ブラウザのみ上書き。
+   同一ルール内に 100vh と 100svh を並べるとビルド時のCSS圧縮でフォールバックが
+   削除されてしまうため、@supports で分離して両方を確実に残す。 */
+@supports (height: 100svh) {
+  .board-viewport { height: 100svh; }
+  #root { min-height: 100svh; }
+}
+
 /* 管理画面リデザイン: `.ui-pad` を付けた要素とその配下でのみ Tailwind の padding
    ユーティリティを有効化する。このプロジェクトの `* { padding: 0 }`(非レイヤー)は
    Tailwind の padding ユーティリティ(@layer utilities)を常に打ち消す(px-3 等が効かない癖)。

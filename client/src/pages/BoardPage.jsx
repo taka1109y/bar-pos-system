@@ -112,6 +112,7 @@ export default function BoardPage() {
   const { initPrices, updatePrices, getAllPrices } = usePriceStore();
   const prices = getAllPrices();
 
+  const rootRef      = useRef(null);
   const tableAreaRef = useRef(null);
   const [maxRows, setMaxRows] = useState(8);
   const [pageIndex, setPageIndex] = useState(0);
@@ -218,18 +219,92 @@ export default function BoardPage() {
     if (!el) return;
     const thead   = el.querySelector('thead');
     const itemRow = el.querySelector('tr.board-item-row');
-    const headH = thead?.offsetHeight   || HEADER_ROW_HEIGHT_PX;
-    const rowH  = itemRow?.offsetHeight  || ROW_HEIGHT_PX;
+    // getBoundingClientRect は小数精度。offsetHeight(整数丸め)だと実際より小さく出て
+    // 行数を過大評価し、最後の行が見切れる原因になる。
+    const headH = thead?.getBoundingClientRect().height   || HEADER_ROW_HEIGHT_PX;
+    const rowH  = itemRow?.getBoundingClientRect().height || ROW_HEIGHT_PX;
+    if (rowH <= 0) return;
     const available = el.clientHeight - headH;
-    const next = Math.max(Math.floor((available - 2) / rowH), 3); // -2px は端数の安全マージン
+    const next = Math.max(Math.floor((available - 4) / rowH), 3); // -4px は端数・境界線の安全マージン
     setMaxRows((prev) => (prev === next ? prev : next));
   }, []);
 
+  // 可視領域の高さをJSで実測してルートに適用する。
+  // 100vh は URLバー/ナビゲーションバーの領域を含むため、Android Chrome 等では
+  // 実際に見えている領域より大きくなり下端(最終行・凡例)が見切れる。
+  // visualViewport はバーの表示状態を反映した「実際に見えている高さ」を返すので、
+  // これを px で上書きすることで svh 非対応ブラウザも含め確実に画面内へ収める。
+  const applyViewportHeight = useCallback(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const h = window.visualViewport?.height ?? window.innerHeight;
+    if (h > 0) root.style.height = `${Math.floor(h)}px`;
+    measureMaxRows(); // 高さが変わったら収まる行数も再計算する
+  }, [measureMaxRows]);
+
+  // ボード表示中だけ PWA マニフェストをボード専用へ差し替える。
+  // 既定の manifest.json は start_url='/'(POS画面)・standalone のため、そのまま
+  // 「ホーム画面に追加」するとPOSが開いてしまう。board-manifest.json は
+  // start_url='/board'・display=fullscreen・横向き固定。
+  // ※Chrome のPWAインストールは安全なコンテキスト(HTTPS/localhost)が必要。HTTPのLAN配信では
+  //   端末側で chrome://flags の「Insecure origins treated as secure」に当該オリジンを
+  //   登録する必要がある(未設定でも下の「全画面」ボタンで全画面化できる)。
   useEffect(() => {
-    if (!tableAreaRef.current) return;
+    const link = document.querySelector('link[rel="manifest"]');
+    if (!link) return;
+    const prev = link.getAttribute('href');
+    link.setAttribute('href', '/board-manifest.json');
+    return () => { if (prev) link.setAttribute('href', prev); };
+  }, []);
+
+  // 全画面表示(Fullscreen API)。HTTPS不要のため現行のHTTP配信でも動作する。
+  // 仕様上ユーザー操作が必要なため、ボタンのタップで全画面化する。
+  // PWA(ホーム画面のアイコン)から起動した場合は既に全画面なのでボタンは出さない。
+  const [isStandalone] = useState(() => {
+    try { return window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches; }
+    catch { return false; }
+  });
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    } else {
+      const el = document.documentElement;
+      (el.requestFullscreen?.({ navigationUI: 'hide' }) ?? Promise.reject()).catch(() => {
+        el.webkitRequestFullscreen?.(); // 旧WebKit系の保険
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    applyViewportHeight();
+    const vv = window.visualViewport;
+    window.addEventListener('resize', applyViewportHeight);
+    window.addEventListener('orientationchange', applyViewportHeight);
+    vv?.addEventListener('resize', applyViewportHeight);
+    vv?.addEventListener('scroll', applyViewportHeight); // バーの開閉でオフセットが変わる端末向け
+    return () => {
+      window.removeEventListener('resize', applyViewportHeight);
+      window.removeEventListener('orientationchange', applyViewportHeight);
+      vv?.removeEventListener('resize', applyViewportHeight);
+      vv?.removeEventListener('scroll', applyViewportHeight);
+    };
+  }, [applyViewportHeight]);
+
+  useEffect(() => {
+    const area = tableAreaRef.current;
+    if (!area) return;
     measureMaxRows();
     const ro = new ResizeObserver(measureMaxRows);
-    ro.observe(tableAreaRef.current);
+    ro.observe(area);
+    // 行高そのものの変化(Webフォント適用・段数バッジ表示など)も拾う
+    const table = area.querySelector('table');
+    if (table) ro.observe(table);
     // Webフォント(IBM Plex Mono)読込後に行高が変わるため再計測する
     if (document.fonts?.ready) document.fonts.ready.then(measureMaxRows).catch(() => {});
     return () => ro.disconnect();
@@ -265,7 +340,8 @@ export default function BoardPage() {
 
   return (
     <div
-      className={`board-mono h-screen flex flex-col overflow-hidden text-white p-8 transition-colors duration-500 ${crashActive ? 'bg-red-950' : 'bg-[#060a12]'}`}
+      ref={rootRef}
+      className={`board-mono board-viewport flex flex-col overflow-hidden text-white p-8 transition-colors duration-500 ${crashActive ? 'bg-red-950' : 'bg-[#060a12]'}`}
       style={!crashActive ? { backgroundImage: 'radial-gradient(120% 90% at 50% -10%, #0c1524 0%, #05080e 62%)' } : undefined}
     >
       {/* 暴落演出オーバーレイ（フェーズ3）: 全体赤転＋残り時間（アイコンなし） */}
@@ -321,7 +397,7 @@ export default function BoardPage() {
           接続中...
         </div>
       ) : (
-        <div ref={tableAreaRef} className="flex-1 min-h-0">
+        <div ref={tableAreaRef} className="flex-1 min-h-0 overflow-hidden">
           <table className="w-full table-fixed">
             <colgroup>
               <col style={{ width: '25%' }} />
@@ -367,6 +443,23 @@ export default function BoardPage() {
         <span className="mx-3 text-slate-800">|</span>
         <span className="text-slate-700">価格は需要に応じてリアルタイムで変動します</span>
       </div>
+
+      {/* 全画面切替（右下・控えめ）。タッチで1タップ全画面。PWA起動時は非表示。 */}
+      {!isStandalone && (
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          aria-label={isFullscreen ? '全画面を終了' : '全画面表示'}
+          title={isFullscreen ? '全画面を終了' : '全画面表示'}
+          className="fixed bottom-3 right-3 z-30 w-12 h-12 inline-flex items-center justify-center rounded-lg border border-slate-700/50 bg-slate-900/60 text-slate-500 opacity-30 hover:opacity-100 hover:text-slate-200 active:opacity-100 transition-opacity cursor-pointer"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            {isFullscreen
+              ? <><path d="M9 3v6H3" /><path d="M15 3v6h6" /><path d="M9 21v-6H3" /><path d="M15 21v-6h6" /></>
+              : <><path d="M3 9V3h6" /><path d="M21 9V3h-6" /><path d="M3 15v6h6" /><path d="M21 15v6h-6" /></>}
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
