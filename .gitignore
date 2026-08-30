@@ -49,3 +49,6 @@ uploads/
 match_days.csv
 # 個人/機密メモ用の慣習拡張子
 *.private.md
+
+# 本番接続先(user@host)。公開リポジトリのためコミットしない
+deploy/.prod-ssh
