@@ -1,0 +1,90 @@
+# ============================================================================
+# 分析サイト（analytics/・ローカル専用）の追加サービス定義
+#
+# 既存の docker-compose.yml に「重ねて」使う（単体では postgres が未定義のため使えない）:
+#   docker compose -f docker-compose.yml -f docker-compose.analytics.yml --profile analytics \
+#     up -d --build analytics-postgres analytics-server analytics-web
+#   ※ 通常は analytics/bin/ana.sh up を使う
+#
+# - 3サービスとも profiles: ["analytics"] のため、素の `docker compose up` では起動しない
+#   （本番 Pi の構成・運用には影響しない）
+# - analytics-server は既存 bardb に「読み取り専用ロール bar_ro」で接続する
+#   （ロール作成と権限付与は analytics/db/*.sql ＝ ana.sh grant）
+# - 分析専用の書き込み先は別 DB（analytics-postgres / analyticsdb）
+# - Web は 127.0.0.1:8080 にのみ公開（LAN には出さない）
+# - 必要な .env: ANALYTICS_DB_PASSWORD / BARDB_RO_PASSWORD（.env.example 参照。値は英数字のみ推奨）
+# ============================================================================
+services:
+  analytics-postgres:
+    container_name: bar-analytics-postgres
+    image: postgres:16-alpine
+    profiles: ["analytics"]
+    environment:
+      TZ: Asia/Tokyo
+      POSTGRES_DB: analyticsdb
+      POSTGRES_USER: analytics
+      POSTGRES_PASSWORD: ${ANALYTICS_DB_PASSWORD:?.env に ANALYTICS_DB_PASSWORD を設定してください}
+    volumes:
+      - analytics_pg_data:/var/lib/postgresql/data
+    # 外部公開しない（同一 Docker ネットワーク内のみ）
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U analytics -d analyticsdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  analytics-server:
+    container_name: bar-analytics-server
+    profiles: ["analytics"]
+    build:
+      # server/（既存の集計定義を再利用）と analytics/ を同時に COPY するため context はリポジトリ root
+      context: .
+      dockerfile: analytics/server/Dockerfile
+    environment:
+      TZ: Asia/Tokyo
+      TZ_REPORT: Asia/Tokyo
+      NODE_ENV: production
+      PORT: 3101
+      # 既存 bardb へは読み取り専用ロール bar_ro で接続（application_name で pg_stat_activity 上も識別可）
+      DATABASE_URL: postgres://bar_ro:${BARDB_RO_PASSWORD:?.env に BARDB_RO_PASSWORD を設定してください}@postgres:5432/${POSTGRES_DB}?application_name=bar-analytics
+      # 分析専用 DB（書き込み先）
+      ANALYTICS_DATABASE_URL: postgres://analytics:${ANALYTICS_DB_PASSWORD}@analytics-postgres:5432/analyticsdb
+      # 起動時の自己診断（selfCheck）で「この user で・read-only で」接続していることを検証する
+      BARDB_EXPECT_USER: bar_ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      analytics-postgres:
+        condition: service_healthy
+    # ports なし（analytics-web の nginx 経由でのみアクセス。dev 構成では 127.0.0.1:3101 を公開）
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  analytics-web:
+    container_name: bar-analytics-web
+    profiles: ["analytics"]
+    build: ./analytics/client
+    ports:
+      # ローカルのブラウザからのみ: http://127.0.0.1:8080/
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - analytics-server
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  analytics_pg_data: {}

@@ -52,3 +52,9 @@ match_days.csv
 
 # 本番接続先(user@host)。公開リポジトリのためコミットしない
 deploy/.prod-ssh
+
+# 分析サイト(ローカル専用)の出力・退避
+backups/analytics/
+analytics/exports/
+analytics/**/*.csv
+analytics/**/.env*

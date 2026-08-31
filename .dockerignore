@@ -1,0 +1,17 @@
+# リポジトリ root を build context にするビルド（analytics-server: analytics/server/Dockerfile）用。
+# ※ 既存の server/ client/ ビルドは context がそれぞれのディレクトリなので、このファイルの影響を受けない。
+.git
+node_modules
+**/node_modules
+client
+backups
+analysis
+analytics/client
+analytics/exports
+**/dist
+*.dump
+*.sql.gz
+.env
+.env.*
+# アップロード済み商品画像（業務データ・分析イメージには不要）
+server/uploads

@@ -1,0 +1,31 @@
+# ============================================================================
+# 分析サイト 開発用オーバーライド（ana.sh dev が 3 つ目の -f として重ねる）
+#
+#   docker compose -f docker-compose.yml -f docker-compose.analytics.yml \
+#     -f docker-compose.analytics.dev.yml --profile analytics up -d --build analytics-postgres analytics-server
+#
+# - analytics/server と analytics/db をバインドマウントし node --watch でホットリロード
+# - 127.0.0.1:3101 を公開し、Vite dev サーバー（analytics/client, port 5174）の proxy から直接叩けるようにする
+# - server/ は読み取り専用で参照する（既存 POS のコードを分析側から変更できないようにする）
+#   ※ `./server:/app/server:ro` と丸ごと重ねると、イメージ内の /app/server/node_modules（Linux 用に
+#     npm install 済み）がホスト側（node_modules 無し）で隠れて require が失敗し、かつ read-only の
+#     バインド配下には匿名ボリューム（node_modules 退避）のマウントポイントを作れない（EROFS）。
+#     そのため analytics-server が実際に require するディレクトリのみを個別に :ro マウントする。
+#     server/ 直下に新しいディレクトリが増えて分析側から参照する場合はここに追記すること。
+# ============================================================================
+services:
+  analytics-server:
+    volumes:
+      - ./analytics/server:/app/analytics/server
+      - ./analytics/db:/app/analytics/db
+      - ./server/routes:/app/server/routes:ro
+      - ./server/db:/app/server/db:ro
+      - ./server/utils:/app/server/utils:ro
+      - ./server/services:/app/server/services:ro
+      # ホスト側の analytics/server/node_modules（macOS 用 or 未作成）でイメージ内の依存を隠さないよう退避
+      - /app/analytics/server/node_modules
+    command: ["node", "--watch", "index.js"]
+    environment:
+      NODE_ENV: development
+    ports:
+      - "127.0.0.1:3101:3101"

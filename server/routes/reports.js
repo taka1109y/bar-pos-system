@@ -637,3 +637,11 @@ router.get('/discount-cost', async (req, res, next) => {
 });
 
 module.exports = router;
+
+// 分析サイト(analytics/)から同一定義を参照するための追加 export（既存挙動は不変）
+module.exports.RECIPE_COST_CTE = RECIPE_COST_CTE;
+module.exports.PAID_FILTER = PAID_FILTER;
+module.exports.RANGE_FILTER = RANGE_FILTER;
+module.exports.fetchRangeTotals = fetchRangeTotals;
+module.exports.changePct = changePct;
+module.exports.rate = rate;

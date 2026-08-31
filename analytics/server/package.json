@@ -1,0 +1,17 @@
+{
+  "name": "bar-analytics-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FANZONE 分析サイト API（bardb は読み取り専用ロール bar_ro で参照、独自データは analyticsdb）",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "migrate": "node db/migrate.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.0",
+    "pg": "^8.12.0"
+  }
+}

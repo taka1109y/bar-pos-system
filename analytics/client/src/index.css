@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+/* ── デザイントークン ──────────────────────────────────────────────
+   出所: client/src/index.css の @theme ブロックをそのまま複製
+   (本番 client を不変に保つため、共有ではなく複製)。
+   トークン名・値は client 側と同一。変更する場合は両方を同期すること。
+   ※ client 側の "* { padding:0 }" リセット、.ui-pad、価格ボード用アニメーション等は
+     分析サイトに不要かつ Tailwind の padding ユーティリティを打ち消す副作用があるため複製しない。 */
+@theme {
+  --color-primary-50:  #f0f5ff;
+  --color-primary-100: #dde8ff;
+  --color-primary-200: #c0d4ff;
+  --color-primary-300: #95b6ff;
+  --color-primary-400: #6492ff;
+  --color-primary-500: #2b70ef;
+  --color-primary-600: #2250df;
+  --color-primary-700: #1a40b5;
+  --color-primary-800: #13318d;
+  --color-primary-900: #0e266a;
+  --color-primary-950: #07194e;
+
+  --font-family-sans: 'Inter', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+
+  /* ── 管理画面リデザイン: セマンティックトークン層(加算のみ) ──────────────
+     既存の primary-* / body / global spacing は不変。ここは新しい名前付きカラー/
+     タイポを「追加」するだけなので、客向けダーク画面(board/table/kitchen)には影響しない。
+     Tailwind v4 は --color-{name} から bg-/text-/border-/ring-{name} を自動生成する。 */
+
+  /* Surface 階層 (Background → Surface → Object) */
+  --color-canvas:         #f8fafc; /* アプリ背景 bg-canvas */
+  --color-surface:        #ffffff; /* カード/パネル bg-surface */
+  --color-surface-sunken: #f1f5f9; /* 入力溝・テーブルヘッダ bg-surface-sunken */
+  --color-surface-hover:  #f8fafc; /* 行/ボタン hover bg-surface-hover */
+
+  /* Border / Line */
+  --color-line:        #e2e8f0; /* border-line (= slate-200) */
+  --color-line-strong: #cbd5e1; /* border-line-strong (= slate-300, 入力枠) */
+
+  /* Text 階層 (本文4.5:1担保) */
+  --color-body:    #3d4b5f; /* text-body ← 従来デッドだったクラスの正式定義。既存使用箇所が置換ゼロで正常化 */
+  --color-heading: #0f172a; /* text-heading (= slate-900) 見出し */
+  --color-muted:   #64748b; /* text-muted (= slate-500) 副次ラベル */
+  --color-faint:   #94a3b8; /* text-faint (= slate-400) 補助 */
+
+  /* 状態色 (色のみに依存せずアイコン/テキスト併用が運用ルール) */
+  --color-success: #059669; /* emerald-600 */
+  --color-warning: #d97706; /* amber-600 */
+  --color-danger:  #dc2626; /* red-600 */
+  --color-info:    #2b70ef; /* = primary-500 */
+
+  /* 高密度タイポ (業務用・情報密度重視。11px/13px を名前付き化) */
+  --text-2xs:                0.6875rem; /* 11px: 密ラベル/バッジ */
+  --text-2xs--line-height:   1rem;
+  --text-dense:              0.8125rem; /* 13px: 密テーブル本文(xs=12とsm=14の中間) */
+  --text-dense--line-height: 1.15rem;
+}
+
+/* ── 分析サイト固有のベーススタイル(最小限) ───────────────────────── */
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: 'Inter', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 複製した ui/Modal.jsx が参照する開閉アニメーション(client/src/index.css と同一定義) */
+@keyframes modal-slide-up {
+  from { transform: translate(-50%, calc(-50% + 20px)); opacity: 0; }
+  to   { transform: translate(-50%, -50%); opacity: 1; }
+}
+.modal-slide-up {
+  animation: modal-slide-up 0.2s ease;
+}
+
+/* トースト出現 */
+@keyframes toast-in {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+.toast-in { animation: toast-in 0.2s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-slide-up, .toast-in { animation: none; }
+}
