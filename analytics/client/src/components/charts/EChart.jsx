@@ -1,12 +1,13 @@
 import { useEffect, useRef } from 'react';
 import * as echarts from 'echarts/core';
 import { BarChart, LineChart, PieChart, HeatmapChart, ScatterChart } from 'echarts/charts';
-import { GridComponent, TooltipComponent, LegendComponent, TitleComponent, DataZoomComponent, VisualMapComponent } from 'echarts/components';
+import { GridComponent, TooltipComponent, LegendComponent, TitleComponent, DataZoomComponent, VisualMapComponent, MarkLineComponent, MarkAreaComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 
 // echarts はツリーシェイク前提で必要なチャート/コンポーネントのみ登録する(バンドル削減)。
 echarts.use([CanvasRenderer, BarChart, LineChart, PieChart, HeatmapChart, ScatterChart,
-  GridComponent, TooltipComponent, LegendComponent, TitleComponent, DataZoomComponent, VisualMapComponent]);
+  GridComponent, TooltipComponent, LegendComponent, TitleComponent, DataZoomComponent, VisualMapComponent,
+  MarkLineComponent, MarkAreaComponent]);
 
 // 薄い ECharts ラッパ。option 変更で setOption(notMerge)、ResizeObserver で追従、unmount で dispose。
 // onReady(chart) で生インスタンスを受け取れる(イベント登録など)。

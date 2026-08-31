@@ -41,6 +41,31 @@ const ICONS = {
       <ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5" /><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" />
     </svg>
   ),
+  ranking: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 21h18" /><path d="M6 21V11" /><path d="M12 21V4" /><path d="M18 21v-7" />
+    </svg>
+  ),
+  mix: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" /><path d="M12 3v9l6.4 6.3" />
+    </svg>
+  ),
+  productTrend: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 3v18h18" /><path d="M7 14l4-5 3 3 5-7" />
+    </svg>
+  ),
+  affinity: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="9" cy="12" r="5.5" /><circle cx="15" cy="12" r="5.5" />
+    </svg>
+  ),
+  engineering: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M12 3v18" /><path d="M3 12h18" />
+    </svg>
+  ),
 };
 
 export const NAV_GROUPS = [
@@ -53,6 +78,16 @@ export const NAV_GROUPS = [
       { to: '/sales/calendar', label: 'カレンダー',      icon: ICONS.calendar },
       { to: '/sales/payments', label: '支払・税・取消',  icon: ICONS.payments },
       { to: '/sales/compare',  label: '期間比較',        icon: ICONS.compare },
+    ],
+  },
+  {
+    label: '商品分析',
+    items: [
+      { to: '/products/ranking',     label: 'ランキング&ABC',     icon: ICONS.ranking },
+      { to: '/products/mix',         label: 'メニューミックス',   icon: ICONS.mix },
+      { to: '/products/trend',       label: '商品推移',           icon: ICONS.productTrend },
+      { to: '/products/affinity',    label: '併売分析',           icon: ICONS.affinity },
+      { to: '/products/engineering', label: 'メニュー分析(4象限)', icon: ICONS.engineering },
     ],
   },
   { label: 'データ', items: [{ to: '/data', label: '同期・検証', icon: ICONS.data }] },

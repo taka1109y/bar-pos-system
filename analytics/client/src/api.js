@@ -68,6 +68,16 @@ export const api = {
   getSalesAdjustments: (params) => req(`/v1/sales/adjustments${qs(params)}`),
   getSalesCompare:     (params) => req(`/v1/sales/compare${qs(params)}`),   // a_start,a_end,b_start,b_end,day_mode
 
+  // ── v1 products(Phase 2: 商品分析。共通クエリは sales と同じ start/end/day_mode/boundary_hour) ──
+  // 集計は order_items(明細)ベース。原価はレシピ原価(RECIPE_COST_CTE)
+  getProductsRanking:     (params) => req(`/v1/products/ranking${qs(params)}`),     // + basis=revenue|quantity|gross_profit, include_unsold, category_id, subcategory_id
+  getProductsAbc:         (params) => req(`/v1/products/abc${qs(params)}`),         // + basis
+  getProductsMix:         (params) => req(`/v1/products/mix${qs(params)}`),         // + by=category|subcategory|drink_food|tax_category|staff_only
+  getProductsTrend:       (params) => req(`/v1/products/trend${qs(params)}`),       // + granularity, menu_item_ids=カンマ区切り(1〜10件必須)
+  getProductsAffinity:    (params) => req(`/v1/products/affinity${qs(params)}`),    // + min_pair, limit, menu_item_id(任意)
+  getProductsEngineering: (params) => req(`/v1/products/engineering${qs(params)}`),
+  getProductsOptions:     (params) => req(`/v1/products/options${qs(params)}`),
+
   // ── CSV エクスポート(fetch ではなくブラウザのダウンロードに任せる。BOM付き・attachment) ──
   exportCsvUrl: (report, params) => `${BASE}/v1/export/csv${qs({ report, ...params })}`,
 

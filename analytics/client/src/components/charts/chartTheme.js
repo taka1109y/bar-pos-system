@@ -17,6 +17,18 @@ export const PALETTE = {
 
 export const CATEGORICAL = [PALETTE.blue, PALETTE.emerald, PALETTE.amber, PALETTE.violet];
 
+// 多系列比較(商品推移の最大10商品など、系列数が4を超え得るチャート専用)の固定順10色。
+// 先頭4色は CATEGORICAL と同一。通常のチャートは引き続き CATEGORICAL を使う(循環生成はしない)。
+export const SERIES10 = [
+  PALETTE.blue, PALETTE.emerald, PALETTE.amber, PALETTE.violet,
+  '#dc2626', // red-600
+  '#0891b2', // cyan-600
+  '#db2777', // pink-600
+  '#65a30d', // lime-600
+  '#64748b', // slate-500
+  '#1e293b', // slate-800
+];
+
 // 逐次スケール(単一色相・明→暗)。ヒートマップ/カレンダー濃淡用
 export const SEQ_BLUE = ['#f0f5ff', '#c0d4ff', '#6492ff', '#2b70ef', '#13318d'];
 
