@@ -17,3 +17,5 @@ export { default as EmptyState } from './EmptyState';
 export { default as StatTile } from './StatTile';
 export { default as Segmented } from './Segmented';
 export { cn } from './cn';
+// ── 分析サイト固有(本番 client には無い追加部品) ──
+export { default as Skeleton } from './Skeleton';

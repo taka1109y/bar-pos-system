@@ -79,6 +79,8 @@ async function main() {
   // 3. ルート登録
   app.use('/api/v1/meta', require('./routes/meta'));
   app.use('/api/v1/settings', require('./routes/settings'));
+  app.use('/api/v1/sales', require('./routes/sales'));
+  app.use('/api/v1/export', require('./routes/export'));
   app.use('/api/legacy', require('./routes/legacy'));
 
   app.use((req, res) => {

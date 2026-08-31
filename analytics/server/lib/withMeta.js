@@ -49,8 +49,10 @@ function invalidateMeta() {
   cache = null;
 }
 
-async function withMeta(payload) {
-  return { ...payload, meta: await getMeta() };
+// extraMeta（day_mode / boundary_hour / note 等）を渡すと meta にマージされる（Phase 1 追加。省略時は従来どおり）
+async function withMeta(payload, extraMeta) {
+  const meta = await getMeta();
+  return { ...payload, meta: extraMeta ? { ...meta, ...extraMeta } : meta };
 }
 
 module.exports = { withMeta, getMeta, invalidateMeta, DEFINITIONS_VERSION };

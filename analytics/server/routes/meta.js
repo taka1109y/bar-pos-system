@@ -199,12 +199,187 @@ async function checkSchemaOk() {
   return { ok: versions.includes('0001'), detail: { applied: versions } };
 }
 
+// ---- Phase 1: 営業日集計の一致検証 ----
+// 集計本体は routes/sales.js の fetch 群を再利用する（HTTP を介さず in-process で呼ぶ。
+// legacy 側のみ checkLegacyReachable と同様に in-process HTTP で叩く）
+const bd = require('../lib/businessDay');
+const sales = require('./sales');
+
+const VERIFY_EPS = 0.005;               // 金額一致の許容誤差 |Δ| < 0.005
+const VERIFY_FULL_START = '2026-07-01'; // 運用データ開始月＝「全期間」チェックの起点
+
+function nearlyEqual(a, b) {
+  return Math.abs(Number(a) - Number(b)) < VERIFY_EPS;
+}
+
+async function settingsBoundary() {
+  const { rows: [r] } = await ana.query('SELECT business_day_boundary_hour FROM store_settings WHERE id = 1');
+  return r ? r.business_day_boundary_hour : 9;
+}
+
+// legacy_match 用の3期間（直近7日・今月・全期間）。すべて暦日基準
+function verifyPeriods() {
+  const today = todayCalendar();
+  return [
+    { name: 'last_7_days', start: bd.addDays(today, -6), end: today },
+    { name: 'this_month', start: `${today.slice(0, 7)}-01`, end: today },
+    { name: 'full_range', start: VERIFY_FULL_START, end: today },
+  ];
+}
+
+async function fetchLegacyJson(pathname) {
+  const port = process.env.PORT || 3101;
+  const resp = await fetch(`http://127.0.0.1:${port}${pathname}`);
+  if (resp.status !== 200) throw new Error(`legacy API が ${resp.status} を返しました: ${pathname}`);
+  return resp.json();
+}
+
+// day_mode=calendar(B=0) の summary が in-process の /api/legacy/reports/analytics と一致すること
+async function checkLegacyMatchSummary() {
+  const KEYS = ['total_revenue', 'total_cost', 'gross_profit', 'order_count', 'guest_count', 'avg_stay_minutes'];
+  const periods = [];
+  for (const p of verifyPeriods()) {
+    const [legacy, mine] = await Promise.all([
+      fetchLegacyJson(`/api/legacy/reports/analytics?start=${p.start}&end=${p.end}`),
+      sales.fetchSummaryData(p.start, p.end, 0), // calendar 相当（B=0）
+    ]);
+    const mismatches = {};
+    for (const k of KEYS) {
+      if (!nearlyEqual(mine[k], legacy.summary[k])) mismatches[k] = { v1: mine[k], legacy: legacy.summary[k] };
+    }
+    const ok = Object.keys(mismatches).length === 0;
+    periods.push({ period: p.name, start: p.start, end: p.end, ok, ...(ok ? {} : { mismatches }) });
+  }
+  return { ok: periods.every((r) => r.ok), detail: { keys: KEYS, periods } };
+}
+
+// trend(day, calendar) の日別が /api/legacy/reports/profit-summary と一致すること（legacy に無い日は0扱い）
+async function checkLegacyMatchDaily() {
+  const start = VERIFY_FULL_START;
+  const end = todayCalendar();
+  const [legacy, trend] = await Promise.all([
+    fetchLegacyJson(`/api/legacy/reports/profit-summary?start=${start}&end=${end}`),
+    sales.fetchTrendRows(start, end, 0, 'day'),
+  ]);
+  const legacyMap = new Map(legacy.rows.map((r) => [r.date, r]));
+  const mismatches = [];
+  for (const row of trend) {
+    const l = legacyMap.get(row.period_start) || { revenue: 0, total_cost: 0, gross_profit: 0 };
+    for (const k of ['revenue', 'total_cost', 'gross_profit']) {
+      if (!nearlyEqual(row[k], l[k])) mismatches.push({ date: row.period_start, key: k, v1: row[k], legacy: l[k] });
+    }
+  }
+  return {
+    ok: mismatches.length === 0,
+    detail: {
+      start, end,
+      days_checked: trend.length,
+      legacy_days: legacy.rows.length,
+      mismatch_count: mismatches.length,
+      mismatches: mismatches.slice(0, 5),
+    },
+  };
+}
+
+// 保存則: 全期間で Σtrend(business) == Σtrend(calendar) == 直接 SUM（範囲フィルタなし・PAID_FILTER のみ）
+async function checkConservation() {
+  const start = VERIFY_FULL_START;
+  const end = todayCalendar();
+  const boundary = await settingsBoundary();
+  const [trendBiz, trendCal, { rows: [direct] }] = await Promise.all([
+    sales.fetchTrendRows(start, end, boundary, 'day'),
+    sales.fetchTrendRows(start, end, 0, 'day'),
+    pos.query(
+      `SELECT COALESCE(SUM(o.total_amount), 0)::float AS revenue,
+              COUNT(*)::int AS order_count,
+              COALESCE(SUM(o.guest_count), 0)::int AS guest_count
+       FROM orders o
+       WHERE ${posDefs.PAID_FILTER}`
+    ),
+  ]);
+  const sum = (rows, k) => rows.reduce((acc, r) => acc + r[k], 0);
+  const detail = { start, end, boundary_hour: boundary, metrics: {} };
+  let ok = true;
+  for (const k of ['revenue', 'order_count', 'guest_count']) {
+    const b = sum(trendBiz, k);
+    const c = sum(trendCal, k);
+    const d = direct[k];
+    const rowOk = nearlyEqual(b, c) && nearlyEqual(c, d);
+    detail.metrics[k] = { business: b, calendar: c, direct: d, ok: rowOk };
+    if (!rowOk) ok = false;
+  }
+  return { ok, detail };
+}
+
+// boundary_hour=0 の business summary が calendar summary と一致すること（全期間）
+async function checkBoundaryZero() {
+  const start = VERIFY_FULL_START;
+  const end = todayCalendar();
+  const boundary = await settingsBoundary();
+  const [biz0, cal] = await Promise.all([
+    sales.fetchSummaryData(start, end, bd.effectiveBoundary('business', 0)),
+    sales.fetchSummaryData(start, end, bd.effectiveBoundary('calendar', boundary)),
+  ]);
+  const mismatches = {};
+  let keysChecked = 0;
+  for (const [k, v] of Object.entries(biz0)) {
+    if (typeof v !== 'number') continue;
+    keysChecked += 1;
+    if (!nearlyEqual(v, cal[k])) mismatches[k] = { business0: v, calendar: cal[k] };
+  }
+  const ok = Object.keys(mismatches).length === 0;
+  return { ok, detail: { start, end, keys_checked: keysChecked, ...(ok ? {} : { mismatches }) } };
+}
+
+// 差分検算: 直近14日の各暦日 D で business(D) = calendar(D) − late(D) + late(D+1)
+// late(X) = 暦日 X の 0時〜B時（境界前）の会計合計
+async function checkDeltaCheck() {
+  const end = todayCalendar();
+  const start = bd.addDays(end, -13);
+  const boundary = await settingsBoundary();
+  const [biz, cal, lateQ] = await Promise.all([
+    sales.fetchTrendRows(start, end, boundary, 'day'),
+    sales.fetchTrendRows(start, end, 0, 'day'),
+    pos.query(
+      // late(D13+1) も要るため end+1 まで拾う。パラメタ順は [start, end, TZ, B]
+      `SELECT (o.closed_at AT TIME ZONE $3)::date::text AS date,
+              COALESCE(SUM(o.total_amount), 0)::float AS revenue
+       FROM orders o
+       WHERE ${posDefs.PAID_FILTER}
+         AND (o.closed_at AT TIME ZONE $3)::date BETWEEN $1::date AND $2::date
+         AND EXTRACT(HOUR FROM (o.closed_at AT TIME ZONE $3))::int < $4::int
+       GROUP BY 1`,
+      [start, bd.addDays(end, 1), bd.TZ, boundary]
+    ),
+  ]);
+  const late = new Map(lateQ.rows.map((r) => [r.date, r.revenue]));
+  const calMap = new Map(cal.map((r) => [r.period_start, r.revenue]));
+  const mismatches = [];
+  for (const row of biz) {
+    const d = row.period_start;
+    const expected = (calMap.get(d) || 0) - (late.get(d) || 0) + (late.get(bd.addDays(d, 1)) || 0);
+    if (!nearlyEqual(row.revenue, expected)) {
+      mismatches.push({ date: d, business: row.revenue, expected });
+    }
+  }
+  return {
+    ok: mismatches.length === 0,
+    detail: { start, end, boundary_hour: boundary, days_checked: biz.length, mismatches: mismatches.slice(0, 5) },
+  };
+}
+
 const CHECKS = [
   ['readonly_role', checkReadonlyRole],
   ['readonly_enforced', checkReadonlyEnforced],
   ['legacy_reachable', checkLegacyReachable],
   ['snapshot_recorded', checkSnapshotRecorded],
   ['schema_ok', checkSchemaOk],
+  // Phase 1: 営業日集計の一致検証
+  ['legacy_match_summary', checkLegacyMatchSummary],
+  ['legacy_match_daily', checkLegacyMatchDaily],
+  ['conservation', checkConservation],
+  ['boundary_zero', checkBoundaryZero],
+  ['delta_check', checkDeltaCheck],
 ];
 
 async function runChecks() {

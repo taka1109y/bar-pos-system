@@ -1,7 +1,8 @@
 // 期間(start/end)・営業日/暦日・粒度・比較 の URL クエリ同期フック。
 // 画面遷移やリロードでも選択状態が保たれ、URL を共有すれば同じ表示が再現できる。
-//   ?start=YYYY-MM-DD&end=YYYY-MM-DD&day_mode=business|calendar&granularity=day|week|month|year&compare=...
+//   ?start=YYYY-MM-DD&end=YYYY-MM-DD&day_mode=business|calendar&granularity=day|week|month|fiscal_year&compare=...
 // 既定: 今月1日〜今日(JST) / business / day / ''(比較なし)
+// ※ granularity/compare の値は Phase 1 API 契約(/api/v1/sales/*)のクエリ値と同一にしてある。
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -19,16 +20,19 @@ export const GRANULARITIES = [
   { value: 'day',   label: '日' },
   { value: 'week',  label: '週' },
   { value: 'month', label: '月' },
-  { value: 'year',  label: '年度' },
+  { value: 'fiscal_year', label: '年度' },
 ];
 
 export const COMPARES = [
   { value: '',              label: 'なし' },
   { value: 'prev_period',   label: '前期間' },
   { value: 'prev_week',     label: '前週' },
-  { value: 'prev_year_date', label: '前年同日' },
-  { value: 'prev_year_dow',  label: '前年同曜日' },
+  { value: 'prev_year',     label: '前年同日' },
+  { value: 'prev_year_dow', label: '前年同曜日' },
 ];
+
+// 比較キー → 表示ラベル
+export const COMPARE_LABELS = Object.fromEntries(COMPARES.filter((o) => o.value).map((o) => [o.value, o.label]));
 
 export const PRESETS = [
   { value: '',        label: 'プリセット…' },

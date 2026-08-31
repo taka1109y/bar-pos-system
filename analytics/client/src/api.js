@@ -54,6 +54,23 @@ export const api = {
   getSettings:   () => req('/v1/settings'),
   patchSettings: (data) => req('/v1/settings', { method: 'PATCH', body: JSON.stringify(data) }),
 
+  // ── v1 sales(Phase 1: 営業日/暦日対応の期間集計) ─────────
+  // 共通クエリ: start, end(YYYY-MM-DD), day_mode=business|calendar,
+  //             granularity=day|week|month|fiscal_year, compare=prev_period|prev_week|prev_year|prev_year_dow
+  getSalesSummary:     (params) => req(`/v1/sales/summary${qs(params)}`),
+  getSalesTrend:       (params) => req(`/v1/sales/trend${qs(params)}`),
+  getSalesDow:         (params) => req(`/v1/sales/dow${qs(params)}`),
+  getSalesHourly:      (params) => req(`/v1/sales/hourly${qs(params)}`),
+  getSalesHeatmap:     (params) => req(`/v1/sales/heatmap${qs(params)}`),   // + metric=revenue|quantity|orders|guests
+  getSalesCalendar:    (params) => req(`/v1/sales/calendar${qs(params)}`),  // month=YYYY-MM
+  getSalesPayments:    (params) => req(`/v1/sales/payments${qs(params)}`),
+  getSalesTax:         (params) => req(`/v1/sales/tax${qs(params)}`),
+  getSalesAdjustments: (params) => req(`/v1/sales/adjustments${qs(params)}`),
+  getSalesCompare:     (params) => req(`/v1/sales/compare${qs(params)}`),   // a_start,a_end,b_start,b_end,day_mode
+
+  // ── CSV エクスポート(fetch ではなくブラウザのダウンロードに任せる。BOM付き・attachment) ──
+  exportCsvUrl: (report, params) => `${BASE}/v1/export/csv${qs({ report, ...params })}`,
+
   // ── legacy(本番 reports をそのまま流用。集計は暦日・JST) ──
   getLegacyAnalytics:     (start, end) => req(`/legacy/reports/analytics${qs({ start, end })}`),
   getLegacyProfitSummary: (start, end) => req(`/legacy/reports/profit-summary${qs({ start, end })}`),
