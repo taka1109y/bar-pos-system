@@ -86,3 +86,56 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .modal-slide-up, .toast-in { animation: none; }
 }
+
+/* ── 印刷(@media print) ─────────────────────────────────────────────
+   分析画面をそのまま紙 / PDF に出すためのレイアウト調整(Phase 5)。
+   各画面の「印刷」ボタン(components/PrintButton.jsx)は window.print() を呼ぶだけで、
+   見た目の切り替えはすべてこのブロックが担当する。
+     ・操作系(サイドバー・期間バー/フィルタ・ボタン・トースト・モーダル)は印刷しない
+     ・Shell は「h-screen + main だけスクロール」なので、高さと overflow を解除しないと
+       画面に見えている1画面分しか印刷されない(ここが一番の要点)
+     ・面は白に落とし、カードは枠線だけ残す。カード・表は途中で改ページしない
+     ・チャート(echarts の canvas)はそのまま出す。色は print-color-adjust: exact で保持する */
+@media print {
+  @page { margin: 12mm; }
+
+  html, body, #root {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  /* Shell: flex + h-screen + overflow-hidden / main の独立スクロールを解除して全文を流す */
+  #root > div { display: block !important; height: auto !important; overflow: visible !important; }
+  main { overflow: visible !important; height: auto !important; }
+  main > div { max-width: none !important; padding: 0 !important; }
+
+  /* スクロール枠(表・チャートの横スクロール)は紙では切り取りになるので解除する */
+  .overflow-auto, .overflow-x-auto, .overflow-y-auto { overflow: visible !important; }
+
+  /* 操作系は印刷しない:
+       aside              … サイドバー(shell/Sidebar.jsx の唯一の <aside>)
+       [data-print-hide]  … 期間バー(PeriodBar → ui/FilterBar)。包んでいるカードごと消す
+       button / a[download] … 各種ボタン・CSV ダウンロードリンク(印刷ボタン自身もここで消える)
+       .fixed             … トースト・モーダル等の固定配置レイヤ */
+  aside,
+  button,
+  a[download],
+  [data-print-hide],
+  div:has(> [data-print-hide]),
+  div:has(> div > [data-print-hide]),
+  .fixed {
+    display: none !important;
+  }
+
+  /* 面は白。カードは枠線だけ残して影を落とす */
+  .bg-canvas, .bg-surface, .bg-surface-sunken, .bg-surface-hover { background: #fff !important; }
+  .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl { box-shadow: none !important; }
+
+  /* カード(rounded-xl)・KPIタイル・表は途中で切らない */
+  .rounded-xl, table { break-inside: avoid; page-break-inside: avoid; }
+
+  /* チャートは維持する(紙幅に収めつつ色をそのまま出す) */
+  canvas { max-width: 100% !important; height: auto !important; }
+  * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}

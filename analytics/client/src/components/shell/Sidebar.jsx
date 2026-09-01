@@ -137,6 +137,23 @@ const ICONS = {
       <path d="M22 12h-4l-3 8-6-16-3 8H2" />
     </svg>
   ),
+  pricingEffect: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 20h18" /><rect x="4" y="12" width="4" height="8" rx="1" />
+      <rect x="10" y="7" width="4" height="13" rx="1" /><rect x="16" y="14" width="4" height="6" rx="1" />
+    </svg>
+  ),
+  crash: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6l6 7 4-3 8 8" /><path d="M21 13v5h-5" />
+    </svg>
+  ),
+  seesaw: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 15l18-6" /><path d="M12 12v7" /><path d="M8 21h8" />
+      <circle cx="4.5" cy="15.5" r="1.5" /><circle cx="19.5" cy="9.5" r="1.5" />
+    </svg>
+  ),
   settings: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="3" />
@@ -183,6 +200,14 @@ export const NAV_GROUPS = [
       { to: '/pl/statement', label: '月次P&L',    icon: ICONS.plStatement },
       { to: '/pl/breakeven', label: '損益分岐点', icon: ICONS.breakeven },
       { to: '/pl/labor',     label: '人時生産性', icon: ICONS.labor },
+    ],
+  },
+  {
+    label: '価格変動',
+    items: [
+      { to: '/pricing/effect', label: '価格効果',     icon: ICONS.pricingEffect },
+      { to: '/pricing/crash',  label: '暴落分析',     icon: ICONS.crash },
+      { to: '/pricing/seesaw', label: 'シーソー分析', icon: ICONS.seesaw },
     ],
   },
   {

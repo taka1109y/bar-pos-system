@@ -204,6 +204,7 @@ async function checkSchemaOk() {
 // legacy 側のみ checkLegacyReachable と同様に in-process HTTP で叩く）
 const bd = require('../lib/businessDay');
 const sales = require('./sales');
+const pricing = require('./pricing'); // Phase 5: 値引き費用の legacy 一致検証
 
 const VERIFY_EPS = 0.005;               // 金額一致の許容誤差 |Δ| < 0.005
 const VERIFY_FULL_START = '2026-07-01'; // 運用データ開始月＝「全期間」チェックの起点
@@ -368,6 +369,43 @@ async function checkDeltaCheck() {
   };
 }
 
+// Phase 5: 値引き費用(暴落原資)が /api/legacy/reports/discount-cost と一致すること。
+// /api/v1/pricing/effect の discount は同じ式を day_mode 対応で書き直したものなので、
+// day_mode=calendar(B=0) では legacy と厳密に一致していなければならない
+async function checkLegacyMatchDiscountCost() {
+  const KEYS = [['total', 'total'], ['net_diff', 'net_diff'], ['month_total', 'month_total']];
+  const periods = [];
+  for (const p of verifyPeriods()) {
+    const [legacy, mine] = await Promise.all([
+      fetchLegacyJson(`/api/legacy/reports/discount-cost?start=${p.start}&end=${p.end}`),
+      pricing.fetchEffectData(p.start, p.end, 0), // calendar 相当（B=0）
+    ]);
+    const mismatches = {};
+    for (const [mk, lk] of KEYS) {
+      if (!nearlyEqual(mine.discount[mk], legacy[lk])) {
+        mismatches[mk] = { v1: mine.discount[mk], legacy: legacy[lk] };
+      }
+    }
+    // 日次内訳（legacy.daily[].cost）も突き合わせる（合計が偶然一致しても日別のズレを見逃さない）。
+    // legacy 側の date は ::text キャストが無く pg が Date に変換するため（"2026-07-10T15:00:00.000Z" のような
+    // JST 深夜0時の ISO 文字列になる）、v1 と同じ YYYY-MM-DD へ揃えてから突き合わせる
+    const ymdOf = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : bd.calendarDateOf(new Date(v)));
+    const legacyDaily = new Map((legacy.daily || []).map((d) => [ymdOf(d.date), d.cost]));
+    const dayMismatches = [];
+    for (const d of mine.discount.by_day) {
+      if (!nearlyEqual(d.amount, legacyDaily.get(d.date) || 0)) {
+        dayMismatches.push({ date: d.date, v1: d.amount, legacy: legacyDaily.get(d.date) || 0 });
+      }
+    }
+    const ok = Object.keys(mismatches).length === 0 && dayMismatches.length === 0;
+    periods.push({
+      period: p.name, start: p.start, end: p.end, ok,
+      ...(ok ? {} : { mismatches, day_mismatches: dayMismatches.slice(0, 5) }),
+    });
+  }
+  return { ok: periods.every((r) => r.ok), detail: { keys: KEYS.map((k) => k[0]), periods } };
+}
+
 const CHECKS = [
   ['readonly_role', checkReadonlyRole],
   ['readonly_enforced', checkReadonlyEnforced],
@@ -380,6 +418,8 @@ const CHECKS = [
   ['conservation', checkConservation],
   ['boundary_zero', checkBoundaryZero],
   ['delta_check', checkDeltaCheck],
+  // Phase 5: 価格変動効果 API の値引き費用が legacy と同一定義であること
+  ['legacy_match_discount_cost', checkLegacyMatchDiscountCost],
 ];
 
 async function runChecks() {

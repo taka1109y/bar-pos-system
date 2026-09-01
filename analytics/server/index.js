@@ -90,6 +90,7 @@ async function main() {
   app.use('/api/v1', require('./routes/staff'));              // Phase 4: スタッフ・シフト（/staff・/shifts）
   app.use('/api/v1/pl', require('./routes/pl'));              // Phase 4: 月次P&L・損益分岐点
   app.use('/api/v1/labor', require('./routes/labor'));        // Phase 4: 人時生産性
+  app.use('/api/v1/pricing', require('./routes/pricing'));    // Phase 5: 価格変動効果（バンド・暴落区間・シーソー）
   app.use('/api/v1/export', require('./routes/export'));
   app.use('/api/legacy', require('./routes/legacy'));
 

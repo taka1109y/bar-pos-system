@@ -27,6 +27,9 @@ import ShiftsPage from './pages/ShiftsPage';
 import PLStatementPage from './pages/PLStatementPage';
 import BreakevenPage from './pages/BreakevenPage';
 import LaborPage from './pages/LaborPage';
+import PricingEffectPage from './pages/PricingEffectPage';
+import CrashWindowsPage from './pages/CrashWindowsPage';
+import SeesawPage from './pages/SeesawPage';
 
 // ルーティング。Shell(サイドバー + main)をレイアウトルートにし、各ページは Outlet に描画する。
 //   /               … ダッシュボード(経営)
@@ -54,6 +57,9 @@ import LaborPage from './pages/LaborPage';
 //   /pl/statement      … 月次P&L(ウォーターフォール・科目×期間表)
 //   /pl/breakeven      … 損益分岐点(BEP図・KPI・人件費の固定費/変動費扱い)
 //   /pl/labor          … 人時生産性(人時売上・人時粗利・営業時別)
+//   /pricing/effect    … 価格効果(定価比バンド・値引き費用/暴落原資)
+//   /pricing/crash     … 暴落分析(暴落区間の売れ行き・直近4週の同曜日/同時間帯比)
+//   /pricing/seesaw    … シーソー分析(勝ち/負けの段数・寄り付きの実施記録)
 //   /settings-store    … 店舗設定(営業日境界・週開始・年度・ABC閾値)
 //   /data           … 同期・検証(データ)
 // 項目を追加する場合は Sidebar.jsx の NAV_GROUPS と併せて追加する。
@@ -86,6 +92,9 @@ export default function App() {
         <Route path="/pl/statement" element={<PLStatementPage />} />
         <Route path="/pl/breakeven" element={<BreakevenPage />} />
         <Route path="/pl/labor" element={<LaborPage />} />
+        <Route path="/pricing/effect" element={<PricingEffectPage />} />
+        <Route path="/pricing/crash" element={<CrashWindowsPage />} />
+        <Route path="/pricing/seesaw" element={<SeesawPage />} />
         <Route path="/settings-store" element={<StoreSettingsPage />} />
         <Route path="/data" element={<DataPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

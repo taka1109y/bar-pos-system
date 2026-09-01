@@ -5,6 +5,10 @@
 // - hourly_wage_snapshot はサーバが決定する: staff_wage_history（effective_from <= business_date の最新）
 //   → 無ければ staff.hourly_wage。時給変更（PATCH /staff/:id で hourly_wage 変更）時は
 //   staff_wage_history に (staff_id, effective_from=今日の営業日, hourly_wage) を UPSERT する
+// - Phase 5: 時給改定の遡及バグ対策として、スタッフ作成時（POST /staff）に
+//   staff_wage_history へ初期行（effective_from = WAGE_INITIAL_FROM = '1900-01-01'）を同一トランザクションで入れる。
+//   これで履歴が常に全期間をカバーし、「改定後に過去日のシフトを登録すると改定後の時給が付く」状態を防ぐ。
+//   既存データは db/migrations/0003_wage_history_initial で同じ初期行を補完済み
 // - work_minutes = (end_at - start_at) 分 - break_minutes（負にならないよう 0 で下限クランプ）
 //   labor_cost = round(work_minutes / 60 × hourly_wage_snapshot)。どちらも保存せず SQL で都度計算する
 // - business_date は「営業日」（store_settings.business_day_boundary_hour 基準）。
@@ -23,6 +27,9 @@ const MAX_HOURLY_WAGE = 100_000;
 const MAX_MONTHLY_SALARY = 10_000_000;
 const MAX_BREAK_MINUTES = 1440;
 const MAX_SHIFT_HOURS = 24;
+// 時給履歴の初期行の日付。「このスタッフの一番最初から有効な時給」を表す番人（sentinel）で、
+// 実在の改定日と衝突しない十分に古い日付を使う（0003 マイグレーションの補完行と同一値）
+const WAGE_INITIAL_FROM = '1900-01-01';
 
 // 実働分・人件費の SQL 式（shifts s 前提。labor_cost はシフト単位で round してから合計する）
 const WORK_MINUTES_SQL =
@@ -45,7 +52,8 @@ const SHIFTS_NOTE =
   'hourly_wage_snapshot は登録時にサーバが時給履歴から決定した値で、時給を後から変えても過去のシフトは変わりません';
 
 const WAGE_HISTORY_NOTE =
-  '時給を変更すると staff_wage_history に「今日の営業日から有効」として記録され、以降のシフトに反映されます';
+  '時給を変更すると staff_wage_history に「今日の営業日から有効」として記録され、以降のシフトに反映されます。' +
+  '作成時の時給は「全期間の初期値」として履歴に残るため、改定後に過去日のシフトを登録しても改定前の時給が付きます';
 
 function badRequest(error) {
   return { status: 400, error };
@@ -138,7 +146,10 @@ async function loadLaborSettings() {
   return row;
 }
 
-// business_date 時点の時給（staff_wage_history 最新 → staff.hourly_wage）。staff が居なければ null
+// business_date 時点の時給を「effective_from <= business_date の最新履歴」から採る。staff が居なければ null。
+// staff.hourly_wage（現在値）への COALESCE は保険であり、初期行（WAGE_INITIAL_FROM）が必ず入る Phase 5 以降は
+// 理論上到達しない。到達するのは 0003 マイグレーション適用前のデータが残っている場合だけで、
+// その場合は従来どおり「現在値が過去日にも遡って付く」（＝改定前の時給は復元できない）。
 async function resolveWage(client, staffId, businessDate) {
   const { rows: [row] } = await client.query(
     `SELECT COALESCE(
@@ -236,6 +247,9 @@ router.get('/staff', async (req, res, next) => {
 });
 
 // POST /api/v1/staff { name, employment_type, hourly_wage, monthly_salary }
+// 作成時の時給を staff_wage_history の初期行（effective_from = WAGE_INITIAL_FROM）として同時に記録する。
+// 履歴が全期間をカバーするので、後から時給を改定しても過去日のシフトには改定前の時給が付く（遡及バグの解消）。
+// staff と履歴は同一トランザクションで入れる（履歴だけ欠けたスタッフを作らない）
 router.post('/staff', async (req, res, next) => {
   try {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
@@ -243,13 +257,35 @@ router.post('/staff', async (req, res, next) => {
     const employmentType = body.employment_type === undefined ? 'hourly' : parseEmploymentType(body.employment_type);
     const hourlyWage = body.hourly_wage === undefined ? 0 : parseHourlyWage(body.hourly_wage);
     const monthlySalary = body.monthly_salary === undefined ? 0 : parseMonthlySalary(body.monthly_salary);
-    const { rows: [row] } = await ana.query(
-      `INSERT INTO staff (name, employment_type, hourly_wage, monthly_salary)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, name, employment_type, hourly_wage, monthly_salary, is_active`,
-      [name, employmentType, hourlyWage, monthlySalary]
-    );
-    res.status(201).json(await withMeta({ staff: { ...row, current_wage: row.hourly_wage, shift_count: 0 } }));
+
+    let row;
+    const client = await ana.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows: [inserted] } = await client.query(
+        `INSERT INTO staff (name, employment_type, hourly_wage, monthly_salary)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, name, employment_type, hourly_wage, monthly_salary, is_active`,
+        [name, employmentType, hourlyWage, monthlySalary]
+      );
+      row = inserted;
+      await client.query(
+        `INSERT INTO staff_wage_history (staff_id, effective_from, hourly_wage)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (staff_id, effective_from) DO NOTHING`,
+        [row.id, WAGE_INITIAL_FROM, hourlyWage]
+      );
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+    res.status(201).json(await withMeta(
+      { staff: { ...row, current_wage: row.hourly_wage, shift_count: 0 } },
+      { note: WAGE_HISTORY_NOTE }
+    ));
   } catch (err) {
     next(err);
   }

@@ -6,6 +6,7 @@ import DataBanner from '../components/DataBanner';
 import EChart from '../components/charts/EChart';
 import ChartState from '../components/charts/ChartState';
 import ExportCsvButton from '../components/ExportCsvButton';
+import PrintButton from '../components/PrintButton';
 import { usePeriod, COMPARE_LABELS, GRANULARITIES } from '../utils/period';
 import { yen, num } from '../utils/format';
 import { api } from '../api';
@@ -135,6 +136,7 @@ export default function TrendPage() {
     <div className="space-y-5">
       <Toolbar title="推移" subtitle={`売上・粗利の${granularityLabel}次推移(${day_mode === 'business' ? '営業日' : '暦日'}ベース)`}>
         <ExportCsvButton report="trend" params={params} />
+        <PrintButton />
       </Toolbar>
       <DataBanner />
       <Card dense>

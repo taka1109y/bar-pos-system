@@ -6,6 +6,7 @@ import DataBanner from '../components/DataBanner';
 import EChart from '../components/charts/EChart';
 import ChartState from '../components/charts/ChartState';
 import ExportCsvButton from '../components/ExportCsvButton';
+import PrintButton from '../components/PrintButton';
 import { usePeriod } from '../utils/period';
 import { yen, num } from '../utils/format';
 import { api } from '../api';
@@ -234,6 +235,7 @@ export default function PLStatementPage() {
         subtitle={`売上から営業利益までの${granularityLabel}次損益(${day_mode === 'business' ? '営業日' : '暦日'}ベース)`}
       >
         <ExportCsvButton report="pl_statement" params={params} />
+        <PrintButton />
       </Toolbar>
       <DataBanner />
       <Card dense>

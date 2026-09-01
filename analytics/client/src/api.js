@@ -140,12 +140,22 @@ export const api = {
   getPlBreakeven:       (params) => req(`/v1/pl/breakeven${qs(params)}`),       // month=YYYY-MM&day_mode
   getLaborProductivity: (params) => req(`/v1/labor/productivity${qs(params)}`), // start&end&day_mode&granularity
 
+  // ── v1 pricing(Phase 5: 価格変動効果。共通クエリは sales と同じ start/end/day_mode/boundary_hour) ──
+  // Phase7 価格モデル(pricing_base ±段の格子・カテゴリ内ゼロサムのシーソー・暴落)の効果を見る。
+  // 段数は本番 server/services/pricingModel.js の呼値で数える(分析側で定義を持たない)
+  getPricingEffect:       (params) => req(`/v1/pricing/effect${qs(params)}`),        // 定価比バンド + 値引き費用
+  getPricingCrashWindows: (params) => req(`/v1/pricing/crash-windows${qs(params)}`), // 暴落区間と直近4週同曜日比
+  getPricingSeesaw:       (params) => req(`/v1/pricing/seesaw${qs(params)}`),        // 勝ち/負け・段数分布・寄り付き
+
   // ── CSV エクスポート(fetch ではなくブラウザのダウンロードに任せる。BOM付き・attachment) ──
   exportCsvUrl: (report, params) => `${BASE}/v1/export/csv${qs({ report, ...params })}`,
 
   // ── legacy(本番 reports をそのまま流用。集計は暦日・JST) ──
   getLegacyAnalytics:     (start, end) => req(`/legacy/reports/analytics${qs({ start, end })}`),
   getLegacyProfitSummary: (start, end) => req(`/legacy/reports/profit-summary${qs({ start, end })}`),
+  // 値引き費用(暴落原資)の日次集計 + 月次上限。定義は本番 reports.js のまま(暦日・JST)。
+  // day_mode 対応版は /v1/pricing/effect の discount(同一定義。verify legacy_match_discount_cost が一致を保証)
+  getLegacyDiscountCost:  (start, end) => req(`/legacy/reports/discount-cost${qs({ start, end })}`),
 };
 
 export default api;

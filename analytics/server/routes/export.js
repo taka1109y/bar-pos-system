@@ -14,6 +14,7 @@ const expenses = require('./expenses'); // Phase 4: 経費レポート
 const staff = require('./staff');       // Phase 4: シフトレポート
 const pl = require('./pl');             // Phase 4: 月次P&L・損益分岐点レポート
 const labor = require('./labor');       // Phase 4: 人時生産性レポート
+const pricing = require('./pricing');   // Phase 5: 価格変動効果レポート
 const { sendCsv } = require('../lib/csv');
 
 const router = express.Router();
@@ -29,7 +30,9 @@ const REPORTS = ['trend', 'dow', 'hourly', 'heatmap', 'payments', 'tax', 'adjust
   // Phase 4: 経費・シフト・P&L・損益分岐点・人時生産性レポート（expenses/staff/pl/labor の fetch 群を再利用）
   // expenses / shifts は month=YYYY-MM か start&end、pl_breakeven は month、
   // pl_statement / labor_productivity は start&end（+granularity）
-  'expenses', 'shifts', 'pl_statement', 'pl_breakeven', 'labor_productivity'];
+  'expenses', 'shifts', 'pl_statement', 'pl_breakeven', 'labor_productivity',
+  // Phase 5: 価格変動効果レポート（pricing の fetch 群を再利用。クエリは start&end&day_mode）
+  'pricing_bands', 'crash_windows', 'seesaw'];
 const METRICS = new Set(['revenue', 'quantity', 'orders', 'guests']);
 const METRIC_LABELS = { revenue: '売上', quantity: '数量', orders: '会計件数', guests: '客数' };
 const WEATHER_LABELS = { sunny: '晴れ', cloudy: '曇り', rain: '雨', heavy_rain: '大雨', snow: '雪' };
@@ -191,6 +194,51 @@ router.get('/csv', async (req, res, next) => {
       lbRows.push(['', '合計', s.labor_hours, s.labor_cost, s.revenue, s.sales_per_labor_hour ?? '', s.labor_cost_rate]);
       return sendCsv(res, `labor_productivity_${ctxLb.start}_${ctxLb.end}.csv`,
         ['期間開始', 'ラベル', '労働時間(h)', '人件費', '売上', '人時売上', '人件費率(%)'], lbRows);
+    }
+
+    // ---- Phase 5: 価格変動効果（クエリは各 /api/v1/pricing/* と同じ start&end&day_mode）----
+    if (report === 'pricing_bands' || report === 'crash_windows' || report === 'seesaw') {
+      const ctxPr = await sales.resolveContext(req.query);
+      if (report === 'pricing_bands') {
+        const d = await pricing.fetchEffectData(ctxPr.start, ctxPr.end, ctxPr.B);
+        const bandRows = d.bands.map((b) => [
+          b.band_label, b.band_min_pct, b.band_max_pct, b.quantity, b.revenue, b.share_pct, b.revenue_share_pct,
+        ]);
+        bandRows.push(['合計', '', '', d.summary.quantity_total, d.summary.revenue_total, '', '']);
+        bandRows.push(['平均比率(定価比・金額加重)', '', '', '', '', d.summary.avg_ratio_pct ?? '', '']);
+        bandRows.push(['除外(定価0の時価商品など)', '', '', d.summary.excluded_quantity, '', '', '']);
+        bandRows.push(['値引き費用(暴落原資)', '', '', '', d.discount.total, '', '']);
+        bandRows.push(['純差分(値上がり相殺後)', '', '', '', d.discount.net_diff, '', '']);
+        return sendCsv(res, `pricing_bands_${ctxPr.start}_${ctxPr.end}.csv`,
+          ['価格帯(定価比)', '下限(%)', '上限(%)', '数量', '売上', '数量構成比(%)', '売上構成比(%)'], bandRows);
+      }
+      if (report === 'crash_windows') {
+        const d = await pricing.fetchCrashWindowsData(ctxPr.start, ctxPr.end, ctxPr.B, ctxPr.dayMode, ctxPr.boundaryHour);
+        const winRows = d.windows.map((w) => [
+          w.business_date, w.started_at, w.ended_at, w.minutes, w.item_count,
+          w.items.map((it) => it.name).join('・'),
+          w.in_window.quantity, w.in_window.revenue, w.in_window.orders,
+          w.crashed_items_quantity, w.crashed_items_revenue,
+          w.reference.quantity ?? '', w.reference.revenue ?? '', w.reference.orders ?? '',
+          w.reference.basis, w.reference.weeks_used, w.uplift_pct ?? '',
+        ]);
+        return sendCsv(res, `crash_windows_${ctxPr.start}_${ctxPr.end}.csv`,
+          ['営業日', '開始', '終了', '継続(分)', '銘柄数', '暴落銘柄',
+            '区間内数量', '区間内売上', '区間内会計数', '暴落銘柄の数量', '暴落銘柄の売上',
+            '参照数量', '参照売上', '参照会計数', '参照基準', '参照週数', '増減率(%)'], winRows);
+      }
+      // seesaw（勝ち/負けの銘柄別 + 段数分布 + 寄り付き実施記録を1ファイルにまとめる）
+      const d = await pricing.fetchSeesawData(ctxPr.start, ctxPr.end, ctxPr.B);
+      const avgSteps = (r) => (r.count > 0 ? Math.round((r.total_steps / r.count) * 100) / 100 : '');
+      const seesawRows = [
+        ...d.win.items.map((r) => ['勝ち(上昇)', r.menu_item_id, r.name, r.count, r.total_steps, avgSteps(r)]),
+        ...d.lose.items.map((r) => ['負け(下降)', r.menu_item_id, r.name, r.count, r.total_steps, avgSteps(r)]),
+        ...d.step_distribution.map((r) => ['段数分布(勝ち)', '', `${r.steps}段`, r.count, '', '']),
+        ...d.step_distribution_lose.map((r) => ['段数分布(負け)', '', `${r.steps}段`, r.count, '', '']),
+        ...d.market_open.map((r) => ['寄り付き(価格リセット)', '', r.occurred_at, r.changed_count, '', '']),
+      ];
+      return sendCsv(res, `seesaw_${ctxPr.start}_${ctxPr.end}.csv`,
+        ['区分', '商品ID', '商品名 / 内容', '回数', '合計段数', '平均段数'], seesawRows);
     }
 
     const ctx = await sales.resolveContext(req.query);

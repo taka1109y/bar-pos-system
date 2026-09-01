@@ -1,8 +1,10 @@
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Toolbar, Card, StatTile, Alert } from '../components/ui';
 import PeriodBar from '../components/period/PeriodBar';
 import DataBanner from '../components/DataBanner';
+import PrintButton from '../components/PrintButton';
 import EChart from '../components/charts/EChart';
 import ChartState from '../components/charts/ChartState';
 import { usePeriod, COMPARE_LABELS } from '../utils/period';
@@ -16,6 +18,13 @@ import {
 // Phase 1 ダッシュボード。/api/v1/sales/* (営業日/暦日対応の v1 集計)で表示する。
 // KPI 8枚 + 日次売上×粗利率 + 支払方法ドーナツ + 曜日×時間帯ミニヒートマップ。
 // 比較バッジは PeriodBar の比較選択(未選択時は前期間)の change_pct を使う。
+//
+// Phase 5(統合): Phase 4 までの指標を1画面に集約する。
+//   ・KPI 2段目 = 営業利益・営業利益率(/pl/statement の totals) / 人件費率(/labor/productivity) /
+//     目標達成率(/targets/progress。月次目標なので「期間が単月」のときだけ出す)
+//   ・アラート = 原価カバー率 / 経費・シフトの未入力 / 値引き費用の月次上限
+//     (verify FAIL・drift は DataBanner が同じ画面で出しているのでここでは重複させない)
+//   ・追加した取得はすべてエラー耐性を持たせる(失敗したらその段だけ '—'。既存の KPI・チャートは無関係に動く)
 
 // 増減率 → StatTile の delta 表示。null(基準0)は '—'。
 function deltaOf(pct, label) {
@@ -24,6 +33,17 @@ function deltaOf(pct, label) {
   const sign = p > 0 ? '+' : '';
   return { delta: `${sign}${num(p, 1)}% vs ${label}`, tone: p > 0 ? 'up' : p < 0 ? 'down' : 'neutral' };
 }
+
+// 符号付き金額(営業利益はマイナスになり得るので「¥-500」を避ける。PLStatementPage と同じ表記)
+function fmtSigned(v) {
+  const n = Math.round(Number(v) || 0);
+  return n < 0 ? `-¥${yen(Math.abs(n))}` : `¥${yen(n)}`;
+}
+const fmtPct = (v) => (v == null ? '—' : `${num(v, 1)}%`);
+
+// 値引き費用(暴落原資)は api.getLegacyDiscountCost(定義は本番 server/routes/reports.js の /discount-cost
+// そのまま。月次累計(end の月初〜end)と system_settings.monthly_discount_cap を返す)を使う。
+// 内訳と定価比バンドは「価格変動 > 価格効果」(/pricing/effect)側で見られる。
 
 export default function DashboardPage() {
   const { period, isValid } = usePeriod();
@@ -54,10 +74,88 @@ export default function DashboardPage() {
     enabled: isValid,
   });
 
+  // ── Phase 5: 収益性(2段目)と入力アラートの取得 ──────────────────────────
+  // 対象月 = 期間の終端が属する月(既定の期間「今月1日〜今日」ならそのまま当月)。
+  // 経費・シフト・値引き上限はいずれも「月」単位の入力・管理なので、この月で見る。
+  const alertMonth = end.slice(0, 7);
+  // 目標は月次目標なので、期間が1つの月に収まるときだけ達成率を出す(複数月なら '—')
+  const isSingleMonth = start.slice(0, 7) === end.slice(0, 7);
+
+  // P&L(営業利益)。粒度は month 固定(サーバは day/week を 400 で弾く)。キーは PLStatementPage と同形でキャッシュを共有する
+  const plQ = useQuery({
+    queryKey: ['v1', 'pl', 'statement', start, end, day_mode, 'month'],
+    queryFn: () => api.getPlStatement({ ...common, granularity: 'month' }),
+    enabled: isValid,
+  });
+  // 人件費率(人時生産性の summary)。キーは LaborPage と同形
+  const laborQ = useQuery({
+    queryKey: ['v1', 'labor', 'productivity', start, end, day_mode, 'month'],
+    queryFn: () => api.getLaborProductivity({ ...common, granularity: 'month' }),
+    enabled: isValid,
+  });
+  // 月次目標の進捗(キーは TargetsPage と同形)。実績は「月全体」なので単月表示のときのみ使う
+  const progressQ = useQuery({
+    queryKey: ['v1', 'targets', 'progress', alertMonth],
+    queryFn: () => api.getTargetsProgress({ month: alertMonth }),
+    enabled: isValid && isSingleMonth,
+  });
+  // 未入力アラート用(件数だけ見るので経費は limit=1 で十分)
+  const expensesQ = useQuery({
+    queryKey: ['v1', 'expenses', 'month-count', alertMonth],
+    queryFn: () => api.getExpenses({ month: alertMonth, limit: 1 }),
+    enabled: isValid,
+  });
+  const shiftsQ = useQuery({
+    queryKey: ['v1', 'shifts', 'month-count', alertMonth],
+    queryFn: () => api.getShifts({ month: alertMonth }),
+    enabled: isValid,
+  });
+  const discountQ = useQuery({
+    queryKey: ['legacy', 'discount-cost', start, end],
+    queryFn: () => api.getLegacyDiscountCost(start, end),
+    enabled: isValid,
+  });
+
   const s = summaryQ.data?.summary;
   const c = summaryQ.data?.comparison?.[compareKey];
   const coverage = s?.cost_coverage_pct;
   const coverageLow = coverage != null && coverage < 100;
+
+  const plTotals = plQ.data?.totals || null;
+  const laborSummary = laborQ.data?.summary || null;
+  const targetRow = (progressQ.data?.rows || []).find((r) => r.metric === 'revenue') || null;
+
+  // 取得に失敗した段の sub 表示(値は '—' のまま。ページ全体は落とさない)
+  const errSub = (q) => (q.isError ? '取得できません' : undefined);
+
+  // 入力・上限のアラート(verify FAIL / drift は DataBanner 側)
+  const alerts = useMemo(() => {
+    const out = [];
+    if (expensesQ.data && expensesQ.data.total_count === 0) {
+      out.push({
+        key: 'expenses',
+        text: `${alertMonth} の経費が1件も入力されていません。営業利益・営業利益率が実態より高く出ます。`,
+        to: '/inputs/expenses', linkLabel: '経費入力へ',
+      });
+    }
+    if (shiftsQ.data && (shiftsQ.data.rows || []).length === 0) {
+      out.push({
+        key: 'shifts',
+        text: `${alertMonth} のシフトが1件も入力されていません。人件費率・人時生産性が算出できません。`,
+        to: '/inputs/shifts', linkLabel: 'シフト入力へ',
+      });
+    }
+    const d = discountQ.data;
+    if (d && d.cap > 0 && d.cap_reach_pct != null && d.cap_reach_pct >= 80) {
+      out.push({
+        key: 'discount',
+        text: `値引き費用(暴落原資)が月次上限の ${num(d.cap_reach_pct, 1)}% です`
+          + `(${alertMonth} 累計 ¥${yen(d.month_total)} / 上限 ¥${yen(d.cap)})。`
+          + (d.over_cap ? '上限を超えています。' : ''),
+      });
+    }
+    return out;
+  }, [expensesQ.data, shiftsQ.data, discountQ.data, alertMonth]);
 
   // 日次売上(棒) + 粗利率(線・右軸%)
   const trendOption = useMemo(() => {
@@ -136,7 +234,9 @@ export default function DashboardPage() {
       <Toolbar
         title="ダッシュボード"
         subtitle={`経営概況(${day_mode === 'business' ? '営業日' : '暦日'}ベース・比較: ${compareLabel})`}
-      />
+      >
+        <PrintButton />
+      </Toolbar>
       <DataBanner />
       <Card dense>
         <PeriodBar />
@@ -167,6 +267,58 @@ export default function DashboardPage() {
         <StatTile label="1営業日平均" value={s ? `¥${yen(s.revenue_per_open_day)}` : '—'}
           sub="売上 ÷ 営業日数" />
       </div>
+
+      {/* KPI 2段目(収益性): P&L・人件費・目標。経費/シフトが未入力なら値は出るが実態とずれるので、
+          下のアラートで未入力を知らせる。取得に失敗した段は '—' + 「取得できません」だけを出す。 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatTile
+          label="営業利益"
+          value={plTotals ? fmtSigned(plTotals.operating_profit) : '—'}
+          delta={plTotals ? (plTotals.operating_profit >= 0 ? '黒字' : '赤字') : undefined}
+          deltaTone={plTotals ? (plTotals.operating_profit >= 0 ? 'up' : 'down') : 'neutral'}
+          sub={errSub(plQ) || (plTotals ? '粗利 − 人件費 − 経費(仕入は原価と二重のため除外)' : undefined)}
+        />
+        <StatTile
+          label="営業利益率"
+          value={plTotals ? fmtPct(plTotals.operating_margin_pct) : '—'}
+          sub={errSub(plQ) || (plTotals ? `経費計 ¥${yen(plTotals.expenses_total_excl_purchase_labor)}` : undefined)}
+        />
+        <StatTile
+          label="人件費率"
+          /* シフトが1件も無いと人件費0＝0%になり「良い数字」に見えてしまうので、その場合は '—' にする */
+          value={laborSummary && laborSummary.labor_hours > 0 ? fmtPct(laborSummary.labor_cost_rate) : '—'}
+          sub={
+            errSub(laborQ) || (laborSummary
+              ? (laborSummary.labor_hours > 0
+                ? `人件費 ¥${yen(laborSummary.labor_cost)} / ${num(laborSummary.labor_hours, 1)} 時間`
+                : 'シフトが未入力です')
+              : undefined)
+          }
+        />
+        <StatTile
+          label="目標達成率"
+          value={isSingleMonth && targetRow?.achievement_pct != null ? fmtPct(targetRow.achievement_pct) : '—'}
+          sub={
+            !isSingleMonth ? '期間が単月のときに表示します'
+              : errSub(progressQ) || (targetRow?.target == null
+                ? `${alertMonth} の売上目標が未設定です`
+                : `目標 ¥${yen(targetRow.target)} / 着地予測 ¥${yen(targetRow.forecast)}(${alertMonth} 月全体)`)
+          }
+        />
+      </div>
+
+      {alerts.length > 0 && (
+        <Alert tone="warning" title="入力・上限の確認">
+          <ul className="list-disc pl-4 space-y-0.5">
+            {alerts.map((a) => (
+              <li key={a.key}>
+                {a.text}
+                {a.to && <> <Link to={a.to} className="underline font-medium">{a.linkLabel}</Link></>}
+              </li>
+            ))}
+          </ul>
+        </Alert>
+      )}
 
       {coverageLow && (
         <Alert tone="warning" title="原価未設定商品あり: 粗利は実態より高く出ます">

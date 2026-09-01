@@ -9,7 +9,8 @@ export default function PeriodBar({ className }) {
   const { start, end, day_mode, granularity, compare } = period;
 
   return (
-    <FilterBar className={className}>
+    /* data-print-hide: 印刷時は期間バー(と包んでいるカード)を出さない。規則は index.css の @media print */
+    <FilterBar className={className} data-print-hide>
       <Field label="開始" htmlFor="period-start" className="w-40" error={!isValid ? '開始は終了以前にしてください' : undefined}>
         <Input id="period-start" type="date" value={start} invalid={!isValid} max={end || undefined}
           onChange={(e) => e.target.value && setPeriod({ start: e.target.value })} />
