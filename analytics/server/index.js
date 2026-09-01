@@ -86,11 +86,30 @@ async function main() {
   app.use('/api/v1/business-days', require('./routes/days')); // Phase 3: 営業日ノート
   app.use('/api/v1/targets', require('./routes/targets'));    // Phase 3: 目標・進捗
   app.use('/api/v1', require('./routes/inputs'));             // Phase 3: 席数・レジ精算（/seat-capacities・/register-closings）
+  app.use('/api/v1', require('./routes/expenses'));           // Phase 4: 経費（/expense-categories・/expenses・/recurring-expenses）
+  app.use('/api/v1', require('./routes/staff'));              // Phase 4: スタッフ・シフト（/staff・/shifts）
+  app.use('/api/v1/pl', require('./routes/pl'));              // Phase 4: 月次P&L・損益分岐点
+  app.use('/api/v1/labor', require('./routes/labor'));        // Phase 4: 人時生産性
   app.use('/api/v1/export', require('./routes/export'));
   app.use('/api/legacy', require('./routes/legacy'));
 
   app.use((req, res) => {
     res.status(404).json({ error: 'not_found', path: req.originalUrl });
+  });
+
+  // CSV 取込（routes/expenses.js の import-csv）は { status, error, line, detail } を throw する。
+  // 後段のハンドラは { error } だけに落としてしまい、ExpensesPage が読む line / detail が消えるため、
+  // その手前で line / detail を保ったまま返す（該当しないエラーは next(err) で後段へ委譲する）。
+  // eslint-disable-next-line no-unused-vars
+  app.use((err, req, res, next) => {
+    if (err && err.status && err.error && !(err instanceof Error)
+        && (err.line !== undefined || err.detail !== undefined)) {
+      const body = { error: err.error };
+      if (err.line !== undefined) body.line = err.line;
+      if (err.detail !== undefined) body.detail = err.detail;
+      return res.status(err.status).json(body);
+    }
+    next(err);
   });
 
   // eslint-disable-next-line no-unused-vars

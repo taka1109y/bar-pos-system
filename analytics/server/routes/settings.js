@@ -7,7 +7,7 @@ const { withMeta, invalidateMeta } = require('../lib/withMeta');
 const router = express.Router();
 
 const COLUMNS = `id, business_day_boundary_hour, fiscal_year_start_month, week_start_dow, default_day_mode,
-  abc_a_pct, abc_b_pct, include_owner_labor, open_hour32, close_hour32, updated_at`;
+  abc_a_pct, abc_b_pct, include_owner_labor, labor_is_fixed_for_bep, open_hour32, close_hour32, updated_at`;
 
 const BOUNDARY_WARNING =
   '営業日境界を変更すると、過去分も含めて営業日ベースの集計（日次・週次・月次・レジ精算の紐付け）の区切りが変わります。' +
@@ -32,6 +32,7 @@ const ALLOWED = {
   abc_a_pct: intIn(1, 99),
   abc_b_pct: intIn(2, 100),
   include_owner_labor: bool,
+  labor_is_fixed_for_bep: bool, // Phase 4: 損益分岐点で人件費を固定費扱いするか
   open_hour32: intIn(0, 35),
   close_hour32: intIn(1, 36),
 };

@@ -107,6 +107,36 @@ const ICONS = {
       <rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 12h.01M18 12h.01" />
     </svg>
   ),
+  expenses: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6 2h12v20l-3-2-3 2-3-2-3 2z" /><path d="M9 7h6M9 11h6" />
+    </svg>
+  ),
+  recurring: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17 2l4 4-4 4" /><path d="M3 11V9a4 4 0 014-4h14" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v2a4 4 0 01-4 4H3" />
+    </svg>
+  ),
+  shifts: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="9" cy="7" r="3.5" /><path d="M2 21v-1a6 6 0 0112 0v1" /><circle cx="17.5" cy="15.5" r="4" /><path d="M17.5 14v1.5l1.2 1.2" />
+    </svg>
+  ),
+  plStatement: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h5" />
+    </svg>
+  ),
+  breakeven: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 3v18h18" /><path d="M7 17L17 7" /><path d="M7 8l9 9" /><circle cx="12" cy="12.5" r="1.5" />
+    </svg>
+  ),
+  labor: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M22 12h-4l-3 8-6-16-3 8H2" />
+    </svg>
+  ),
   settings: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="3" />
@@ -148,11 +178,22 @@ export const NAV_GROUPS = [
   { label: '比較', items: [{ to: '/compare/tags', label: 'タグ・天候別', icon: ICONS.tags }] },
   { label: '目標', items: [{ to: '/targets', label: '目標管理', icon: ICONS.target }] },
   {
+    label: '損益',
+    items: [
+      { to: '/pl/statement', label: '月次P&L',    icon: ICONS.plStatement },
+      { to: '/pl/breakeven', label: '損益分岐点', icon: ICONS.breakeven },
+      { to: '/pl/labor',     label: '人時生産性', icon: ICONS.labor },
+    ],
+  },
+  {
     label: '入力',
     items: [
       { to: '/inputs/days',     label: '営業日ノート・タグ', icon: ICONS.daysInput },
       { to: '/inputs/seats',    label: '席数',               icon: ICONS.seats },
       { to: '/inputs/closings', label: 'レジ精算',           icon: ICONS.closings },
+      { to: '/inputs/expenses',  label: '経費',               icon: ICONS.expenses },
+      { to: '/inputs/recurring', label: '定期経費',           icon: ICONS.recurring },
+      { to: '/inputs/shifts',    label: 'スタッフ・シフト',   icon: ICONS.shifts },
     ],
   },
   { label: '設定', items: [{ to: '/settings-store', label: '店舗設定', icon: ICONS.settings }] },

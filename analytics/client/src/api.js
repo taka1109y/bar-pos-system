@@ -108,6 +108,38 @@ export const api = {
   getRegisterClosings: (month) => req(`/v1/register-closings${qs({ month })}`),       // month=YYYY-MM
   putRegisterClosing:  (date, data) => req(`/v1/register-closings/${date}`, { method: 'PUT', body: JSON.stringify(data) }),
 
+  // ── v1 経費(Phase 4: 入力Ⅱ。書き込み先はすべて analyticsdb) ──
+  getExpenseCategories:      () => req('/v1/expense-categories'),
+  createExpenseCategory:     (data) => req('/v1/expense-categories', { method: 'POST', body: JSON.stringify(data) }),
+  updateExpenseCategory:     (id, data) => req(`/v1/expense-categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteExpenseCategory:     (id) => req(`/v1/expense-categories/${id}`, { method: 'DELETE' }),         // 経費紐付きありは 409
+  getExpenses:               (params) => req(`/v1/expenses${qs(params)}`),                              // month=YYYY-MM か start&end(+category_id, limit<=500, offset)
+  createExpense:             (data) => req('/v1/expenses', { method: 'POST', body: JSON.stringify(data) }),
+  updateExpense:             (id, data) => req(`/v1/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteExpense:             (id) => req(`/v1/expenses/${id}`, { method: 'DELETE' }),
+  importExpensesCsv:         (csv) => req('/v1/expenses/import-csv', { method: 'POST', body: JSON.stringify({ csv }) }), // 全行検証・全件成功時のみ一括INSERT
+  getRecurringExpenses:      () => req('/v1/recurring-expenses'),
+  createRecurringExpense:    (data) => req('/v1/recurring-expenses', { method: 'POST', body: JSON.stringify(data) }),
+  updateRecurringExpense:    (id, data) => req(`/v1/recurring-expenses/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteRecurringExpense:    (id) => req(`/v1/recurring-expenses/${id}`, { method: 'DELETE' }),
+  generateRecurringExpenses: (month) => req('/v1/recurring-expenses/generate', { method: 'POST', body: JSON.stringify({ month }) }), // 冪等。{ inserted, skipped }
+
+  // ── v1 スタッフ・シフト(Phase 4: 人件費入力) ──
+  getStaff:       () => req('/v1/staff'),
+  createStaff:    (data) => req('/v1/staff', { method: 'POST', body: JSON.stringify(data) }),
+  updateStaff:    (id, data) => req(`/v1/staff/${id}`, { method: 'PATCH', body: JSON.stringify(data) }), // 時給変更は staff_wage_history に営業日基準で記録される
+  deleteStaff:    (id) => req(`/v1/staff/${id}`, { method: 'DELETE' }),                                  // シフト紐付きありは 409(is_active=false を促す)
+  getShifts:      (params) => req(`/v1/shifts${qs(params)}`),                                            // month=YYYY-MM か start&end
+  createShift:    (data) => req('/v1/shifts', { method: 'POST', body: JSON.stringify(data) }),           // 重複(staff_id, start_at)は 409
+  updateShift:    (id, data) => req(`/v1/shifts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteShift:    (id) => req(`/v1/shifts/${id}`, { method: 'DELETE' }),
+  copyShiftsWeek: (from_week_start, to_week_start) => req('/v1/shifts/copy-week', { method: 'POST', body: JSON.stringify({ from_week_start, to_week_start }) }), // 既存(staff_id,start_at)はskip
+
+  // ── v1 損益(Phase 4: 月次P&L・損益分岐点・人時生産性) ──
+  getPlStatement:       (params) => req(`/v1/pl/statement${qs(params)}`),       // start&end&day_mode&granularity=month|fiscal_year
+  getPlBreakeven:       (params) => req(`/v1/pl/breakeven${qs(params)}`),       // month=YYYY-MM&day_mode
+  getLaborProductivity: (params) => req(`/v1/labor/productivity${qs(params)}`), // start&end&day_mode&granularity
+
   // ── CSV エクスポート(fetch ではなくブラウザのダウンロードに任せる。BOM付き・attachment) ──
   exportCsvUrl: (report, params) => `${BASE}/v1/export/csv${qs({ report, ...params })}`,
 

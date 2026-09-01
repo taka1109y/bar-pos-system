@@ -21,6 +21,12 @@ import InputsDaysPage from './pages/InputsDaysPage';
 import InputsSeatsPage from './pages/InputsSeatsPage';
 import InputsClosingsPage from './pages/InputsClosingsPage';
 import StoreSettingsPage from './pages/StoreSettingsPage';
+import ExpensesPage from './pages/ExpensesPage';
+import RecurringPage from './pages/RecurringPage';
+import ShiftsPage from './pages/ShiftsPage';
+import PLStatementPage from './pages/PLStatementPage';
+import BreakevenPage from './pages/BreakevenPage';
+import LaborPage from './pages/LaborPage';
 
 // ルーティング。Shell(サイドバー + main)をレイアウトルートにし、各ページは Outlet に描画する。
 //   /               … ダッシュボード(経営)
@@ -42,6 +48,12 @@ import StoreSettingsPage from './pages/StoreSettingsPage';
 //   /inputs/days       … 営業日ノート・タグ入力
 //   /inputs/seats      … 席数入力
 //   /inputs/closings   … レジ精算(現金過不足)入力
+//   /inputs/expenses   … 経費入力(科目管理・CSV取込)
+//   /inputs/recurring  … 定期経費(毎月の自動計上)
+//   /inputs/shifts     … スタッフ・シフト(人件費入力)
+//   /pl/statement      … 月次P&L(ウォーターフォール・科目×期間表)
+//   /pl/breakeven      … 損益分岐点(BEP図・KPI・人件費の固定費/変動費扱い)
+//   /pl/labor          … 人時生産性(人時売上・人時粗利・営業時別)
 //   /settings-store    … 店舗設定(営業日境界・週開始・年度・ABC閾値)
 //   /data           … 同期・検証(データ)
 // 項目を追加する場合は Sidebar.jsx の NAV_GROUPS と併せて追加する。
@@ -68,6 +80,12 @@ export default function App() {
         <Route path="/inputs/days" element={<InputsDaysPage />} />
         <Route path="/inputs/seats" element={<InputsSeatsPage />} />
         <Route path="/inputs/closings" element={<InputsClosingsPage />} />
+        <Route path="/inputs/expenses" element={<ExpensesPage />} />
+        <Route path="/inputs/recurring" element={<RecurringPage />} />
+        <Route path="/inputs/shifts" element={<ShiftsPage />} />
+        <Route path="/pl/statement" element={<PLStatementPage />} />
+        <Route path="/pl/breakeven" element={<BreakevenPage />} />
+        <Route path="/pl/labor" element={<LaborPage />} />
         <Route path="/settings-store" element={<StoreSettingsPage />} />
         <Route path="/data" element={<DataPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

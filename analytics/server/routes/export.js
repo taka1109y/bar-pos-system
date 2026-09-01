@@ -10,6 +10,10 @@ const tags = require('./tags');       // Phase 3: タグ・天候別比較レポ
 const days = require('./days');       // Phase 3: 営業日ノートレポート
 const targets = require('./targets'); // Phase 3: 目標進捗レポート
 const inputs = require('./inputs');   // Phase 3: レジ精算レポート
+const expenses = require('./expenses'); // Phase 4: 経費レポート
+const staff = require('./staff');       // Phase 4: シフトレポート
+const pl = require('./pl');             // Phase 4: 月次P&L・損益分岐点レポート
+const labor = require('./labor');       // Phase 4: 人時生産性レポート
 const { sendCsv } = require('../lib/csv');
 
 const router = express.Router();
@@ -21,11 +25,17 @@ const REPORTS = ['trend', 'dow', 'hourly', 'heatmap', 'payments', 'tax', 'adjust
   // Phase 3: 客席・タグ・目標・入力系レポート（seats/tags/days/targets/inputs の fetch 群を再利用）
   // business_days / targets_progress / register_closings は calendar と同じく month=YYYY-MM 指定
   'seats_utilization', 'stay_distribution', 'tags_compare',
-  'business_days', 'targets_progress', 'register_closings'];
+  'business_days', 'targets_progress', 'register_closings',
+  // Phase 4: 経費・シフト・P&L・損益分岐点・人時生産性レポート（expenses/staff/pl/labor の fetch 群を再利用）
+  // expenses / shifts は month=YYYY-MM か start&end、pl_breakeven は month、
+  // pl_statement / labor_productivity は start&end（+granularity）
+  'expenses', 'shifts', 'pl_statement', 'pl_breakeven', 'labor_productivity'];
 const METRICS = new Set(['revenue', 'quantity', 'orders', 'guests']);
 const METRIC_LABELS = { revenue: '売上', quantity: '数量', orders: '会計件数', guests: '客数' };
 const WEATHER_LABELS = { sunny: '晴れ', cloudy: '曇り', rain: '雨', heavy_rain: '大雨', snow: '雪' };
 const TABLE_TYPE_LABELS = { table: 'テーブル', counter: 'カウンター', immediate: '即会計' };
+const COST_TYPE_LABELS = { fixed: '固定', variable: '変動' };
+const ALLOC_LABELS = { date: '発生日', month_even: '月按分' };
 
 // GET /api/v1/export/csv?report=trend|dow|hourly|heatmap|payments|tax|adjustments|calendar&…
 // そのほかのクエリは各 /api/v1/sales/* と同じ（start/end/day_mode/boundary_hour/granularity、heatmap は metric、calendar は month）
@@ -88,6 +98,99 @@ router.get('/csv', async (req, res, next) => {
       ]);
       return sendCsv(res, `register_closings_${month}.csv`,
         ['営業日', '現金売上', '開始現金', '理論現金(開始+現金売上)', '実査現金', '過不足', 'メモ'], closingRows);
+    }
+
+    // ---- Phase 4: 経費・シフト（month=YYYY-MM か start&end。API と同じ resolveMonthOrRange）----
+    if (report === 'expenses' || report === 'shifts') {
+      const { start, end } = expenses.resolveMonthOrRange(req.query);
+      if (report === 'expenses') {
+        const categoryId = req.query.category_id !== undefined ? Number(req.query.category_id) : null;
+        if (categoryId !== null && (!Number.isInteger(categoryId) || categoryId <= 0)) {
+          throw { status: 400, error: 'category_id は正の整数を指定してください' };
+        }
+        const data = await expenses.fetchExpenseRows(start, end, { categoryId });
+        const expRows = data.rows.map((r) => [
+          r.expense_date, r.category_code, r.category_name,
+          COST_TYPE_LABELS[r.cost_type] || r.cost_type || '',
+          r.pnl_line ?? '', r.amount,
+          r.tax_included ? '税込' : '税抜',
+          ALLOC_LABELS[r.alloc_method] || r.alloc_method,
+          r.vendor ?? '', r.memo ?? '',
+        ]);
+        expRows.push(['合計', '', '', '', '', data.total_amount, '', '', '', '']);
+        return sendCsv(res, `expenses_${start}_${end}.csv`,
+          ['日付', '科目コード', '科目', '固定/変動', 'PL行', '金額', '税', '按分', '取引先', 'メモ'], expRows);
+      }
+      // shifts
+      const shiftRows = (await staff.fetchShiftRows(start, end)).map((r) => [
+        r.business_date, r.staff_name,
+        new Date(r.start_at).toISOString(), new Date(r.end_at).toISOString(),
+        r.break_minutes, r.work_minutes, r.hourly_wage_snapshot, r.labor_cost, r.memo ?? '',
+      ]);
+      return sendCsv(res, `shifts_${start}_${end}.csv`,
+        ['営業日', 'スタッフ', '開始', '終了', '休憩(分)', '実働(分)', '時給', '人件費', 'メモ'], shiftRows);
+    }
+
+    // ---- Phase 4: 損益分岐点（month=YYYY-MM。calendar と同じ流儀）----
+    if (report === 'pl_breakeven') {
+      const { dayMode, boundaryHour, B } = await sales.resolveModeBoundary(req.query);
+      const today = bd.dateOf(dayMode, new Date(), boundaryHour);
+      const month = req.query.month !== undefined ? String(req.query.month) : today.slice(0, 7);
+      const d = await pl.fetchBreakevenData(month, B, today);
+      const bepRows = [
+        ['固定費', d.fixed_costs],
+        ['変動費率', d.variable_cost_rate ?? ''],
+        ['損益分岐点売上', d.bep_revenue ?? ''],
+        ['実績売上', d.actual_revenue],
+        ['達成率(%)', d.attainment_pct ?? ''],
+        ['安全余裕率(%)', d.safety_margin_pct ?? ''],
+        ['営業日数', d.open_days],
+        ['残営業日(概算)', d.remaining_open_days_est ?? ''],
+        ['残りの必要日商', d.required_per_remaining_day ?? ''],
+        ['人件費を固定費扱い', d.labor_is_fixed_for_bep ? 'する' : 'しない'],
+        ['内訳: 固定費(経費)', d.detail.fixed_detail.expenses_fixed],
+        ['内訳: 固定費(人件費)', d.detail.fixed_detail.labor_total],
+        ['内訳: 変動費(原価・レシピ)', d.detail.variable_detail.cogs_recipe],
+        ['内訳: 変動費(経費)', d.detail.variable_detail.expenses_variable],
+        ['内訳: 変動費(人件費)', d.detail.variable_detail.labor_total],
+        ['内訳: 除外した仕入', d.detail.variable_detail.excluded_purchase],
+      ];
+      return sendCsv(res, `pl_breakeven_${month}.csv`, ['項目', '値'], bepRows);
+    }
+
+    // ---- Phase 4: 月次P&L（granularity は month/fiscal_year・既定 month）----
+    if (report === 'pl_statement') {
+      const ctxPl = await sales.resolveContext({ ...req.query, granularity: pl.parsePlGranularity(req.query.granularity) });
+      const data = await pl.fetchStatementData(ctxPl.start, ctxPl.end, ctxPl.B, ctxPl.granularity, ctxPl.gopts);
+      const plRow = (r) => [
+        r.period_start ?? '', r.label, r.revenue, r.cogs_recipe, r.gross_profit, r.gross_profit_rate,
+        r.labor_shift, r.labor_other, r.labor_total, r.labor_cost_rate,
+        r.expenses_by_line.rent, r.expenses_by_line.utilities, r.expenses_by_line.supplies,
+        r.expenses_by_line.marketing, r.expenses_by_line.fees, r.expenses_by_line.other,
+        r.expenses_total_excl_purchase_labor, r.operating_profit, r.operating_margin_pct,
+        r.fl_cost, r.fl_ratio_pct, r.purchase_actual, r.alt_purchase_based_profit,
+      ];
+      return sendCsv(res, `pl_statement_${ctxPl.start}_${ctxPl.end}.csv`,
+        ['期間開始', 'ラベル', '売上', '原価(レシピ)', '粗利', '粗利率(%)',
+          '人件費(シフト)', '人件費(経費)', '人件費計', '人件費率(%)',
+          '家賃', '水道光熱', '消耗品', '販促', '手数料', 'その他',
+          '経費計(仕入・人件費除く)', '営業利益', '営業利益率(%)',
+          'FLコスト', 'FL比率(%)', '実仕入', '参考:実仕入ベース利益'],
+        [...data.rows.map(plRow), plRow(data.totals)]);
+    }
+
+    // ---- Phase 4: 人時生産性（クエリは /api/v1/labor/productivity と同じ）----
+    if (report === 'labor_productivity') {
+      const ctxLb = await sales.resolveContext(req.query);
+      const data = await labor.fetchProductivityData(ctxLb.start, ctxLb.end, ctxLb.B, ctxLb.granularity, ctxLb.gopts);
+      const lbRows = data.by_period.map((r) => [
+        r.period_start, r.label, r.labor_hours, r.labor_cost, r.revenue,
+        r.sales_per_labor_hour ?? '', r.labor_cost_rate,
+      ]);
+      const s = data.summary;
+      lbRows.push(['', '合計', s.labor_hours, s.labor_cost, s.revenue, s.sales_per_labor_hour ?? '', s.labor_cost_rate]);
+      return sendCsv(res, `labor_productivity_${ctxLb.start}_${ctxLb.end}.csv`,
+        ['期間開始', 'ラベル', '労働時間(h)', '人件費', '売上', '人時売上', '人件費率(%)'], lbRows);
     }
 
     const ctx = await sales.resolveContext(req.query);
