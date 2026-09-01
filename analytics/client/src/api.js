@@ -78,6 +78,36 @@ export const api = {
   getProductsEngineering: (params) => req(`/v1/products/engineering${qs(params)}`),
   getProductsOptions:     (params) => req(`/v1/products/options${qs(params)}`),
 
+  // ── v1 seats(Phase 3: 客席分析。共通クエリは sales と同じ start/end/day_mode) ──
+  // 稼働・平均滞在は即会計テーブル除外&closed>opened(既存定義)。seats は analyticsdb.seat_capacities
+  getSeatsUtilization: (params) => req(`/v1/seats/utilization${qs(params)}`),
+  getSeatsTimeline:    (params) => req(`/v1/seats/timeline${qs(params)}`),          // date=YYYY-MM-DD(営業日)
+  getSeatsStay:        (params) => req(`/v1/seats/stay-distribution${qs(params)}`), // + bin_minutes(5..120)
+  getSeatsGuests:      (params) => req(`/v1/seats/guests${qs(params)}`),
+
+  // ── v1 tags(Phase 3: タグ CRUD + タグ・天候別比較) ──
+  getTags:        () => req('/v1/tags'),
+  createTag:      (data) => req('/v1/tags', { method: 'POST', body: JSON.stringify(data) }),
+  updateTag:      (id, data) => req(`/v1/tags/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteTag:      (id) => req(`/v1/tags/${id}`, { method: 'DELETE' }),                // 使用日数>0 は 409
+  getTagsCompare: (params) => req(`/v1/tags/compare${qs(params)}`),                   // tag=code で with/without 比較
+
+  // ── v1 business-days(Phase 3: 営業日ノート) ──
+  getBusinessDays: (month) => req(`/v1/business-days${qs({ month })}`),               // month=YYYY-MM
+  putBusinessDay:  (date, data) => req(`/v1/business-days/${date}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  // ── v1 targets(Phase 3: 目標) ──
+  getTargets:         (params) => req(`/v1/targets${qs(params)}`),                    // year=会計年度, metric(省略=全部)
+  putTarget:          (data) => req('/v1/targets', { method: 'PUT', body: JSON.stringify(data) }),
+  deleteTarget:       (params) => req(`/v1/targets${qs(params)}`, { method: 'DELETE' }),
+  getTargetsProgress: (params) => req(`/v1/targets/progress${qs(params)}`),           // month=YYYY-MM, day_mode
+
+  // ── v1 席数・レジ精算(Phase 3: 入力系) ──
+  getSeatCapacities:  () => req('/v1/seat-capacities'),
+  putSeatCapacities:  (rows) => req('/v1/seat-capacities', { method: 'PUT', body: JSON.stringify({ rows }) }),
+  getRegisterClosings: (month) => req(`/v1/register-closings${qs({ month })}`),       // month=YYYY-MM
+  putRegisterClosing:  (date, data) => req(`/v1/register-closings/${date}`, { method: 'PUT', body: JSON.stringify(data) }),
+
   // ── CSV エクスポート(fetch ではなくブラウザのダウンロードに任せる。BOM付き・attachment) ──
   exportCsvUrl: (report, params) => `${BASE}/v1/export/csv${qs({ report, ...params })}`,
 

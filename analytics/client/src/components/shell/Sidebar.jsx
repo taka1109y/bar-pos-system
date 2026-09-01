@@ -66,6 +66,53 @@ const ICONS = {
       <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M12 3v18" /><path d="M3 12h18" />
     </svg>
   ),
+  guests: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="9" cy="8" r="3.5" /><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+      <path d="M16 5.5a3.5 3.5 0 010 5" /><path d="M17.5 14.5c2.1.8 3.5 2.9 3.5 5.5" />
+    </svg>
+  ),
+  utilization: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6 10V6a2 2 0 012-2h8a2 2 0 012 2v4" /><path d="M4 18v-4a2 2 0 012-2h12a2 2 0 012 2v4" /><path d="M4 18h16" /><path d="M6 18v3M18 18v3" />
+    </svg>
+  ),
+  stay: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6 3h12M6 21h12" /><path d="M8 3v3l4 4 4-4V3" /><path d="M8 21v-3l4-4 4 4v3" />
+    </svg>
+  ),
+  tags: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 2l8.5 8.5a2 2 0 010 2.8L14 20a2 2 0 01-2.8 0L2.7 11.5A2 2 0 012 10V4a2 2 0 012-2h6a2 2 0 011.4.6z" transform="translate(1 1) scale(0.92)" /><circle cx="7.5" cy="7.5" r="1.3" />
+    </svg>
+  ),
+  target: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" />
+    </svg>
+  ),
+  daysInput: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18" /><path d="M9 16l2 2 4-4" />
+    </svg>
+  ),
+  seats: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M7 11V5a2 2 0 012-2h6a2 2 0 012 2v6" /><path d="M5 21v-6a2 2 0 012-2h10a2 2 0 012 2v6" /><path d="M5 17h14" />
+    </svg>
+  ),
+  closings: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 12h.01M18 12h.01" />
+    </svg>
+  ),
+  settings: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1-1.55 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09a1.7 1.7 0 001.55-1 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34 1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09a1.7 1.7 0 001 1.55 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87 1.7 1.7 0 001.55 1H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.55 1z" />
+    </svg>
+  ),
 };
 
 export const NAV_GROUPS = [
@@ -90,6 +137,25 @@ export const NAV_GROUPS = [
       { to: '/products/engineering', label: 'メニュー分析(4象限)', icon: ICONS.engineering },
     ],
   },
+  {
+    label: '客席分析',
+    items: [
+      { to: '/seats/guests',      label: '客数・客単価', icon: ICONS.guests },
+      { to: '/seats/utilization', label: '席稼働・回転', icon: ICONS.utilization },
+      { to: '/seats/stay',        label: '滞在時間',     icon: ICONS.stay },
+    ],
+  },
+  { label: '比較', items: [{ to: '/compare/tags', label: 'タグ・天候別', icon: ICONS.tags }] },
+  { label: '目標', items: [{ to: '/targets', label: '目標管理', icon: ICONS.target }] },
+  {
+    label: '入力',
+    items: [
+      { to: '/inputs/days',     label: '営業日ノート・タグ', icon: ICONS.daysInput },
+      { to: '/inputs/seats',    label: '席数',               icon: ICONS.seats },
+      { to: '/inputs/closings', label: 'レジ精算',           icon: ICONS.closings },
+    ],
+  },
+  { label: '設定', items: [{ to: '/settings-store', label: '店舗設定', icon: ICONS.settings }] },
   { label: 'データ', items: [{ to: '/data', label: '同期・検証', icon: ICONS.data }] },
 ];
 

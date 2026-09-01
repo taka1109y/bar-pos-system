@@ -81,6 +81,11 @@ async function main() {
   app.use('/api/v1/settings', require('./routes/settings'));
   app.use('/api/v1/sales', require('./routes/sales'));
   app.use('/api/v1/products', require('./routes/products')); // Phase 2: 商品分析
+  app.use('/api/v1/seats', require('./routes/seats'));        // Phase 3: 客席分析
+  app.use('/api/v1/tags', require('./routes/tags'));          // Phase 3: タグ管理・タグ天候比較
+  app.use('/api/v1/business-days', require('./routes/days')); // Phase 3: 営業日ノート
+  app.use('/api/v1/targets', require('./routes/targets'));    // Phase 3: 目標・進捗
+  app.use('/api/v1', require('./routes/inputs'));             // Phase 3: 席数・レジ精算（/seat-capacities・/register-closings）
   app.use('/api/v1/export', require('./routes/export'));
   app.use('/api/legacy', require('./routes/legacy'));
 

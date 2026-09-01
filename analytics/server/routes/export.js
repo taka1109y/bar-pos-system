@@ -5,6 +5,11 @@ const express = require('express');
 const bd = require('../lib/businessDay');
 const sales = require('./sales');
 const products = require('./products'); // Phase 2: 商品分析レポート
+const seats = require('./seats');     // Phase 3: 客席分析レポート
+const tags = require('./tags');       // Phase 3: タグ・天候別比較レポート
+const days = require('./days');       // Phase 3: 営業日ノートレポート
+const targets = require('./targets'); // Phase 3: 目標進捗レポート
+const inputs = require('./inputs');   // Phase 3: レジ精算レポート
 const { sendCsv } = require('../lib/csv');
 
 const router = express.Router();
@@ -12,10 +17,15 @@ const router = express.Router();
 const REPORTS = ['trend', 'dow', 'hourly', 'heatmap', 'payments', 'tax', 'adjustments', 'calendar',
   // Phase 2: 商品分析レポート（routes/products.js の fetch 群を再利用）
   // ※ 'trend' は売上トレンド(sales)なので、商品推移は 'product_trend' として別レポートにする
-  'ranking', 'abc', 'mix', 'affinity', 'engineering', 'options', 'product_trend'];
+  'ranking', 'abc', 'mix', 'affinity', 'engineering', 'options', 'product_trend',
+  // Phase 3: 客席・タグ・目標・入力系レポート（seats/tags/days/targets/inputs の fetch 群を再利用）
+  // business_days / targets_progress / register_closings は calendar と同じく month=YYYY-MM 指定
+  'seats_utilization', 'stay_distribution', 'tags_compare',
+  'business_days', 'targets_progress', 'register_closings'];
 const METRICS = new Set(['revenue', 'quantity', 'orders', 'guests']);
 const METRIC_LABELS = { revenue: '売上', quantity: '数量', orders: '会計件数', guests: '客数' };
 const WEATHER_LABELS = { sunny: '晴れ', cloudy: '曇り', rain: '雨', heavy_rain: '大雨', snow: '雪' };
+const TABLE_TYPE_LABELS = { table: 'テーブル', counter: 'カウンター', immediate: '即会計' };
 
 // GET /api/v1/export/csv?report=trend|dow|hourly|heatmap|payments|tax|adjustments|calendar&…
 // そのほかのクエリは各 /api/v1/sales/* と同じ（start/end/day_mode/boundary_hour/granularity、heatmap は metric、calendar は month）
@@ -41,6 +51,43 @@ router.get('/csv', async (req, res, next) => {
       ]);
       return sendCsv(res, `calendar_${data.start}_${data.end}.csv`,
         ['日付', '売上', '会計件数', '客数', '営業', '天候', 'タグ'], rows);
+    }
+
+    // ---- Phase 3: 月指定レポート（month=YYYY-MM。calendar と同じ流儀）----
+    if (report === 'business_days' || report === 'targets_progress' || report === 'register_closings') {
+      const { dayMode, boundaryHour, B } = await sales.resolveModeBoundary(req.query);
+      const today = bd.dateOf(dayMode, new Date(), boundaryHour);
+      const month = req.query.month !== undefined ? String(req.query.month) : today.slice(0, 7);
+      if (report === 'business_days') {
+        const data = await days.fetchMonthDays(month, B);
+        const dayRows = data.days.map((d) => [
+          d.business_date,
+          d.is_open === null ? '' : (d.is_open ? '営業' : '休業'),
+          d.weather ? (WEATHER_LABELS[d.weather] || d.weather) : '',
+          d.temperature_c ?? '',
+          d.tags.map((t) => t.name).join('・'),
+          d.note ?? '',
+          d.revenue, d.order_count, d.guest_count,
+        ]);
+        return sendCsv(res, `business_days_${data.start}_${data.end}.csv`,
+          ['営業日', '営業', '天候', '気温(℃)', 'タグ', 'メモ', '売上', '会計件数', '客数'], dayRows);
+      }
+      if (report === 'targets_progress') {
+        const data = await targets.fetchProgressData(month, B, today);
+        const progressRows = data.rows.map((r) => [
+          r.label, r.target ?? '', r.actual, r.achievement_pct ?? '',
+          r.elapsed_days, r.month_days, r.forecast ?? '', r.required_per_remaining_day ?? '',
+        ]);
+        return sendCsv(res, `targets_progress_${month}.csv`,
+          ['指標', '目標', '実績', '達成率(%)', '経過日数', '月日数', '着地予測', '残り日割'], progressRows);
+      }
+      // register_closings
+      const closingRows = (await inputs.fetchClosingRows(month, B)).map((r) => [
+        r.business_date, r.cash_sales, r.open_cash ?? '', r.system_cash ?? '',
+        r.counted_cash ?? '', r.cash_diff ?? '', r.memo ?? '',
+      ]);
+      return sendCsv(res, `register_closings_${month}.csv`,
+        ['営業日', '現金売上', '開始現金', '理論現金(開始+現金売上)', '実査現金', '過不足', 'メモ'], closingRows);
     }
 
     const ctx = await sales.resolveContext(req.query);
@@ -168,6 +215,40 @@ router.get('/csv', async (req, res, next) => {
         rows = series.flatMap((s) => s.rows.map((r) => [
           s.menu_item_id, s.name, r.period_start, r.label, r.quantity, r.revenue, r.avg_unit_price ?? '',
         ]));
+        break;
+      }
+      // ---- Phase 3: 客席・タグレポート（クエリは各 /api/v1/seats/*・/api/v1/tags/compare と同じ）----
+      case 'seats_utilization': {
+        const data = await seats.fetchUtilizationData(ctx.start, ctx.end, ctx.B);
+        headers = ['卓ID', '卓名', '種別', '席数', '組数', '客数', '売上', '平均滞在(分)', '回転(1営業日)', '席稼働率(%)'];
+        rows = data.rows.map((r) => [
+          r.table_id, r.table_name, TABLE_TYPE_LABELS[r.table_type] || r.table_type,
+          r.seats ?? '', r.order_count, r.guest_count, r.revenue,
+          r.avg_stay_minutes ?? '', r.turnover_per_open_day ?? '', r.seat_utilization_pct ?? '',
+        ]);
+        break;
+      }
+      case 'stay_distribution': {
+        const binMinutes = seats.parseBinMinutes(req.query);
+        const data = await seats.fetchStayDistribution(ctx.start, ctx.end, ctx.B, binMinutes);
+        headers = ['滞在時間(分・以上)', '滞在時間(分・未満)', '組数'];
+        rows = data.buckets.map((b) => [b.min_minutes, b.max_minutes ?? '', b.count]);
+        break;
+      }
+      case 'tags_compare': {
+        const tagCode = req.query.tag !== undefined && req.query.tag !== '' ? String(req.query.tag) : null;
+        const data = await tags.fetchCompareData(ctx.start, ctx.end, ctx.B, tagCode);
+        headers = ['区分', '名称', '営業日数', '平均売上', '平均会計件数', '平均客数', '客単価'];
+        const groupRow = (kind, name, g) => [kind, name, g.days, g.avg_revenue, g.avg_order_count, g.avg_guest_count, g.avg_per_guest];
+        if (tagCode) {
+          rows = data.groups.map((g) => groupRow('タグ', g.label, g));
+        } else {
+          rows = [
+            ...data.by_tag.map((t) => groupRow('タグ', t.name, t)),
+            ...data.by_weather.map((w) => groupRow('天候', w.label, w)),
+            groupRow('全体', '全営業日平均', data.baseline),
+          ];
+        }
         break;
       }
       default:

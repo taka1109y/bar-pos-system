@@ -329,3 +329,21 @@ Object.assign(module.exports, {
   assertYmd, addDays, diffDays, dowOf, addYears,
   bucketStartOf, nextBucketStart, enumerateBuckets, label, hour32Label,
 });
+
+// ============================================================================
+// Phase 3 追加分: 月指定（YYYY-MM）の検証・月初日/月末日の解決
+// - 既存 API（上記）は変更しない
+// ============================================================================
+
+// YYYY-MM を検証し、月初日・月末日を返す。不正なら {status, error} を throw
+// （routes/sales.js fetchCalendarDays 内の検証・月末日計算と同じ式）
+function monthRange(month) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(month))) {
+    throw { status: 400, error: 'month は YYYY-MM 形式で指定してください' };
+  }
+  const [y, m] = String(month).split('-').map(Number);
+  const end = `${month}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
+  return { month: String(month), start: `${month}-01`, end };
+}
+
+Object.assign(module.exports, { monthRange });
