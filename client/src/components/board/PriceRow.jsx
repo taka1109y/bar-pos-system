@@ -69,7 +69,7 @@ export default function PriceRow({ item, zebra = false }) {
   return (
     <tr key={flashKey} className={`board-item-row border-b border-slate-700/40 ${rowBase}`}>
       {/* 商品名 + 段数バッジ */}
-      <td style={{ ...CELL, fontSize: 'var(--board-name)' }} className="text-slate-200 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+      <td style={{ ...CELL, fontSize: 'var(--board-name)' }} className="text-slate-200 font-bold whitespace-nowrap overflow-hidden text-ellipsis">
         <span className="align-middle">{item.name}</span>
         {seesaw && variable && (
           <span
