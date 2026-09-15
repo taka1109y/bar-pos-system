@@ -80,7 +80,7 @@ function Ticker({ prices }) {
               ? `${isUp ? '▲' : '▼'}${num(Math.abs(centerPct), 1)}%`
               : '';
           return (
-            <span key={i} className="inline-flex items-center gap-3 text-[1.375rem]">
+            <span key={i} style={{ fontSize: 'var(--board-tick)' }} className="inline-flex items-center gap-3">
               <span className="text-slate-300 font-medium tracking-wide">{item.name}</span>
               <span className="text-[#ffd36b] font-semibold tabular-nums">¥{yen(item.current_price)}</span>
               {pctDisplay && <span className={`font-semibold tabular-nums ${pctColor}`}>{pctDisplay}</span>}
@@ -102,7 +102,7 @@ function Clock() {
     return () => clearInterval(t);
   }, []);
   return (
-    <span className="board-mono text-[#ffd36b] text-[2.875rem] font-semibold tracking-wider tabular-nums">
+    <span style={{ fontSize: 'var(--board-clock)' }} className="board-mono text-[#ffd36b] font-semibold tracking-wider tabular-nums">
       {time.toLocaleTimeString('ja-JP')}
     </span>
   );
@@ -341,8 +341,8 @@ export default function BoardPage() {
   return (
     <div
       ref={rootRef}
-      className={`board-mono board-viewport flex flex-col overflow-hidden text-white p-8 transition-colors duration-500 ${crashActive ? 'bg-red-950' : 'bg-[#060a12]'}`}
-      style={!crashActive ? { backgroundImage: 'radial-gradient(120% 90% at 50% -10%, #0c1524 0%, #05080e 62%)' } : undefined}
+      className={`board-mono board-viewport flex flex-col overflow-hidden text-white transition-colors duration-500 ${crashActive ? 'bg-red-950' : 'bg-[#060a12]'}`}
+      style={{ padding: 'var(--board-pad)', ...(!crashActive ? { backgroundImage: 'radial-gradient(120% 90% at 50% -10%, #0c1524 0%, #05080e 62%)' } : null) }}
     >
       {/* 暴落演出オーバーレイ（フェーズ3）: 全体赤転＋残り時間（アイコンなし） */}
       {crashActive && (
@@ -368,7 +368,7 @@ export default function BoardPage() {
         <div className="flex items-center gap-5">
           <img src="/FANZONE_logo_A2.png" alt="ロゴ" className="h-14 w-auto object-contain" />
           <div>
-            <h1 className="board-display text-[3.5rem] font-bold tracking-[0.12em] leading-none text-white">
+            <h1 style={{ fontSize: 'var(--board-title)' }} className="board-display font-bold tracking-[0.12em] leading-none text-white">
               FANZONE EXCHANGE
             </h1>
             <p className="text-slate-500 text-sm mt-2 tracking-[0.42em] font-semibold uppercase">
@@ -409,14 +409,14 @@ export default function BoardPage() {
               <col style={{ width: '11%' }} />
             </colgroup>
             <thead>
-              <tr className="text-slate-400 text-sm uppercase tracking-[0.2em] border-b border-slate-700/60">
-                <th className="px-4 py-2.5 text-left font-medium">商品名</th>
-                <th className="px-4 py-2.5 text-left font-medium">値動き</th>
-                <th className="px-4 py-2.5 text-right font-medium">基準値</th>
-                <th className="px-4 py-2.5 text-right font-medium">現在値</th>
-                <th className="px-4 py-2.5 text-right font-medium">変動幅(%)</th>
-                <th className="px-4 py-2.5 text-right font-medium">同日高値</th>
-                <th className="px-4 py-2.5 text-right font-medium">同日底値</th>
+              <tr style={{ fontSize: 'var(--board-th)' }} className="text-slate-400 uppercase tracking-[0.2em] border-b border-slate-700/60">
+                <th style={{ padding: 'var(--board-row-py) var(--board-cell-px)' }} className="text-left font-medium">商品名</th>
+                <th style={{ padding: 'var(--board-row-py) var(--board-cell-px)' }} className="text-left font-medium">値動き</th>
+                <th style={{ padding: 'var(--board-row-py) var(--board-cell-px)' }} className="text-right font-medium">基準値</th>
+                <th style={{ padding: 'var(--board-row-py) var(--board-cell-px)' }} className="text-right font-medium">現在値</th>
+                <th style={{ padding: 'var(--board-row-py) var(--board-cell-px)' }} className="text-right font-medium">変動幅(%)</th>
+                <th style={{ padding: 'var(--board-row-py) var(--board-cell-px)' }} className="text-right font-medium">同日高値</th>
+                <th style={{ padding: 'var(--board-row-py) var(--board-cell-px)' }} className="text-right font-medium">同日底値</th>
               </tr>
             </thead>
             <tbody>
@@ -438,7 +438,7 @@ export default function BoardPage() {
       )}
 
       {/* フッター（凡例） */}
-      <div className="mt-4 text-center text-slate-600 text-sm tracking-wider flex-shrink-0">
+      <div style={{ fontSize: 'var(--board-th)' }} className="mt-2 text-center text-slate-600 tracking-wider flex-shrink-0">
         ▲▼は本日の寄り付き価格（基準値）との比較
         <span className="mx-3 text-slate-800">|</span>
         <span className="text-slate-700">価格は需要に応じてリアルタイムで変動します</span>
