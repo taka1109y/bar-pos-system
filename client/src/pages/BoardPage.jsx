@@ -11,7 +11,7 @@ import { playNotification } from '../utils/audioAlert';
 
 const HEADER_ROW_HEIGHT_PX = 44; // 列見出し行(thead)の概算高さ
 const ROW_HEIGHT_PX        = 60; // カテゴリ見出し行・商品行(スパークライン込み) 共通の概算高さ
-const PAGE_INTERVAL_MS     = 10_000; // ページ自動切替の間隔(固定10秒)
+const PAGE_INTERVAL_MS     = 15_000; // ページ自動切替の間隔(固定15秒)
 
 // カテゴリの並び順(サーバーのORDER BYで既に保証済み)を維持したままグルーピングする
 function groupByCategory(items) {
