@@ -6,6 +6,12 @@ import BoardSparkline from './BoardSparkline';
 // 価格ボード(取引所ビッグボード)の1行。
 // 色/▲▼は「寄り付き価格(pricing_base=中心)比」。定価(base_price)は板に出さない。
 // 列: 商品名(+段数バッジ) / スパークライン / 基準値(寄り付き) / 現在値 / 変動幅(%)
+// セルの余白はビューポート高さ追従(index.css の .board-viewport 変数)。
+// 低解像度モニタでも行数が確保できるよう、固定 px から変数へ移した。
+const CELL = { padding: 'var(--board-row-py) var(--board-cell-px)', lineHeight: 1.15 };
+// ※ lineHeight を既定(1.5)から詰めているのは、行高が最大フォント(現在値)の行間で決まり、
+//    低解像度モニタで表示行数を圧迫していたため。
+
 export default function PriceRow({ item, zebra = false }) {
   const disp     = priceDisplay(item);
   const crashed  = disp.tone === 'crash';
@@ -63,12 +69,13 @@ export default function PriceRow({ item, zebra = false }) {
   return (
     <tr key={flashKey} className={`board-item-row border-b border-slate-700/40 ${rowBase}`}>
       {/* 商品名 + 段数バッジ */}
-      <td className="px-4 py-3 text-slate-200 font-medium text-[1.375rem] whitespace-nowrap overflow-hidden text-ellipsis">
+      <td style={{ ...CELL, fontSize: 'var(--board-name)' }} className="text-slate-200 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
         <span className="align-middle">{item.name}</span>
         {seesaw && variable && (
           <span
             key={`${seesaw.event}-${seesawDelta}`}
-            className={`board-delta board-display ml-2 inline-block align-middle text-lg font-bold leading-none px-2 py-0.5 rounded ${
+            style={{ fontSize: 'var(--board-badge)' }}
+            className={`board-delta board-display ml-2 inline-block align-middle font-bold leading-none px-2 py-0.5 rounded ${
               seesawWin ? 'text-[#1fe08a] bg-[#1fe08a]/15' : 'text-[#ff415e] bg-[#ff415e]/15'
             }`}
           >
@@ -78,32 +85,32 @@ export default function PriceRow({ item, zebra = false }) {
       </td>
 
       {/* スパークライン（価格のみ表示商品は非表示） */}
-      <td className="px-4 py-2">
-        {priceOnly ? <div style={{ height: 36 }} /> : (
+      <td style={CELL}>
+        {priceOnly ? <div style={{ height: 'var(--board-spark-h)' }} /> : (
           <BoardSparkline itemId={item.id} basePrice={curPrice} tone={disp.tone} />
         )}
       </td>
 
       {/* 基準値(寄り付き) */}
-      <td className="px-4 py-3 text-slate-500 text-right tabular-nums text-lg">{baseCell}</td>
+      <td style={{ ...CELL, fontSize: 'var(--board-sub)' }} className="text-slate-500 text-right tabular-nums">{baseCell}</td>
 
       {/* 現在値 */}
-      <td className="px-4 py-3 text-[#ffd36b] font-semibold text-right tabular-nums text-[2.125rem]">
+      <td style={{ ...CELL, fontSize: 'var(--board-price)' }} className="text-[#ffd36b] font-semibold text-right tabular-nums">
         {isJika ? '時価' : `¥${yen(curPrice)}`}
       </td>
 
       {/* 変動幅(%) */}
-      <td className={`px-4 py-3 font-semibold text-right tabular-nums text-[1.375rem] ${changeColor}`}>
+      <td style={{ ...CELL, fontSize: 'var(--board-name)' }} className={`font-semibold text-right tabular-nums ${changeColor}`}>
         {pctDisplay}
       </td>
 
       {/* 同日高値（レジオープン以降の最高値・価格のみ表示商品は空欄） */}
-      <td className="px-4 py-3 text-slate-400 text-right tabular-nums text-lg">
+      <td style={{ ...CELL, fontSize: 'var(--board-sub)' }} className="text-slate-400 text-right tabular-nums">
         {priceOnly ? '—' : `¥${yen(item.day_high ?? curPrice)}`}
       </td>
 
       {/* 同日底値（レジオープン以降の最安値・価格のみ表示商品は空欄） */}
-      <td className="px-4 py-3 text-slate-400 text-right tabular-nums text-lg">
+      <td style={{ ...CELL, fontSize: 'var(--board-sub)' }} className="text-slate-400 text-right tabular-nums">
         {priceOnly ? '—' : `¥${yen(item.day_low ?? curPrice)}`}
       </td>
     </tr>

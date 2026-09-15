@@ -5,7 +5,8 @@ export default function CategoryHeaderRow({ name, continued = false }) {
     <tr className="border-b border-slate-700/60">
       <td
         colSpan={7}
-        className="board-display px-4 py-2.5 text-[#ff9d3c] text-[1.75rem] font-bold uppercase tracking-[0.3em]"
+        style={{ padding: 'var(--board-row-py) var(--board-cell-px)', fontSize: 'var(--board-cat)', lineHeight: 1.15 }}
+        className="board-display text-[#ff9d3c] font-bold uppercase tracking-[0.3em]"
       >
         {name}
         {continued && (

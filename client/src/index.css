@@ -155,6 +155,25 @@ body {
 .seesaw-lose { animation: seesaw-lose-blink 0.6s ease-in-out 5; }
 
 /* ===== 価格ボード(取引所ビッグボード)用 ===== */
+/* 文字・余白をビューポート高さに追従させる(低解像度モニタで行数を確保するため)。
+   clamp の上限は従来の固定値と同値なので、1080p 以上の表示は一切変わらない。
+   vh 係数は 1080px 時に従来値と一致するよう算出(例: 22px / 1080px = 2.04vh)。 */
+.board-viewport {
+  --board-name:     clamp(0.80rem, 2.04vh, 1.375rem);  /* 商品名・変動幅%  最大22px */
+  --board-price:    clamp(1.10rem, 3.15vh, 2.125rem);  /* 現在値            最大34px */
+  --board-sub:      clamp(0.70rem, 1.67vh, 1.125rem);  /* 基準値・高値・底値 最大18px */
+  --board-cat:      clamp(0.95rem, 2.59vh, 1.75rem);   /* カテゴリ見出し     最大28px */
+  --board-badge:    clamp(0.70rem, 1.67vh, 1.125rem);  /* 段数バッジ         最大18px */
+  --board-row-py:   clamp(3px,     1.00vh, 12px);      /* 行の上下余白       最大12px */
+  --board-cell-px:  clamp(6px,     1.48vh, 16px);      /* セルの左右余白     最大16px */
+  --board-spark-h:  clamp(16px,    3.33vh, 36px);      /* スパークライン高   最大36px */
+  --board-title:    clamp(1.75rem, 5.19vh, 3.5rem);    /* FANZONE EXCHANGE  最大56px */
+  --board-clock:    clamp(1.40rem, 4.26vh, 2.875rem);  /* 時計              最大46px */
+  --board-tick:     clamp(0.80rem, 2.04vh, 1.375rem);  /* ティッカー        最大22px */
+  --board-pad:      clamp(12px,    2.96vh, 32px);      /* 画面外周の余白    最大32px */
+  --board-th:       clamp(0.60rem, 1.30vh, 0.875rem);  /* 列見出し          最大14px */
+}
+
 /* フォント: 数値=等幅(IBM Plex Mono) / 見出し=Barlow Condensed。未読込時はシステムへフォールバック。 */
 .board-mono    { font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; }
 .board-display { font-family: 'Barlow Condensed', 'Oswald', 'Hiragino Sans', sans-serif; }

@@ -30,7 +30,7 @@ export default function BoardSparkline({ itemId, basePrice, tone = 'flat' }) {
     .filter((p) => Number.isFinite(p) && p >= 0);
   if (prices.length < 2) {
     // データ不足時は高さを維持する空要素(行の高さブレ防止)
-    return <div style={{ height: 36, width: '100%' }} />;
+    return <div style={{ height: 'var(--board-spark-h)', width: '100%' }} />;
   }
 
   const color = TONE_COLOR[tone] ?? TONE_COLOR.flat;
@@ -48,7 +48,7 @@ export default function BoardSparkline({ itemId, basePrice, tone = 'flat' }) {
     <svg
       viewBox="0 0 100 30"
       preserveAspectRatio="none"
-      style={{ display: 'block', width: '100%', height: 36 }}
+      style={{ display: 'block', width: '100%', height: 'var(--board-spark-h)' }}
       aria-hidden="true"
     >
       <polyline
