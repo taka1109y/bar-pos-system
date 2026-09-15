@@ -5,15 +5,16 @@ import { cn } from '../ui/cn';
 // props: navGroups, view, onSelect(id), open(bool), onToggle()
 // 折りたたみ時(既定)は w-16 のアイコンのみ、展開時は w-60 でラベル表示。
 // 外部/内部リンク(価格ボード・キッチン・テーブル選択)はフッターに固定。
+// ※2026-09-15: 価格ボード・キッチンは top:true でナビ最上部へ移動。フッターはテーブル選択のみ。
 
 // サイドバー下部リンク(業務画面への遷移)。外部=別タブ、内部=同タブ navigate。
 const FOOTER_LINKS = [
   {
-    href: '/board', label: '価格ボード', external: true,
+    href: '/board', label: '価格ボード', external: true, top: true,
     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>,
   },
   {
-    href: '/kitchen', label: 'キッチン', external: false,
+    href: '/kitchen', label: 'キッチン', external: false, top: true,
     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1" /><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" /><line x1="6" y1="1" x2="6" y2="4" /><line x1="10" y1="1" x2="10" y2="4" /><line x1="14" y1="1" x2="14" y2="4" /></svg>,
   },
   {
@@ -21,6 +22,31 @@ const FOOTER_LINKS = [
     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5" /><line x1="12" y1="2" x2="12" y2="4" /><line x1="12" y1="20" x2="12" y2="22" /><line x1="2" y1="12" x2="4" y2="12" /><line x1="20" y1="12" x2="22" y2="12" /></svg>,
   },
 ];
+
+// サイドバーのリンク1件。上部ブロックとフッターの両方から使う。
+// 外部=別タブ(target=_blank)、内部=同タブ navigate。見た目は従来のフッターリンクと同一。
+function SideLink({ href, label, icon, external, open, navigate }) {
+  const cls = cn(
+    'w-full rounded-lg transition-colors flex items-center cursor-pointer text-muted hover:bg-surface-hover hover:text-heading',
+    open ? 'gap-2.5 px-2.5 h-10 text-left' : 'justify-center h-10'
+  );
+  const inner = (
+    <>
+      <span className="flex-shrink-0 [&>svg]:w-full [&>svg]:h-full w-5 h-5">{icon}</span>
+      {open && <span className="text-sm font-medium flex-1 truncate">{label}</span>}
+      {open && external && <span className="text-2xs text-faint">↗</span>}
+    </>
+  );
+  return external ? (
+    <a href={href} target="_blank" rel="noopener noreferrer" className={cls} aria-label={!open ? label : undefined} title={!open ? label : undefined}>
+      {inner}
+    </a>
+  ) : (
+    <button type="button" onClick={() => navigate(href)} className={cls} aria-label={!open ? label : undefined} title={!open ? label : undefined}>
+      {inner}
+    </button>
+  );
+}
 
 // 開閉トグル(chevron)。open で ‹、collapsed で ›。
 function ToggleIcon({ open }) {
@@ -64,6 +90,13 @@ export default function Sidebar({ navGroups, view, onSelect, open, onToggle }) {
 
       {/* ナビゲーション */}
       <nav aria-label="メインナビゲーション" className="flex-1 overflow-y-auto py-2 px-2">
+        {/* 上部リンク(価格ボード・キッチン)。営業中に開く画面なので最上部に固定。 */}
+        <div className="pb-2 mb-1 border-b border-line space-y-0.5">
+          {FOOTER_LINKS.filter((l) => l.top).map((l) => (
+            <SideLink key={l.href} {...l} open={open} navigate={navigate} />
+          ))}
+        </div>
+
         {navGroups.map((group, gi) => (
           <div key={group.label} className={gi > 0 ? 'mt-2 pt-2 border-t border-line' : ''}>
             {open ? (
@@ -99,30 +132,11 @@ export default function Sidebar({ navGroups, view, onSelect, open, onToggle }) {
           </div>
         ))}
 
-        {/* フッターリンク */}
+        {/* フッターリンク(top 指定のないもの) */}
         <div className="mt-2 pt-2 border-t border-line space-y-0.5">
-          {FOOTER_LINKS.map(({ href, label, icon, external }) => {
-            const cls = cn(
-              'w-full rounded-lg transition-colors flex items-center cursor-pointer text-muted hover:bg-surface-hover hover:text-heading',
-              open ? 'gap-2.5 px-2.5 h-10 text-left' : 'justify-center h-10'
-            );
-            const inner = (
-              <>
-                <span className="flex-shrink-0 [&>svg]:w-full [&>svg]:h-full w-5 h-5">{icon}</span>
-                {open && <span className="text-sm font-medium flex-1 truncate">{label}</span>}
-                {open && external && <span className="text-2xs text-faint">↗</span>}
-              </>
-            );
-            return external ? (
-              <a key={href} href={href} target="_blank" rel="noopener noreferrer" className={cls} aria-label={!open ? label : undefined} title={!open ? label : undefined}>
-                {inner}
-              </a>
-            ) : (
-              <button key={href} type="button" onClick={() => navigate(href)} className={cls} aria-label={!open ? label : undefined} title={!open ? label : undefined}>
-                {inner}
-              </button>
-            );
-          })}
+          {FOOTER_LINKS.filter((l) => !l.top).map((l) => (
+            <SideLink key={l.href} {...l} open={open} navigate={navigate} />
+          ))}
         </div>
       </nav>
     </aside>
