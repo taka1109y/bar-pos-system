@@ -114,6 +114,37 @@ function ConfirmModal({ item, title, confirmLabel, confirmClass, onConfirm, onCl
   );
 }
 
+// 一括提供完了の確認。単品用 ConfirmModal は item 前提のため、件数だけを見せる専用モーダルを分ける。
+function ConfirmAllModal({ count, onConfirm, onClose, isPending }) {
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 fade-in">
+      <div className="bg-white border border-slate-200 rounded-xl p-6 w-80 shadow-xl pop-in">
+        <h3 className="text-base font-bold text-slate-900 mb-2">すべて提供完了</h3>
+        <p className="text-sm text-slate-700 mb-5">
+          表示中の <span className="text-slate-900 font-bold">{count} 件</span> をすべて提供完了にします。
+          <span className="block text-xs text-slate-500 mt-1.5">この操作は取り消せません。</span>
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={isPending}
+            className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-700 text-sm font-medium rounded-lg transition-colors"
+          >
+            戻る
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isPending}
+            className="flex-1 py-2.5 bg-primary-500 hover:bg-primary-700 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors"
+          >
+            {isPending ? '処理中...' : '完了にする'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function KitchenPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -121,6 +152,7 @@ export default function KitchenPage() {
   const [recipeTarget, setRecipeTarget] = useState(null);
   const [serveTarget, setServeTarget] = useState(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isServeAllOpen, setIsServeAllOpen] = useState(false);
   const listRef = useRef(null);
   const [showScroll, setShowScroll] = useState(false);
 
@@ -140,12 +172,14 @@ export default function KitchenPage() {
     socket.on('order:updated',         refetch);
     socket.on('table:status_changed',  refetch);
     socket.on('kitchen:item_served',   refetch);
+    socket.on('kitchen:items_served',  refetch);
     socket.on('kitchen:new_item',      refetch);
     socket.on('connect',               refetch);
     return () => {
       socket.off('order:updated',        refetch);
       socket.off('table:status_changed', refetch);
       socket.off('kitchen:item_served',  refetch);
+      socket.off('kitchen:items_served', refetch);
       socket.off('kitchen:new_item',     refetch);
       socket.off('connect',              refetch);
     };
@@ -195,6 +229,15 @@ export default function KitchenPage() {
     mutationFn: (itemId) => api.serveKitchenItem(itemId),
     onSuccess: () => {
       setServeTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['kitchenOrders'] });
+    },
+  });
+
+  // 表示中のアイテムを一括で提供完了にする。対象idは画面の rows から渡す(サーバ側でpending全件を拾わない)。
+  const serveAllMutation = useMutation({
+    mutationFn: (itemIds) => api.serveAllKitchenItems(itemIds),
+    onSuccess: () => {
+      setIsServeAllOpen(false);
       queryClient.invalidateQueries({ queryKey: ['kitchenOrders'] });
     },
   });
@@ -254,6 +297,13 @@ export default function KitchenPage() {
           }`}>
             {rows.length} 件対応中
           </span>
+          <button
+            onClick={() => setIsServeAllOpen(true)}
+            disabled={rows.length === 0 || serveAllMutation.isPending}
+            className="text-xs font-bold px-3 py-1.5 rounded-lg bg-primary-500 hover:bg-primary-700 disabled:bg-slate-200 disabled:text-slate-400 text-white transition-colors cursor-pointer disabled:cursor-default"
+          >
+            すべて提供完了{rows.length > 0 ? `（${rows.length}件）` : ''}
+          </button>
           <button
             onClick={refetch}
             className="text-xs text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors font-medium"
@@ -440,6 +490,15 @@ export default function KitchenPage() {
           confirmClass="bg-primary-500 hover:bg-primary-700"
           onConfirm={() => serveMutation.mutate(serveTarget.itemId)}
           onClose={() => setServeTarget(null)}
+        />
+      )}
+
+      {isServeAllOpen && rows.length > 0 && (
+        <ConfirmAllModal
+          count={rows.length}
+          isPending={serveAllMutation.isPending}
+          onConfirm={() => serveAllMutation.mutate(rows.map((r) => r.itemId))}
+          onClose={() => setIsServeAllOpen(false)}
         />
       )}
 
