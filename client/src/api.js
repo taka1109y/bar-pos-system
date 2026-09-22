@@ -151,6 +151,7 @@ export const api = {
   // Kitchen
   getKitchenOrders: () => req('/kitchen/orders'),
   serveKitchenItem: (itemId) => req(`/kitchen/items/${itemId}/serve`, { method: 'PATCH' }),
+  serveAllKitchenItems: (itemIds) => req('/kitchen/items/serve-all', { method: 'PATCH', body: JSON.stringify({ itemIds }) }),
   getKitchenHistory: (date, since) => req(`/kitchen/history?date=${date}${since ? '&since=' + encodeURIComponent(since) : ''}`),
 
   // ログ検索

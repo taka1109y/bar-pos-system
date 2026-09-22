@@ -102,4 +102,41 @@ router.patch('/items/:itemId/serve', async (req, res, next) => {
   }
 });
 
+// PATCH /api/kitchen/items/serve-all — 画面に出ている未提供アイテムを一括で提供完了にする。
+// itemId を明示的に受け取るのは、押した瞬間に届いた新規注文まで厨房が見ないまま
+// 完了扱いになるのを防ぐため(サーバ側で pending 全件を対象にしない)。
+router.patch('/items/serve-all', async (req, res, next) => {
+  try {
+    const raw = req.body?.itemIds;
+    if (!Array.isArray(raw) || raw.length === 0) {
+      return res.status(400).json({ error: 'itemIds (non-empty array) is required' });
+    }
+    if (raw.length > 500) {
+      return res.status(400).json({ error: 'itemIds must be 500 or fewer' });
+    }
+    const itemIds = raw.map(Number).filter(Number.isInteger);
+    if (itemIds.length !== raw.length) {
+      return res.status(400).json({ error: 'itemIds must be integers' });
+    }
+
+    // 1文のUPDATEで完結させる(部分適用が起きない)。既に served のものは条件から外れるだけ。
+    const { rows } = await query(
+      `UPDATE order_items SET status = 'served'
+        WHERE id = ANY($1::int[]) AND status = 'pending'
+        RETURNING id, order_id`,
+      [itemIds]
+    );
+
+    const servedItemIds = rows.map((r) => r.id);
+    const orderIds = [...new Set(rows.map((r) => r.order_id))];
+    // 一括用の新イベント。単数の kitchen:item_served はペイロード形状を保つため据え置く。
+    if (servedItemIds.length > 0) {
+      broadcast('kitchen:items_served', { itemIds: servedItemIds, orderIds, count: servedItemIds.length });
+    }
+    res.json({ count: servedItemIds.length, itemIds: servedItemIds });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
